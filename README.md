@@ -1,15 +1,15 @@
-# Yavoy Partners
+# PIKI Partners
 
-Panel web de operaciones para los comercios asociados a **Yavoy**. Este repositorio contiene una aplicación React estática conectada exclusivamente a la API central de producción.
+Panel web de operaciones para los comercios asociados a **PIKI**. Este repositorio contiene una aplicación React estática conectada exclusivamente a la API central de producción.
 
 ## Producción
 
 | Componente | Dirección |
 | --- | --- |
-| API central | `https://yavoy-api.onrender.com` |
-| Comprobación de disponibilidad | `https://yavoy-api.onrender.com/ready` |
-| Panel temporal de Render | `https://yavoy-partners.onrender.com` |
-| Dominio objetivo | `https://partners.yavoy.es` |
+| API central | `https://piki-api.onrender.com` |
+| Comprobación de disponibilidad | `https://piki-api.onrender.com/ready` |
+| Panel temporal de Render | `https://piki-partners.onrender.com` |
+| Dominio objetivo | `https://partners.piki.es` |
 
 ## Funcionalidad inicial
 
@@ -25,7 +25,7 @@ npm run dev
 Para cambiar el backend sin modificar código, crea un archivo `.env.local`:
 
 ```bash
-VITE_API_URL=https://yavoy-api.onrender.com
+VITE_API_URL=https://piki-api.onrender.com
 ```
 
 ## Despliegue
