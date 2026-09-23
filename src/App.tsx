@@ -125,6 +125,7 @@ function App() {
   }
   function supportAction(label: string) { setToast(`${label}: el equipo de soporte recibirá tu solicitud.`); }
 
+  if (!apiToken || authRequired) return <main className="page-content"><EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);setStatus("checking")}} /></main>;
   return <div className="app-shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand-block"><div className="brand-mark">P</div><div><strong>piki</strong><span>Riders</span></div><button className="close-menu" onClick={() => setOpen(false)} aria-label="Cerrar menú"><X size={20}/></button></div>
