@@ -1,13 +1,29 @@
 {
+  "id": "/",
   "name": "PIKI Riders",
   "short_name": "PIKI Riders",
   "description": "Solicita tu alta y gestiona tu jornada de reparto en PIKI.",
+  "lang": "es-ES",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#f5f7fb",
   "theme_color": "#c9ff60",
-  "lang": "es",
+  "categories": ["business", "travel", "utilities"],
   "icons": [
-    { "src": "/piki-icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/piki-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/piki-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/piki-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "/screenshot-rider-mobile.png", "sizes": "540x960", "type": "image/png", "form_factor": "narrow", "label": "Panel PIKI Riders en móvil" },
+    { "src": "/screenshot-rider-operations.png", "sizes": "540x960", "type": "image/png", "form_factor": "narrow", "label": "Operación de reparto PIKI" }
+  ],
+  "shortcuts": [
+    { "name": "Iniciar jornada", "short_name": "Jornada", "url": "/?section=Horarios", "icons": [{ "src": "/piki-icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Ver cartera", "short_name": "Cartera", "url": "/?section=Cartera", "icons": [{ "src": "/piki-icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Abrir soporte", "short_name": "Soporte", "url": "/?section=Soporte", "icons": [{ "src": "/piki-icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }
