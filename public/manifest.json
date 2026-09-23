@@ -1,0 +1,13 @@
+{
+  "name": "PIKI Riders",
+  "short_name": "PIKI Riders",
+  "description": "Solicita tu alta y gestiona tu jornada de reparto en PIKI.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#c9ff60",
+  "lang": "es",
+  "icons": [
+    { "src": "/piki-icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
