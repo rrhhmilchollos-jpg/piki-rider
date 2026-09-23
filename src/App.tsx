@@ -8,7 +8,7 @@ type Status = "checking" | "ready" | "unavailable";
 type ApplicationStatus = "idle" | "sending" | "sent" | "error";
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
 const tokenStorageKey = `piki-${location.hostname}-api-token`;
-function authHeaders(token: string) { return token ? { Authorization: `Bearer ${token}` } : {}; }
+function authHeaders(token: string): Record<string, string> { return token.trim() ? { Authorization: `Bearer ${token.trim()}` } : {}; }
 const nav = [["Inicio", LayoutDashboard], ["Ofertas", Bell], ["Entregas", ClipboardList], ["Mapa", MapPinned], ["Solicitar alta", FileText], ["Cuenta", Settings]] as const;
 
 function App() {
