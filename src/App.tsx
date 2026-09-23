@@ -126,6 +126,7 @@ function App() {
   function supportAction(label: string) { setToast(`${label}: el equipo de soporte recibirá tu solicitud.`); }
 
   if (!apiToken || authRequired) return <main className="page-content"><EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);setStatus("checking")}} /></main>;
+  if (shiftActive) return <ActiveShiftView onMenu={() => setOpen(true)} onSupport={() => showSection("Soporte")} onStop={toggleShift} toast={toast} />;
   return <div className="app-shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand-block"><div className="brand-mark">P</div><div><strong>piki</strong><span>Riders</span></div><button className="close-menu" onClick={() => setOpen(false)} aria-label="Cerrar menú"><X size={20}/></button></div>
@@ -149,6 +150,22 @@ function App() {
       </section>
     </main>
   </div>;
+}
+
+function ActiveShiftView({ onMenu, onSupport, onStop, toast }: { onMenu: () => void; onSupport: () => void; onStop: () => void; toast: string }) {
+  return <main className="active-shift-shell">
+    <section className="active-map" aria-label="Mapa operativo de demanda">
+      <div className="active-map-grid"/><div className="active-road road-a"/><div className="active-road road-b"/><div className="active-road road-c"/>
+      <span className="map-town town-xativa">Xàtiva</span><span className="map-town town-canals">Canals</span><span className="map-town town-novelé">Novetlé</span><span className="map-town town-genoves">El Genovés</span>
+      <div className="active-heat heat-one"/><div className="active-heat heat-two"/><div className="active-heat heat-three"/>
+      <button className="active-menu-button" onClick={onMenu} aria-label="Abrir menú"><Menu size={25}/></button>
+      <div className="online-pill"><span className="online-dot"/><span>Estado</span><strong>En línea</strong></div>
+      <button className="active-help-button" onClick={onSupport} aria-label="Abrir soporte"><Headphones size={24}/></button>
+      <div className="active-location"><span className="location-ring"/><span>Tu ubicación</span></div>
+      <section className="active-bottom-sheet"><p className="active-eyebrow">PIKI · JORNADA ACTIVA</p><h1>Buscando pedidos…</h1><p>En las áreas rojas podrás recibir pedidos más rápido.</p><div className="active-sheet-actions"><button onClick={onStop} className="active-stop-button"><Power size={17}/> Finalizar jornada</button><button onClick={onSupport} className="active-support-button"><Headphones size={17}/> Soporte</button></div></section>
+    </section>
+    {toast && <div className="toast active-toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
+  </main>;
 }
 
 function FeatureHeading({ eyebrow, title, lead, icon }: { eyebrow: string; title: string; lead: string; icon: React.ReactNode }) { return <div className="feature-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="lead">{lead}</p></div><div className="feature-icon">{icon}</div></div>; }
