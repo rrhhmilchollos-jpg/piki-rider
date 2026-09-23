@@ -1,4 +1,4 @@
-const CACHE = 'piki-riders-v2';
+const CACHE = 'piki-riders-v3';
 const APP_SHELL = ['/', '/manifest.json', '/piki-icon-192.png', '/piki-icon-512.png'];
 
 self.addEventListener('install', (event) => {

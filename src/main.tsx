@@ -4,7 +4,11 @@ import './index.css'
 import App from './App.tsx'
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'))
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((registration) => {
+      void registration.update()
+    })
+  })
 }
 
 createRoot(document.getElementById('root')!).render(
