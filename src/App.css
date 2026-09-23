@@ -92,3 +92,5 @@ h1 { margin: 0; max-width: 680px; font-size: clamp(34px,4vw,49px); letter-spacin
 .metric-card small { color: #94a0b2; font-size: 11px; }
 @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 480px) { .metric-grid { grid-template-columns: 1fr; } }
+
+.token-card{display:grid;gap:10px;margin-bottom:22px;padding:18px;border:1px solid #d9e1d7;border-radius:18px;background:#fffdf5;box-shadow:0 8px 22px rgba(40,50,40,.06)}.token-card span{font-size:13px;color:#68746a}.token-card input{width:100%;padding:12px;border:1px solid #d7ded5;border-radius:12px;background:#fff}.token-card button{justify-self:start;padding:11px 16px;border:0;border-radius:999px;background:#171715;color:#ffd72e;font-weight:800;cursor:pointer}
