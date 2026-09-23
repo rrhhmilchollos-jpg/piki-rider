@@ -67,6 +67,9 @@ h1 { margin: 0; max-width: 680px; font-size: clamp(34px,4vw,49px); letter-spacin
 .partner-form input { width: 100%; color: #1e2d46; background: #fbfcfe; border: 1px solid #dce4ef; border-radius: 9px; padding: 13px 14px; outline: none; font: inherit; font-size: 14px; transition: border-color 160ms ease, box-shadow 160ms ease; }
 .partner-form input:focus { border-color: #96bd42; box-shadow: 0 0 0 3px rgba(165,205,77,.15); background: #fff; }
 .form-submit { margin-top: 4px; justify-self: start; min-width: 176px; }
+.partner-form select { width: 100%; color: #1e2d46; background: #fbfcfe; border: 1px solid #dce4ef; border-radius: 9px; padding: 13px 14px; outline: none; font: inherit; font-size: 14px; }
+.partner-form select:focus { border-color: #96bd42; box-shadow: 0 0 0 3px rgba(165,205,77,.15); background: #fff; }
+.honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; }
 .form-error { color: #bd3e54; background: #fff0f1; border-radius: 8px; padding: 10px 12px; margin: -3px 0 0; font-size: 12px; }
 .form-success { display: flex; align-items: flex-start; gap: 9px; color: #3d7d2c; background: #eff9eb; border-radius: 8px; padding: 11px 12px; font-size: 12px; line-height: 1.45; }
 .form-success svg { flex: 0 0 auto; margin-top: 1px; }
