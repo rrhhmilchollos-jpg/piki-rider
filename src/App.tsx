@@ -12,7 +12,8 @@ import EmployeeAuthGate from "./EmployeeAuthGate";
 type Overview = { registered_riders: number; unassigned_orders: number; active_deliveries: number; completed_today: number };
 type Status = "checking" | "ready" | "unavailable";
 type ApplicationStatus = "idle" | "sending" | "sent" | "error";
-type Shift = { day: string; date: string; start: string; end: string; zone: string; status: "assigned" | "pending" };
+type Shift = { day: string; date: string; start: string; end: string; zone: string; status: "assigned" | "pending" | "planned" | "active" | "completed" | "cancelled" };
+type CurrentShift = { eligible: boolean; now?: { date: string; time: string }; shift?: Shift | null };
 type Stats = { completed: number; cancelled: number; accepted: number; rating: string; distance: string };
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
@@ -35,6 +36,8 @@ function App() {
   const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>("idle");
   const [error, setError] = useState("");
   const [shiftActive, setShiftActive] = useState(false);
+  const [riderId, setRiderId] = useState("");
+  const [currentShift, setCurrentShift] = useState<CurrentShift>({ eligible: false });
   const [toast, setToast] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({ completed: 0, cancelled: 0, accepted: 0, rating: "—", distance: "—" });
@@ -53,13 +56,25 @@ function App() {
     if (!apiToken) return;
     const headers = authHeaders(apiToken);
     try {
-      const [slotResponse, statsResponse] = await Promise.all([
-        fetch(`${apiOrigin}/api/v1/riders/slots`, { headers }),
+      const sessionResponse = await fetch(`${apiOrigin}/api/v1/riders/session`, { headers });
+      if (!sessionResponse.ok) return;
+      const sessionData = await sessionResponse.json() as { rider?: { id?: string; status?: string } };
+      const id = String(sessionData.rider?.id || "");
+      if (!id) return;
+      setRiderId(id);
+      const [slotResponse, statsResponse, shiftResponse] = await Promise.all([
+        fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers }),
         fetch(`${apiOrigin}/api/v1/riders/statistics`, { headers }),
+        fetch(`${apiOrigin}/api/v1/riders/${id}/shift`, { headers }),
       ]);
       if (slotResponse.ok) {
         const data = await slotResponse.json() as { slots?: Shift[] };
         setShifts(Array.isArray(data.slots) ? data.slots : []);
+      }
+      if (shiftResponse.ok) {
+        const data = await shiftResponse.json() as CurrentShift;
+        setCurrentShift(data);
+        setShiftActive(data.shift?.status === "active");
       }
       if (statsResponse.ok) {
         const data = await statsResponse.json() as { statistics?: Partial<Stats> };
@@ -87,7 +102,27 @@ function App() {
   const showApplication = section === "Solicitar alta";
 
   function showSection(next: string) { setSection(next); setOpen(false); }
-  function toggleShift() { setShiftActive(value => !value); setToast(shiftActive ? "Jornada finalizada. Buen trabajo." : "Jornada iniciada. Ya puedes recibir ofertas."); }
+  async function toggleShift() {
+    if (!riderId) { setToast("No hay una cuenta Rider vinculada a esta sesión."); return; }
+    const endpoint = shiftActive ? "stop" : "start";
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`, { method: "POST", headers: authHeaders(apiToken) });
+      const data = await response.json() as { message?: string; error?: string; shift?: Shift; now?: { date: string; time: string } };
+      if (!response.ok) {
+        setToast(data.message || "No puedes iniciar: no hay un turno reservado activo.");
+        return;
+      }
+      setShiftActive(!shiftActive);
+      setCurrentShift(previous => ({ ...previous, eligible: !shiftActive, shift: data.shift ?? previous.shift }));
+      if (!shiftActive && typeof window !== "undefined") {
+        const audio = new AudioContext();
+        const oscillator = audio.createOscillator(); const gain = audio.createGain();
+        oscillator.frequency.value = 880; gain.gain.value = 0.12; oscillator.connect(gain); gain.connect(audio.destination);
+        oscillator.start(); oscillator.stop(audio.currentTime + 0.45);
+      }
+      setToast(shiftActive ? "Jornada finalizada. Buen trabajo." : "Jornada iniciada. Aviso sonoro activado.");
+    } catch { setToast("No se pudo validar el turno con la API."); }
+  }
   function supportAction(label: string) { setToast(`${label}: el equipo de soporte recibirá tu solicitud.`); }
 
   return <div className="app-shell">
@@ -103,7 +138,7 @@ function App() {
         {toast && <div className="toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
         {authRequired && <EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);setStatus("checking")}} />}
         {showApplication ? <section className="application-layout"><div className="page-heading"><div><p className="eyebrow">PIKI · FLEET</p><h1>Únete a la red de riders.</h1><p className="lead">Solicita tu alta en PIKI. El equipo Fleet revisará tus datos, vehículo y disponibilidad antes de activar tu cuenta.</p></div></div><div className="onboarding-grid"><article className="process-card"><span className="step-number">01</span><h2>Cómo funciona</h2><p>Envía tus datos y te contactaremos para validar documentación, zona y disponibilidad.</p><div className="process-line"/><span className="step-number muted-step">02</span><h2>Revisión Fleet</h2><p>Un responsable de zona revisa tu solicitud y agenda la activación.</p><div className="process-line"/><span className="step-number muted-step">03</span><h2>Primer turno</h2><p>Tras la aprobación, recibirás acceso a ofertas y podrás conectarte en tu zona.</p></article><form className="partner-form" onSubmit={submitApplication}><label>Nombre y apellidos<input name="name" required minLength={2} placeholder="Ej. Marta García"/></label><label>Email<input name="email" type="email" required placeholder="marta@email.com"/></label><label>Teléfono<input name="phone" required minLength={6} placeholder="600 000 000"/></label><label>Ciudad de reparto<input name="city" required defaultValue="Xàtiva"/></label><label>Vehículo<select name="vehicle" defaultValue="electric_scooter"><option value="bike">Bicicleta normal</option><option value="electric_bike">Bicicleta eléctrica</option><option value="electric_scooter">Patinete eléctrico</option><option value="motorcycle">Moto</option><option value="car">Coche</option></select></label><label>Disponibilidad<input name="availability" required placeholder="Tardes y fines de semana"/></label><input name="website" className="honeypot" tabIndex={-1} autoComplete="off" aria-hidden="true"/><p className="form-hint">Nunca compartiremos tus datos fuera del proceso de selección de PIKI.</p>{applicationStatus === "error" && <p className="form-error">{error}</p>}{applicationStatus === "sent" && <p className="form-success">Solicitud recibida. El equipo Fleet se pondrá en contacto contigo.</p>}<button className="primary-button form-submit" disabled={applicationStatus === "sending"}>{applicationStatus === "sending" ? "Enviando…" : "Enviar solicitud"}<ChevronRight size={17}/></button></form></div></section> : <>
-          {section === "Horarios" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · HORARIOS" title="Tus turnos, claros antes de salir." lead="El Fleet de tu zona asigna los turnos. Solo tú puedes consultar tus horas y días disponibles." icon={<CalendarDays/>}/><div className="shift-toolbar"><div><strong>Calendario de jornada</strong><span>Asignaciones recibidas desde Fleet</span></div><span className="zone-chip">Zona Xàtiva</span></div><div className="schedule-grid">{activeShifts.map(shift => <article className={`schedule-day ${shift.status}`} key={shift.day}><span>{shift.day}</span><strong>{shift.date || "Sin fecha"}</strong>{shift.start ? <><b>{shift.start} – {shift.end}</b><small>{shift.zone || "Zona asignada"}</small></> : <small>Sin turno asignado</small>}</article>)}</div><div className="shift-action"><Clock3 size={20}/><div><strong>{shiftActive ? "Jornada activa" : "Jornada cerrada"}</strong><span>{shiftActive ? "Puedes recibir ofertas en tu zona." : "Inicia cuando llegue tu turno asignado."}</span></div><button className="primary-button" onClick={toggleShift}><Power size={16}/>{shiftActive ? "Finalizar jornada" : "Iniciar jornada"}</button></div></section>}
+          {section === "Horarios" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · HORARIOS" title="Tus turnos, claros antes de salir." lead="El Fleet de tu zona asigna los turnos. Solo tú puedes consultar tus horas y días disponibles." icon={<CalendarDays/>}/><div className="shift-toolbar"><div><strong>Calendario de jornada</strong><span>Asignaciones recibidas desde Fleet</span></div><span className="zone-chip">Zona Xàtiva</span></div><div className="schedule-grid">{activeShifts.map(shift => <article className={`schedule-day ${shift.status}`} key={shift.day}><span>{shift.day}</span><strong>{shift.date || "Sin fecha"}</strong>{shift.start ? <><b>{shift.start} – {shift.end}</b><small>{shift.zone || "Zona asignada"}</small></> : <small>Sin turno asignado</small>}</article>)}</div><div className="shift-action"><Clock3 size={20}/><div><strong>{shiftActive ? "Jornada activa" : "Jornada cerrada"}</strong><span>{shiftActive ? "Puedes recibir ofertas en tu zona." : currentShift.eligible ? "Tu turno está abierto: puedes iniciar ahora." : "El botón se activa únicamente durante tu turno reservado."}</span></div><button className="primary-button" disabled={!shiftActive && !currentShift.eligible} onClick={toggleShift}><Power size={16}/>{shiftActive ? "Finalizar jornada" : currentShift.eligible ? "Iniciar jornada" : "Fuera de horario"}</button></div></section>}
           {section === "Cartera" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · CARTERA" title="Tu dinero, siempre bajo control." lead="Consulta ingresos, incentivos, propinas y próximos pagos con trazabilidad." icon={<WalletCards/>}/><div className="wallet-card"><div><span>Saldo disponible</span><strong>€ —</strong><small>Se mostrará cuando existan liquidaciones confirmadas.</small></div><WalletCards size={42}/></div><div className="wallet-grid"><article className="wallet-stat"><ArrowUpRight/><span>Ingresos de entregas</span><strong>€ —</strong></article><article className="wallet-stat"><ArrowDownLeft/><span>Propinas e incentivos</span><strong>€ —</strong></article><article className="wallet-stat"><CreditCard/><span>Próximo pago</span><strong>Pendiente</strong></article></div><div className="empty-card"><div className="empty-card-top"><span>MOVIMIENTOS</span><FileText size={18}/></div><h2>Aún no hay movimientos.</h2><p>Las liquidaciones aparecerán aquí después de completar entregas y superar la validación operativa.</p></div></section>}
           {section === "Estadísticas" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · ESTADÍSTICAS" title="Mejora con cada entrega." lead="Métricas personales de pedidos aceptados, completados, cancelados y calidad." icon={<Activity/>}/><div className="stats-grid"><StatCard label="Completadas" value={stats.completed} tone="positive"/><StatCard label="Canceladas" value={stats.cancelled} tone="negative"/><StatCard label="Aceptadas" value={stats.accepted} tone="neutral"/><StatCard label="Valoración" value={stats.rating} tone="positive"/></div><div className="stats-panel"><div className="stats-panel-head"><div><span>RENDIMIENTO</span><h2>Resumen de actividad</h2></div><Zap size={22}/></div><div className="progress-row"><span>Tasa de aceptación</span><div className="progress"><i style={{width: stats.accepted ? "78%" : "0%"}}/></div><b>{stats.accepted ? "—" : "Sin datos"}</b></div><div className="progress-row"><span>Distancia recorrida</span><div className="progress"><i className="purple" style={{width: stats.distance !== "—" ? "64%" : "0%"}}/></div><b>{stats.distance}</b></div></div></section>}
           {section === "Mapa" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · MAPA OPERATIVO" title="Más demanda, más cerca de ti." lead="Visualiza las zonas activas y los puntos de demanda. El mapa real se alimentará de pedidos y ubicación consentida." icon={<MapPinned/>}/><div className="heatmap"><div className="map-label label-one">Centro · demanda alta</div><div className="map-label label-two">Estación · demanda media</div><div className="map-label label-three">Norte · cobertura</div><div className="heat-point heat-a"/><div className="heat-point heat-b"/><div className="heat-point heat-c"/><div className="heat-point heat-d"/><div className="map-roads road-one"/><div className="map-roads road-two"/><div className="map-controls"><button onClick={() => setToast("Ubicación centrada en tu zona.")}><Navigation size={16}/>Centrar</button><span><i className="legend-high"/> Alta</span><span><i className="legend-mid"/> Media</span></div></div></section>}
