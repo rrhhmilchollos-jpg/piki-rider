@@ -9,3 +9,11 @@
 
 /* Fresh deployment marker: 20260923231204 */
 .daily-deliveries{display:grid;gap:8px}.daily-delivery-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #e8edf0}.daily-delivery-row:last-child{border-bottom:0}.daily-delivery-row span{color:#687782;font-size:12px}.daily-delivery-row strong{font-size:19px;color:#14213d}.daily-delivery-row small{color:#7a8790;font-size:11px}
+
+/* Google Maps real: no se usan mapas dibujados ni datos simulados. */
+.real-google-map-section{position:relative;background:#e8eef3}
+.real-map-shell{position:absolute;inset:0}
+.google-map-canvas{position:absolute;inset:0;min-height:100%;background:#e8eef3}
+.real-map-status{position:absolute;left:50%;top:92px;transform:translateX(-50%);display:flex;gap:12px;align-items:center;z-index:4;padding:9px 14px;border-radius:16px;background:#111;color:#fff;font-size:12px;white-space:nowrap;box-shadow:0 5px 14px rgba(0,0,0,.25)}
+.real-map-status strong{color:#c9f36d}
+.gps-dot{width:9px;height:9px;border-radius:50%;background:#84cc16;box-shadow:0 0 0 4px rgba(132,204,22,.18)}
