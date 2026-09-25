@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   Activity, ArrowDownLeft, ArrowUpRight, Bell, Bike, CalendarDays, ChevronRight,
@@ -15,6 +15,7 @@ type ApplicationStatus = "idle" | "sending" | "sent" | "error";
 type Shift = { day: string; date: string; start: string; end: string; zone: string; status: "assigned" | "pending" | "planned" | "active" | "completed" | "cancelled" };
 type CurrentShift = { eligible: boolean; now?: { date: string; time: string }; shift?: Shift | null };
 type Stats = { completed: number; cancelled: number; accepted: number; rating: string; distance: string; dailyDeliveries: Array<{ date: string; completed: number }> };
+type RiderOffer = { _id: string; publicCode?: string; assignmentState: "offered" | "assigned"; assignmentExpiresAt?: string | null };
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
 const tokenStorageKey = `piki-${location.hostname}-api-token`;
@@ -40,6 +41,31 @@ function App() {
   const [toast, setToast] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({ completed: 0, cancelled: 0, accepted: 0, rating: "—", distance: "—", dailyDeliveries: [] });
+  const knownOfferIdsRef = useRef<Set<string> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  function playAssignmentAlert() {
+    try {
+      const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const audio = audioContextRef.current ?? new AudioContextCtor();
+      audioContextRef.current = audio;
+      void audio.resume();
+      const now = audio.currentTime;
+      [0, 0.18, 0.36].forEach((offset, index) => {
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.value = index === 1 ? 1046 : 880;
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.16, now + offset + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.15);
+        oscillator.connect(gain); gain.connect(audio.destination);
+        oscillator.start(now + offset); oscillator.stop(now + offset + 0.16);
+      });
+      if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
+    } catch { /* The device may block audio until the next user gesture. */ }
+  }
 
   const loadRiderData = useCallback(async () => {
     if (!apiToken) return;
@@ -74,6 +100,26 @@ function App() {
 
   useEffect(() => { const timer = window.setTimeout(() => { void loadRiderData(); }, 0); return () => window.clearTimeout(timer); }, [loadRiderData]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 3500); return () => window.clearTimeout(timer); }, [toast]);
+  useEffect(() => {
+    if (!apiToken || !riderId || !shiftActive) { knownOfferIdsRef.current = null; return; }
+    let disposed = false;
+    const pollOffers = async () => {
+      try {
+        const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, { headers: authHeaders(apiToken) });
+        if (!response.ok || disposed) return;
+        const data = await response.json() as { offers?: RiderOffer[] };
+        const offers = Array.isArray(data.offers) ? data.offers : [];
+        const currentIds = new Set(offers.map(offer => String(offer._id)));
+        if (knownOfferIdsRef.current === null) { knownOfferIdsRef.current = currentIds; return; }
+        const hasNewOffer = offers.some(offer => !knownOfferIdsRef.current?.has(String(offer._id)));
+        knownOfferIdsRef.current = currentIds;
+        if (hasNewOffer) { playAssignmentAlert(); setToast("Nuevo reparto asignado. Revisa tus ofertas."); }
+      } catch { /* Keep the rider operational if a polling request is briefly unavailable. */ }
+    };
+    void pollOffers();
+    const timer = window.setInterval(() => { void pollOffers(); }, 5000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [apiToken, riderId, shiftActive]);
 
   async function submitApplication(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setApplicationStatus("sending"); setError("");
