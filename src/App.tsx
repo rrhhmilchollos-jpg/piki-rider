@@ -110,7 +110,17 @@ function App() {
     const headers = authHeaders(apiToken);
     try {
       const sessionResponse = await fetch(`${apiOrigin}/api/v1/riders/session`, { headers });
-      if (!sessionResponse.ok) return;
+      if (!sessionResponse.ok) {
+        if ([401, 403, 428].includes(sessionResponse.status)) {
+          sessionStorage.removeItem(tokenStorageKey);
+          setApiToken("");
+          setAuthRequired(true);
+          setRiderId("");
+          setShiftActive(false);
+          setOffers([]);
+        }
+        return;
+      }
       const sessionData = await sessionResponse.json() as { rider?: { id?: string; status?: string } };
       const id = String(sessionData.rider?.id || "");
       if (!id) return;
@@ -144,7 +154,17 @@ function App() {
     const pollOffers = async () => {
       try {
         const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, { headers: authHeaders(apiToken) });
-        if (!response.ok || disposed) return;
+        if (!response.ok || disposed) {
+          if (!disposed && [401, 403, 428].includes(response.status)) {
+            sessionStorage.removeItem(tokenStorageKey);
+            setApiToken("");
+            setAuthRequired(true);
+            setRiderId("");
+            setShiftActive(false);
+            setOffers([]);
+          }
+          return;
+        }
         const data = await response.json() as { offers?: RiderOffer[] };
         const nextOffers = Array.isArray(data.offers) ? data.offers : [];
         setOffers(nextOffers);
