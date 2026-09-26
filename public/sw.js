@@ -1,4 +1,4 @@
-const BUILD_ID = "e11aca7bc430";
+const BUILD_ID = "8dfac8f5e6e2";
 const CACHE_PREFIX = "piki-rider-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const APP_SHELL = ["/","/manifest.json","/piki-icon-192.png","/piki-icon-512.png"];
@@ -12,11 +12,17 @@ self.addEventListener("install", (event) => {
   })());
 });
 
+/* PIKI_PWA_MIGRATION_2026_09 */
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key)));
     await self.clients.claim();
+    // Old 0.2.x clients rendered a blocking update page before their asynchronous
+    // worker update could activate. A newly activated worker now moves every open
+    // PIKI window to the fresh, network-served application shell automatically.
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    await Promise.all(windows.map((client) => client.navigate(client.url).catch(() => undefined)));
   })());
 });
 

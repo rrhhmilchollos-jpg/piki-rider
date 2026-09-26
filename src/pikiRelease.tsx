@@ -191,7 +191,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       await registerWorker();
       const policy = await fetchPolicy();
       if (!isValidPolicy(policy)) throw new Error("La política de versión no es válida.");
-      const requiresUpdate = policy.forceUpdate && (policy.updateRequired === true || isNewer(policy.minimumVersion, PIKI_RELEASE.version) || policy.buildId !== PIKI_RELEASE.buildId);
+      const requiresUpdate = policy.forceUpdate && (policy.updateRequired === true || isNewer(policy.minimumVersion, PIKI_RELEASE.version));
       if (requiresUpdate) {
         setRequiredVersion(`${String(policy.version || policy.minimumVersion)} · ${policy.buildId}`);
         setState("required");
@@ -222,7 +222,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       const waiting = registration ? await waitForWaitingWorker(registration) : null;
       if (waiting && waiting.state !== "activated") waiting.postMessage({ type: "SKIP_WAITING" });
       await waitForControllerChange();
-      window.location.reload();
+      window.location.replace(`${window.location.pathname}${window.location.search}${window.location.hash}`);
     } catch (error) {
       setUpdating(false);
       setDetail(error instanceof Error ? error.message : "No se pudo descargar la actualización.");
