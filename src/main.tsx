@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import ReleaseUpdateGate from './ReleaseUpdateGate.tsx'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -13,12 +14,12 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ReleaseUpdateGate><App /></ReleaseUpdateGate>
   </StrictMode>,
 )
 
 function checkPikiMinimumVersion() {
-  const current = "0.2.1";
+  const current = "0.2.2";
   const surface = window.location.hostname.split(".")[0] || "unknown";
   const api = "https://api.pikidelivery.com";
   void fetch(`${api}/api/v1/app-version?surface=${encodeURIComponent(surface)}`, { cache: "no-store" })
