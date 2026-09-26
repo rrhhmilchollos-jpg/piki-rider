@@ -9,15 +9,14 @@ import {
 import "./App.css";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
+import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import { connectPikiRealtime } from "./realtime";
 import { loadMobilityAdvice, loadRiderOrderMessages, sendRiderOrderMessage, type RiderOrderMessage } from "./integrations/piki-api";
+import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 
 type Status = "checking" | "ready" | "unavailable";
 type ApplicationStatus = "idle" | "sending" | "sent" | "error";
-type Shift = { day: string; date: string; start: string; end: string; zone: string; status: "assigned" | "pending" | "planned" | "active" | "completed" | "cancelled" };
-type CurrentShift = { eligible: boolean; now?: { date: string; time: string }; shift?: Shift | null };
 type Stats = { completed: number; cancelled: number; accepted: number; rating: string; distance: string; dailyDeliveries: Array<{ date: string; completed: number }> };
-type RiderOffer = { _id: string; publicCode?: string; displayCode?: string | null; assignmentState: "offered" | "assigned"; assignmentExpiresAt?: string | null; status: "ready_for_pickup" | "picked_up" | "on_the_way" | "accepted" | "preparing"; phase?: string; etaMinutes?: number | null; vehicle?: string; restaurant?: { name?: string; address?: string; phone?: string; cuisine?: string; etaMinutes?: number[] }; customerName?: string | null; deliveryAddress?: string | null; items?: Array<{ name?: string; quantity?: number }> };
 type ApplicationDocumentType = "identity" | "residence_permit" | "bank_certificate" | "driving_license" | "insurance" | "vehicle_registration" | "vehicle_technical_sheet" | "scooter_responsible_declaration" | "dgt_mvp_homologation";
 
 async function encodeApplicationDocument(file: File, type: ApplicationDocumentType) {
@@ -58,7 +57,7 @@ const whatsappNumber = String(import.meta.env.VITE_WHATSAPP_HELP_NUMBER ?? "").r
 const manychatWhatsAppUrl = String(import.meta.env.VITE_MANYCHAT_WHATSAPP_URL ?? "");
 
 function App() {
-  const [section, setSection] = useState("Inicio");
+  const [section, setSection] = useState(() => new URLSearchParams(window.location.search).get("section") || "Inicio");
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("checking");
   const [authRequired, setAuthRequired] = useState(false);
@@ -66,12 +65,16 @@ function App() {
   const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>("idle");
   const [error, setError] = useState("");
   const [shiftActive, setShiftActive] = useState(false);
+  const [shiftBusy, setShiftBusy] = useState(false);
+  const [showOperations, setShowOperations] = useState(false);
   const [riderId, setRiderId] = useState("");
   const [currentShift, setCurrentShift] = useState<CurrentShift>({ eligible: false });
   const [toast, setToast] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({ completed: 0, cancelled: 0, accepted: 0, rating: "—", distance: "—", dailyDeliveries: [] });
   const [offers, setOffers] = useState<RiderOffer[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [offersError, setOffersError] = useState("");
   const [testOrderBusy, setTestOrderBusy] = useState(false);
   const [orderMessages, setOrderMessages] = useState<RiderOrderMessage[]>([]);
   const [messageDraft, setMessageDraft] = useState("");
@@ -150,9 +153,10 @@ function App() {
   useEffect(() => { const timer = window.setTimeout(() => { void loadRiderData(); }, 0); return () => window.clearTimeout(timer); }, [loadRiderData]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 3500); return () => window.clearTimeout(timer); }, [toast]);
   useEffect(() => {
-    if (!apiToken || !riderId || !shiftActive) { knownOfferIdsRef.current = null; return; }
+    if (!apiToken || !riderId || !shiftActive) { knownOfferIdsRef.current = null; setOffersLoading(false); setOffersError(""); return; }
     let disposed = false;
     const pollOffers = async () => {
+      if (!disposed) setOffersLoading(true);
       try {
         const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, { headers: authHeaders(apiToken) });
         if (!response.ok || disposed) {
@@ -164,17 +168,20 @@ function App() {
             setShiftActive(false);
             setOffers([]);
           }
+          if (!disposed) setOffersError("No se han podido sincronizar los pedidos");
           return;
         }
         const data = await response.json() as { offers?: RiderOffer[] };
         const nextOffers = Array.isArray(data.offers) ? data.offers : [];
         setOffers(nextOffers);
+        setOffersError("");
         const currentIds = new Set(nextOffers.map(offer => String(offer._id)));
         if (knownOfferIdsRef.current === null) { knownOfferIdsRef.current = currentIds; return; }
         const hasNewOffer = nextOffers.some(offer => !knownOfferIdsRef.current?.has(String(offer._id)));
         knownOfferIdsRef.current = currentIds;
         if (hasNewOffer) { lastOfferAtRef.current = Date.now(); playAssignmentAlert(); setToast("Nuevo reparto asignado. Revisa tus ofertas."); }
-      } catch { /* Keep the rider operational if a polling request is briefly unavailable. */ }
+      } catch { if (!disposed) setOffersError("La red está temporalmente disponible"); }
+      finally { if (!disposed) setOffersLoading(false); }
     };
     void pollOffers();
     const timer = window.setInterval(() => { void pollOffers(); }, 5000);
@@ -189,7 +196,7 @@ function App() {
         const data = await response.json() as { offers?: RiderOffer[] };
         setOffers(Array.isArray(data.offers) ? data.offers : []);
         lastOfferAtRef.current = Date.now();
-        playAssignmentAlert(); setToast("Nueva oferta de reparto. Revisa tus ofertas."); setSection("Ofertas");
+        setOffersError(""); playAssignmentAlert(); setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
       }).catch(() => undefined);
     } });
   }, [apiToken, riderId, shiftActive]);
@@ -251,8 +258,9 @@ function App() {
 
   function showSection(next: string) { setSection(next); setOpen(false); }
   async function toggleShift() {
-    if (!riderId) { setToast("No hay una cuenta Rider vinculada a esta sesión."); return; }
+    if (!riderId || shiftBusy) { if (!riderId) setToast("No hay una cuenta Rider vinculada a esta sesión."); return; }
     const endpoint = shiftActive ? "stop" : "start";
+    setShiftBusy(true);
     try {
       const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`, { method: "POST", headers: authHeaders(apiToken) });
       const data = await response.json() as { message?: string; error?: string; shift?: Shift; now?: { date: string; time: string } };
@@ -260,16 +268,20 @@ function App() {
         setToast(data.message || "No puedes iniciar: no hay un turno reservado activo.");
         return;
       }
-      setShiftActive(!shiftActive);
-      setCurrentShift(previous => ({ ...previous, eligible: !shiftActive, shift: data.shift ?? previous.shift }));
+      const nowActive = endpoint === "start";
+      setShiftActive(nowActive);
+      setCurrentShift(previous => ({ ...previous, eligible: !nowActive, shift: data.shift ?? previous.shift }));
+      setShowOperations(false);
       if (!shiftActive && typeof window !== "undefined") {
         const audio = new AudioContext();
         const oscillator = audio.createOscillator(); const gain = audio.createGain();
         oscillator.frequency.value = 880; gain.gain.value = 0.12; oscillator.connect(gain); gain.connect(audio.destination);
         oscillator.start(); oscillator.stop(audio.currentTime + 0.45);
       }
-      setToast(shiftActive ? "Jornada finalizada. Buen trabajo." : "Jornada iniciada. Aviso sonoro activado.");
+      setToast(nowActive ? "Jornada iniciada. Aviso sonoro activado." : "Jornada finalizada. Buen trabajo.");
+      await loadRiderData();
     } catch { setToast("No se pudo validar el turno con la API."); }
+    finally { setShiftBusy(false); }
   }
   async function createRiderTestOrder() {
     if (testOrderBusy) return;
@@ -328,6 +340,22 @@ function App() {
   }, []);
 
   if (!apiToken || authRequired) return <main className="page-content"><EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);setStatus("checking")}} /></main>;
+  if (shiftActive && !showOperations && riderId) return <ActiveShiftScreen
+    token={apiToken}
+    riderId={riderId}
+    currentShift={currentShift}
+    offers={offers}
+    offersLoading={offersLoading}
+    offersError={offersError}
+    shiftBusy={shiftBusy}
+    toast={toast}
+    onStop={() => void toggleShift()}
+    onOpenOperations={() => setShowOperations(true)}
+    onSupport={() => { setShowOperations(true); setSection("Soporte"); }}
+    onRefreshOffers={() => { setOffersError(""); void loadRiderData(); }}
+    onOfferAction={(orderId, action) => void offerAction(orderId, action)}
+    onError={handleApiError}
+  />;
   return <div className="app-shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand-block"><div className="brand-mark">P</div><div><strong>piki</strong><span>Riders</span></div><button className="close-menu" onClick={() => setOpen(false)} aria-label="Cerrar menú"><X size={20}/></button></div>

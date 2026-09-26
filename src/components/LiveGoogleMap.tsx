@@ -3,10 +3,10 @@ import { loadGoogleMaps } from "../integrations/google-maps";
 import { loadOperationalZones, publishRiderLocation, type OperationalZone } from "../integrations/piki-api";
 import { toGoogleZonePaths } from "../algorithms/zone-coverage";
 
-type Props = { token: string; riderId?: string; onError: (message: string) => void };
+type Props = { token: string; riderId?: string; active?: boolean; onError: (message: string) => void };
 const XATIVA: google.maps.LatLngLiteral = { lat: 38.9908, lng: -0.5185 };
 
-export default function LiveGoogleMap({ token, riderId, onError }: Props) {
+export default function LiveGoogleMap({ token, riderId, active = false, onError }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
@@ -25,13 +25,17 @@ export default function LiveGoogleMap({ token, riderId, onError }: Props) {
         if (disposed || !containerRef.current) return;
         const map = new maps.Map(containerRef.current, { center: XATIVA, zoom: 13, mapTypeControl: false, streetViewControl: false, fullscreenControl: true });
         mapRef.current = map;
-        markerRef.current = new maps.Marker({ map, position: XATIVA, title: "Tu ubicación PIKI", zIndex: 20 });
+        markerRef.current = new maps.Marker({ map, position: XATIVA, title: active ? "Ubicación PIKI pendiente" : "Centro operativo Xàtiva", zIndex: 20 });
         const loadedZones = await loadOperationalZones(token);
         if (disposed) return;
         setZones(loadedZones);
         for (const item of toGoogleZonePaths(loadedZones)) {
           const polygon = new maps.Polygon({ map, paths: item.path, strokeColor: "#84CC16", strokeOpacity: 0.95, strokeWeight: 2, fillColor: "#84CC16", fillOpacity: 0.12 });
           polygonsRef.current.push(polygon);
+        }
+        if (!active) {
+          setLocationState("Activa una jornada para compartir ubicación");
+          return;
         }
         if (!navigator.geolocation) throw new Error("Este dispositivo no ofrece geolocalización");
         watchId = navigator.geolocation.watchPosition(async (position) => {
@@ -51,7 +55,7 @@ export default function LiveGoogleMap({ token, riderId, onError }: Props) {
     }
     void start();
     return () => { disposed = true; if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); if (locationTimer) window.clearInterval(locationTimer); markerRef.current?.setMap(null); polygonsRef.current.forEach((polygon) => polygon.setMap(null)); polygonsRef.current = []; };
-  }, [onError, riderId, token]);
+  }, [active, onError, riderId, token]);
 
   return <section className="real-map-shell" aria-label="Google Maps en vivo"><div ref={containerRef} className="google-map-canvas"/><div className="real-map-status"><span className="gps-dot" />{locationState}<strong>{zones.filter((zone) => zone.isActive !== false).length} zonas activas</strong></div></section>;
 }

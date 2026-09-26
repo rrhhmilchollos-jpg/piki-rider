@@ -1,0 +1,14 @@
+/* Real-time Rider shift screen: the map is supplied by LiveGoogleMap, never CSS-simulated data. */
+.active-shift-shell{min-height:100dvh;background:#101820;color:#fff;overflow:hidden}
+.active-shift-shell .active-map{min-height:100dvh;position:relative;background:#e8eef3}
+.active-shift-shell .real-map-shell{position:absolute;inset:0}
+.active-shift-shell .real-map-status{top:90px;max-width:calc(100% - 38px);white-space:normal;justify-content:center;text-align:center}
+.active-shift-shell .active-menu-button,.active-shift-shell .active-help-button{display:grid;place-items:center}
+.active-order-button,.active-retry-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:18px;border:0;border-radius:11px;background:#c9f36d;color:#14213d;padding:13px 16px;font:800 14px 'DM Sans',sans-serif;cursor:pointer}
+.active-retry-button{background:#fff;color:#14213d}
+.active-stop-button:disabled{cursor:not-allowed;opacity:.55}
+.active-safety-note{display:flex;align-items:center;gap:7px;margin:15px 0 0!important;color:#cfd5d3!important;font-size:12px!important}
+@media (max-width:580px){
+  .active-shift-shell .real-map-status{top:82px;font-size:11px;padding:8px 11px}
+  .active-order-button,.active-retry-button{width:100%}
+}
