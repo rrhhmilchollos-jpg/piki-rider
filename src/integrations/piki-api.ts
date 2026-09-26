@@ -51,3 +51,13 @@ export async function loadMobilityAdvice(token: string, riderId: string, lowActi
   const result = await apiJson<{ advice: MobilityAdvice }>(`/api/v1/riders/${encodeURIComponent(riderId)}/mobility-advice?lowActivityMinutes=${Math.round(lowActivityMinutes)}`, token);
   return result.advice;
 }
+
+export type RiderOrderMessage = { _id: string; body: string; senderRole: "rider" | "customer" | "admin"; createdAt: string };
+export async function loadRiderOrderMessages(token: string, riderId: string, orderId: string): Promise<RiderOrderMessage[]> {
+  const result = await apiJson<{ messages: RiderOrderMessage[] }>(`/api/v1/riders/${encodeURIComponent(riderId)}/orders/${encodeURIComponent(orderId)}/messages`, token);
+  return result.messages || [];
+}
+export async function sendRiderOrderMessage(token: string, riderId: string, orderId: string, body: string): Promise<RiderOrderMessage> {
+  const result = await apiJson<{ message: RiderOrderMessage }>(`/api/v1/riders/${encodeURIComponent(riderId)}/orders/${encodeURIComponent(orderId)}/messages`, token, { method: "POST", body: JSON.stringify({ body }) });
+  return result.message;
+}
