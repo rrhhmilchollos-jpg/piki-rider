@@ -241,7 +241,7 @@ function App() {
     const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/test-orders`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
     const data = await response.json().catch(() => ({})) as { order?: RiderOffer; message?: string; error?: string };
     if (!response.ok) { setToast(data.message || data.error || "No se pudo crear el pedido de prueba."); return; }
-    if (data.order) setOffers((previous) => [data.order as RiderOffer, ...previous.filter((offer) => offer._id !== data.order?._id)]);
+    if (data.order) { setOffers((previous) => [data.order as RiderOffer, ...previous.filter((offer) => offer._id !== data.order?._id)]); playAssignmentAlert(); }
     setToast(data.message || "Pedido de prueba creado. No genera ningún cobro real.");
   }
   async function offerAction(orderId: string, action: "accept" | "picked_up" | "on_the_way") {
