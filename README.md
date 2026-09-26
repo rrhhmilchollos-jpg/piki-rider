@@ -6,8 +6,8 @@ Panel web de operaciones para los comercios asociados a **PIKI**. Este repositor
 
 | Componente | Dirección |
 | --- | --- |
-| API central | `https://piki-api.onrender.com` |
-| Comprobación de disponibilidad | `https://piki-api.onrender.com/ready` |
+| API central | `https://api.pikidelivery.com` |
+| Comprobación de disponibilidad | `https://api.pikidelivery.com/ready` |
 | Panel temporal de Render | `https://piki-partners.onrender.com` |
 | Dominio objetivo | `https://partners.piki.es` |
 
@@ -25,7 +25,7 @@ npm run dev
 Para cambiar el backend sin modificar código, crea un archivo `.env.local`:
 
 ```bash
-VITE_API_URL=https://piki-api.onrender.com
+VITE_API_URL=https://api.pikidelivery.com
 ```
 
 ## Despliegue
