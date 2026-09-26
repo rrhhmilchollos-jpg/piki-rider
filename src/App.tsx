@@ -270,6 +270,12 @@ function App() {
     const endpoint = shiftActive ? "stop" : "start";
     setShiftBusy(true);
     try {
+      if (!shiftActive) {
+        if (!navigator.geolocation) { setToast("Este dispositivo no ofrece GPS. No se puede iniciar la jornada."); return; }
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }));
+        const locationResponse = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/location`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" }, body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy }) });
+        if (!locationResponse.ok) { const payload = await locationResponse.json().catch(() => ({})); setToast(payload.message || payload.error || "No se pudo validar el GPS real."); return; }
+      }
       const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`, { method: "POST", headers: authHeaders(apiToken) });
       const data = await response.json() as { message?: string; error?: string; shift?: Shift; now?: { date: string; time: string } };
       if (!response.ok) {
@@ -362,7 +368,7 @@ function App() {
     setToast(message);
   }, []);
 
-  if (!apiToken || authRequired) return <main className="page-content"><EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);setStatus("checking")}} /></main>;
+  if (!apiToken || authRequired) return <main className="page-content"><EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);window.dispatchEvent(new Event("piki-authenticated"));setStatus("checking")}} /></main>;
   if (shiftActive && !showOperations && riderId) return <ActiveShiftScreen
     token={apiToken}
     riderId={riderId}
