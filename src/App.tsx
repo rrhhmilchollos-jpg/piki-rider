@@ -9,6 +9,7 @@ import {
 import "./App.css";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
+import { loadMobilityAdvice } from "./integrations/piki-api";
 
 type Status = "checking" | "ready" | "unavailable";
 type ApplicationStatus = "idle" | "sending" | "sent" | "error";
@@ -72,6 +73,8 @@ function App() {
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
+  const lastOfferAtRef = useRef(Date.now());
+  const lastMobilityAlertRef = useRef("");
   const audioContextRef = useRef<AudioContext | null>(null);
 
   function playAssignmentAlert() {
@@ -143,11 +146,30 @@ function App() {
         if (knownOfferIdsRef.current === null) { knownOfferIdsRef.current = currentIds; return; }
         const hasNewOffer = offers.some(offer => !knownOfferIdsRef.current?.has(String(offer._id)));
         knownOfferIdsRef.current = currentIds;
-        if (hasNewOffer) { playAssignmentAlert(); setToast("Nuevo reparto asignado. Revisa tus ofertas."); }
+        if (hasNewOffer) { lastOfferAtRef.current = Date.now(); playAssignmentAlert(); setToast("Nuevo reparto asignado. Revisa tus ofertas."); }
       } catch { /* Keep the rider operational if a polling request is briefly unavailable. */ }
     };
     void pollOffers();
     const timer = window.setInterval(() => { void pollOffers(); }, 5000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [apiToken, riderId, shiftActive]);
+  useEffect(() => {
+    if (!apiToken || !riderId || !shiftActive) { lastMobilityAlertRef.current = ""; return; }
+    let disposed = false;
+    const pollMobility = async () => {
+      try {
+        const lowActivityMinutes = (Date.now() - lastOfferAtRef.current) / 60000;
+        const advice = await loadMobilityAdvice(apiToken, riderId, lowActivityMinutes);
+        if (disposed || !advice.shouldMove || !advice.targetZone) return;
+        const alertKey = `${advice.currentZone?.slug || "unknown"}:${advice.targetZone.slug}`;
+        if (lastMobilityAlertRef.current === alertKey) return;
+        lastMobilityAlertRef.current = alertKey;
+        playAssignmentAlert();
+        setToast(`Baja actividad en ${advice.currentZone?.name || "tu zona"}. Hay más demanda cerca: ${advice.targetZone.name}.`);
+      } catch { /* La recomendación no bloquea la jornada si la API está temporalmente indisponible. */ }
+    };
+    void pollMobility();
+    const timer = window.setInterval(() => { void pollMobility(); }, 30000);
     return () => { disposed = true; window.clearInterval(timer); };
   }, [apiToken, riderId, shiftActive]);
 

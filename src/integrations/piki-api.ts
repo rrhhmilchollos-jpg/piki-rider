@@ -6,6 +6,15 @@ export type OperationalZone = {
   isActive?: boolean;
   polygon?: { type: "Polygon"; coordinates: number[][][] };
 };
+export type MobilityAdvice = {
+  algorithmVersion: string;
+  shouldMove: boolean;
+  currentZone: { slug: string; name: string } | null;
+  currentDemand: number;
+  targetZone: { slug: string; name: string; distanceKm: number; demand: number } | null;
+  reason: "balanced" | "low_activity" | "higher_demand_nearby";
+  cooldownMinutes: number;
+};
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
 
@@ -36,4 +45,9 @@ export async function publishRiderLocation(token: string, riderId: string, point
     method: "POST",
     body: JSON.stringify(point),
   });
+}
+
+export async function loadMobilityAdvice(token: string, riderId: string, lowActivityMinutes: number): Promise<MobilityAdvice> {
+  const result = await apiJson<{ advice: MobilityAdvice }>(`/api/v1/riders/${encodeURIComponent(riderId)}/mobility-advice?lowActivityMinutes=${Math.round(lowActivityMinutes)}`, token);
+  return result.advice;
 }
