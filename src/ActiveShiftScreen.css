@@ -24,3 +24,7 @@
   .active-start-dialog{top:122px;padding:24px 20px 20px}
   .active-order-button,.active-retry-button{width:100%}
 }
+
+.active-cash-note{display:flex;align-items:center;gap:7px;margin:12px 0 0!important;padding:10px 12px;border-radius:10px;background:#fff1c7;color:#654a00!important;font-weight:800;font-size:13px!important}
+.delivery-qr-dialog{position:absolute;z-index:20;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));border-radius:22px;background:#fff;color:#17212a;padding:25px;box-shadow:0 20px 55px rgba(0,0,0,.35)}
+.delivery-qr-dialog h2{margin:5px 0 8px;font:800 26px/1.05 'Space Grotesk',sans-serif}.delivery-qr-dialog>p{margin:0;color:#5b6971;line-height:1.45}.delivery-qr-close{position:absolute;right:14px;top:14px;border:0;border-radius:50%;height:32px;width:32px;display:grid;place-items:center;background:#eef2ef;color:#18212a}.delivery-qr-video{width:100%;max-height:250px;object-fit:cover;border-radius:14px;background:#111;margin-top:16px}.delivery-qr-dialog label{display:block;margin-top:16px;font-size:12px;font-weight:800;color:#45535b}.delivery-qr-dialog input{width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #d8e0dc;border-radius:10px;font-size:12px}.delivery-qr-dialog .active-order-button{width:100%;margin-top:14px}.hidden{display:none}

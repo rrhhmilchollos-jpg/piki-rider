@@ -26,5 +26,7 @@ export type RiderOffer = {
   restaurant?: { name?: string; address?: string; phone?: string; cuisine?: string; etaMinutes?: number[] };
   customerName?: string | null;
   deliveryAddress?: string | null;
+  paymentMethod?: "stripe" | "bizum" | "cash";
+  totalCents?: number;
   items?: Array<{ name?: string; quantity?: number }>;
 };
