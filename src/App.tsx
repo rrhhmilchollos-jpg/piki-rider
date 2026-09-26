@@ -67,6 +67,7 @@ function App() {
   const [shiftActive, setShiftActive] = useState(false);
   const [shiftBusy, setShiftBusy] = useState(false);
   const [showOperations, setShowOperations] = useState(false);
+  const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
   const [currentShift, setCurrentShift] = useState<CurrentShift>({ eligible: false });
   const [toast, setToast] = useState("");
@@ -270,6 +271,7 @@ function App() {
       }
       const nowActive = endpoint === "start";
       setShiftActive(nowActive);
+      setStartedShiftNotice(nowActive);
       setCurrentShift(previous => ({ ...previous, eligible: !nowActive, shift: data.shift ?? previous.shift }));
       setShowOperations(false);
       if (!shiftActive && typeof window !== "undefined") {
@@ -348,8 +350,10 @@ function App() {
     offersLoading={offersLoading}
     offersError={offersError}
     shiftBusy={shiftBusy}
+    startedShiftNotice={startedShiftNotice}
     toast={toast}
     onStop={() => void toggleShift()}
+    onDismissStartNotice={() => setStartedShiftNotice(false)}
     onOpenOperations={() => setShowOperations(true)}
     onSupport={() => { setShowOperations(true); setSection("Soporte"); }}
     onRefreshOffers={() => { setOffersError(""); void loadRiderData(); }}

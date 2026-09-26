@@ -11,8 +11,10 @@ type Props = {
   offersLoading: boolean;
   offersError: string;
   shiftBusy: boolean;
+  startedShiftNotice: boolean;
   toast: string;
   onStop: () => void;
+  onDismissStartNotice: () => void;
   onOpenOperations: () => void;
   onSupport: () => void;
   onRefreshOffers: () => void;
@@ -28,7 +30,7 @@ function routeLabel(order: RiderOffer) {
   return "Pedido asignado";
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, shiftBusy, toast, onStop, onOpenOperations, onSupport, onRefreshOffers, onOfferAction, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, shiftBusy, startedShiftNotice, toast, onStop, onDismissStartNotice, onOpenOperations, onSupport, onRefreshOffers, onOfferAction, onError }: Props) {
   const offered = offers.find((order) => order.assignmentState === "offered");
   const assigned = offers.find((order) => order.assignmentState === "assigned");
   const liveOrder = offered || assigned;
@@ -40,6 +42,12 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
       <div className="online-pill" aria-live="polite"><span>Estado</span><strong>En línea</strong><i className="online-dot"/></div>
       <button type="button" className="active-help-button" onClick={onSupport} aria-label="Abrir soporte"><Headphones size={23}/></button>
+      {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
+        <div className="active-start-icon"><Navigation size={28}/></div>
+        <h1>El horario de conexión ha comenzado</h1>
+        <p>Revisa el mapa y mantén la app abierta para identificar zonas de demanda y recibir pedidos en tiempo real.</p>
+        <button type="button" onClick={onDismissStartNotice}>Entendido</button>
+      </section>}
 
       <section className="active-bottom-sheet" aria-live="polite">
         <p className="active-eyebrow">PIKI · JORNADA INICIADA</p>
