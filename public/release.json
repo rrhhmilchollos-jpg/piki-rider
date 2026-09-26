@@ -1,7 +1,7 @@
 {
   "surface": "rider",
-  "version": "0.2.4",
-  "minimumVersion": "0.0.0",
-  "buildId": "f37c2f2442d5",
-  "forceUpdate": false
+  "version": "0.2.6",
+  "minimumVersion": "0.2.6",
+  "buildId": "06c6c9b62f20",
+  "forceUpdate": true
 }

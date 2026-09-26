@@ -9,6 +9,7 @@ export type Shift = {
 
 export type CurrentShift = {
   eligible: boolean;
+  selfStartAllowed?: boolean;
   now?: { date: string; time: string };
   shift?: Shift | null;
 };

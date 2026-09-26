@@ -26,7 +26,10 @@ function isNewer(candidate: string, current: string): boolean {
   const left = versionParts(candidate);
   const right = versionParts(current);
   if (!left || !right) return false;
-  return left.some((part, index) => part !== right[index] && part > right[index]);
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] > right[index];
+  }
+  return false;
 }
 
 function isValidPolicy(value: ReleasePolicy): value is ValidPolicy {
@@ -155,12 +158,14 @@ function PushConsentControl() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [supported] = useState(() => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
+  const [visible, setVisible] = useState(() => typeof Notification === "undefined" || Notification.permission === "default");
+  const closeLater = useCallback((delay: number) => { window.setTimeout(() => setVisible(false), delay); }, []);
   const enable = useCallback(async () => {
     setBusy(true);
-    try { setMessage(await syncPushSubscription(true)); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "No se pudieron activar los avisos."); }
+    try { setMessage(await syncPushSubscription(true)); closeLater(1600); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "No se pudieron activar los avisos."); closeLater(3200); }
     finally { setBusy(false); }
-  }, []);
+  }, [closeLater]);
   useEffect(() => {
     if (!supported) return;
     const listener = (event: MessageEvent) => {
@@ -169,13 +174,12 @@ function PushConsentControl() {
     navigator.serviceWorker.addEventListener("message", listener);
     return () => navigator.serviceWorker.removeEventListener("message", listener);
   }, [supported]);
-  if (!supported) return null;
+  if (!supported || !visible) return null;
   return <aside aria-live="polite" style={{ position: "fixed", right: "16px", bottom: "16px", zIndex: 9999, maxWidth: "320px", padding: "12px", borderRadius: "12px", background: "#111827", color: "white", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
+    <button type="button" onClick={() => setVisible(false)} aria-label="Cerrar aviso de PIKI" style={{ float: "right", border: 0, background: "transparent", color: "white", fontSize: "20px", lineHeight: 1, cursor: "pointer" }}>×</button>
     <strong style={{ display: "block", marginBottom: "6px" }}>Avisos de PIKI</strong>
-    <p style={{ fontSize: "13px", margin: "0 0 10px" }}>Activa notificaciones para recibir avisos operativos y de pedidos en este dispositivo.</p>
-    <button type="button" onClick={() => void enable()} disabled={busy || Notification.permission === "denied"} style={{ padding: "8px 10px", borderRadius: "8px", border: 0, fontWeight: 700, cursor: "pointer" }}>
-      {busy ? "Activando…" : Notification.permission === "denied" ? "Permiso bloqueado" : "Activar avisos"}
-    </button>
+    <p style={{ fontSize: "13px", margin: "0 24px 10px 0" }}>Activa notificaciones para recibir avisos operativos y de pedidos en este dispositivo.</p>
+    <button type="button" onClick={() => void enable()} disabled={busy} style={{ padding: "8px 10px", borderRadius: "8px", border: 0, fontWeight: 700, cursor: "pointer" }}>{busy ? "Activando…" : "Activar avisos"}</button>
     {message && <p style={{ fontSize: "12px", margin: "8px 0 0" }}>{message}</p>}
   </aside>;
 }
@@ -211,7 +215,8 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     void check();
     const onFocus = () => void check();
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const timer = window.setInterval(() => void check(), 5 * 60_000);
+    return () => { window.removeEventListener("focus", onFocus); window.clearInterval(timer); };
   }, [check]);
 
   const update = useCallback(async () => {

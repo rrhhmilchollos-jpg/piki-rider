@@ -8,7 +8,6 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     await cache.addAll(APP_SHELL);
-    await self.skipWaiting();
   })());
 });
 
@@ -18,11 +17,6 @@ self.addEventListener("activate", (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key)));
     await self.clients.claim();
-    // Old 0.2.x clients rendered a blocking update page before their asynchronous
-    // worker update could activate. A newly activated worker now moves every open
-    // PIKI window to the fresh, network-served application shell automatically.
-    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    await Promise.all(windows.map((client) => client.navigate(client.url).catch(() => undefined)));
   })());
 });
 
@@ -73,7 +67,7 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const existing = clients.find((client) => client.url.startsWith(self.location.origin));
-    if (existing) return existing.focus();
+    if (existing) { await existing.navigate(target).catch(() => undefined); return existing.focus(); }
     return self.clients.openWindow(target);
   })());
 });

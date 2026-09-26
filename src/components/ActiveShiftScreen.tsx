@@ -20,6 +20,7 @@ type Props = {
   onSupport: () => void;
   onRefreshOffers: () => void;
   onOfferAction: (orderId: string, action: "accept" | "picked_up" | "on_the_way") => void;
+  actionBusy?: boolean;
   onConfirmDelivery: (orderId: string, deliveryQr: string) => void;
   onError: (message: string) => void;
 };
@@ -32,7 +33,7 @@ function routeLabel(order: RiderOffer) {
   return "Pedido asignado";
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, shiftBusy, startedShiftNotice, toast, onStop, onDismissStartNotice, onOpenOperations, onSupport, onRefreshOffers, onOfferAction, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, shiftBusy, startedShiftNotice, toast, actionBusy = false, onStop, onDismissStartNotice, onOpenOperations, onSupport, onRefreshOffers, onOfferAction, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [qrValue, setQrValue] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,7 +63,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
     <section className="active-map real-google-map-section">
       <LiveGoogleMap token={token} riderId={riderId} active onError={onError}/>
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
-      <div className="online-pill" aria-live="polite"><span>Estado</span><strong>En línea</strong><i className="online-dot"/></div>
+      <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin GPS/API" : "En línea"}</strong><i className="online-dot"/></div>
       <button type="button" className="active-help-button" onClick={onSupport} aria-label="Abrir soporte"><Headphones size={23}/></button>
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div>
@@ -83,10 +84,10 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
         </> : liveOrder ? <>
           <h1>{routeLabel(liveOrder)}</h1>
           <p><strong>{liveOrder.restaurant?.name || "Establecimiento PIKI"}</strong><br/>{liveOrder.assignmentState === "assigned" && (liveOrder.status === "picked_up" || liveOrder.status === "on_the_way") ? liveOrder.deliveryAddress || "Dirección de entrega disponible en operaciones" : liveOrder.restaurant?.address || "Dirección disponible en operaciones"}</p>
-          {liveOrder.assignmentState === "offered" && <button type="button" className="active-order-button" onClick={() => onOfferAction(liveOrder._id, "accept")}><ClipboardList size={17}/> Aceptar reparto</button>}
-          {liveOrder.assignmentState === "assigned" && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button" onClick={() => onOfferAction(liveOrder._id, "picked_up")}><Navigation size={17}/> Confirmar recogida</button>}
+          {liveOrder.assignmentState === "offered" && <button type="button" className="active-order-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "accept")}><ClipboardList size={17}/> Aceptar reparto</button>}
+          {liveOrder.assignmentState === "assigned" && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "picked_up")}><Navigation size={17}/> Confirmar recogida</button>}
           {liveOrder.paymentMethod === "cash" && <p className="active-cash-note"><Banknote size={15}/> Cobrar en efectivo al cliente: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format((liveOrder.totalCents || 0) / 100)}</p>}
-          {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button" onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={17}/> Iniciar ruta</button>}
+          {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={17}/> Iniciar ruta</button>}
           {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button" onClick={() => { setScannerOpen(true); setQrValue(""); }}><Camera size={17}/> Escanear QR y confirmar</button>}
         </> : <>
           <h1>Buscando pedidos…</h1>
@@ -98,7 +99,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
         </div>
         {liveOrder && <p className="active-safety-note"><ShieldCheck size={15}/> Termina o comunica la incidencia antes de cerrar la jornada.</p>}
       </section>
-      {scannerOpen && liveOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label="Confirmar entrega con QR"><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">ENTREGA SEGURA</p><h2>Escanea el QR del Customer</h2><p>El cobro en efectivo se anotará en tu cartera solo después de validar este QR y confirmar la entrega.</p><video ref={videoRef} muted playsInline className={streamRef.current ? "delivery-qr-video" : "hidden"}/>{!streamRef.current && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara</button>}<label>También puedes pegar el enlace QR<input value={qrValue} onChange={(event) => setQrValue(event.target.value)} placeholder="https://pikidelivery.com/?order_id=…" /></label><button type="button" disabled={!qrValue} className="active-order-button" onClick={() => { onConfirmDelivery(liveOrder._id, qrValue); closeScanner(); }}><ShieldCheck size={17}/> Confirmar entrega</button></section>}
+      {scannerOpen && liveOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label="Confirmar entrega con QR"><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">ENTREGA SEGURA</p><h2>Escanea el QR del Customer</h2><p>El cobro en efectivo se anotará en tu cartera solo después de validar este QR y confirmar la entrega.</p><video ref={videoRef} muted playsInline className={streamRef.current ? "delivery-qr-video" : "hidden"}/>{!streamRef.current && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara</button>}<label>También puedes pegar el enlace QR<input value={qrValue} onChange={(event) => setQrValue(event.target.value)} placeholder="https://pikidelivery.com/?order_id=…" /></label><button type="button" disabled={!qrValue || actionBusy} className="active-order-button" onClick={() => { onConfirmDelivery(liveOrder._id, qrValue); closeScanner(); }}><ShieldCheck size={17}/> Confirmar entrega</button></section>}
       {toast && <div className="toast active-toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
     </section>
   </main>;
