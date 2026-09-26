@@ -34,6 +34,7 @@ export default function OperationalActivation({ token, riderId, active, playTest
   useEffect(() => {
     if (active) return;
     stopWatching();
+    // oxlint-disable-next-line react/set-state-in-effect
     setState("idle");
     setDetail("La publicación de ubicación se detiene al finalizar la jornada.");
   }, [active]);

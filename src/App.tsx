@@ -85,7 +85,7 @@ function App() {
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
-  const lastOfferAtRef = useRef(Date.now());
+  const lastOfferAtRef = useRef(0);
   const lastMobilityAlertRef = useRef("");
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -161,7 +161,8 @@ function App() {
   useEffect(() => { const timer = window.setTimeout(() => { void loadRiderData(); }, 0); return () => window.clearTimeout(timer); }, [loadRiderData]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 3500); return () => window.clearTimeout(timer); }, [toast]);
   useEffect(() => {
-    if (!apiToken || !riderId || !shiftActive) { knownOfferIdsRef.current = null; setOffersLoading(false); setOffersError(""); return; }
+    if (!apiToken || !riderId || !shiftActive) { knownOfferIdsRef.current = null; // oxlint-disable-next-line react/set-state-in-effect
+      setOffersLoading(false); setOffersError(""); return; }
     let disposed = false;
     const pollOffers = async () => {
       if (!disposed) setOffersLoading(true);
@@ -210,7 +211,8 @@ function App() {
   }, [apiToken, riderId, shiftActive]);
   useEffect(() => {
     const activeOrder = offers.find((offer) => offer.assignmentState === "assigned");
-    if (!apiToken || !riderId || !activeOrder) { setOrderMessages([]); return; }
+    if (!apiToken || !riderId || !activeOrder) { // oxlint-disable-next-line react/set-state-in-effect
+      setOrderMessages([]); return; }
     let disposed = false;
     const pollMessages = async () => { try { const messages = await loadRiderOrderMessages(apiToken, riderId, activeOrder._id); if (!disposed) setOrderMessages(messages); } catch { /* el pedido puede cerrarse mientras se actualiza */ } };
     void pollMessages(); const timer = window.setInterval(pollMessages, 4000);

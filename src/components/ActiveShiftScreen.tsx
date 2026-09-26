@@ -35,10 +35,11 @@ function routeLabel(order: RiderOffer) {
 
 export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, shiftBusy, startedShiftNotice, toast, actionBusy = false, onStop, onDismissStartNotice, onOpenOperations, onSupport, onRefreshOffers, onOfferAction, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const stopScanner = () => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; };
+  const stopScanner = () => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; setScannerReady(false); };
   useEffect(() => () => stopScanner(), []);
   const closeScanner = () => { stopScanner(); setScannerOpen(false); setQrValue(""); };
   const startScanner = async () => {
@@ -46,7 +47,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       const Detector = (window as any).BarcodeDetector;
       if (!Detector) { onError("Este dispositivo no permite abrir el lector QR. Pega el enlace QR del Customer."); return; }
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-      streamRef.current = stream; setScannerOpen(true);
+      streamRef.current = stream; setScannerReady(true); setScannerOpen(true);
       window.setTimeout(async () => {
         const video = videoRef.current; if (!video) return;
         video.srcObject = stream; await video.play(); const detector = new Detector({ formats: ["qr_code"] });
@@ -99,7 +100,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
         </div>
         {liveOrder && <p className="active-safety-note"><ShieldCheck size={15}/> Termina o comunica la incidencia antes de cerrar la jornada.</p>}
       </section>
-      {scannerOpen && liveOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label="Confirmar entrega con QR"><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">ENTREGA SEGURA</p><h2>Escanea el QR del Customer</h2><p>El cobro en efectivo se anotará en tu cartera solo después de validar este QR y confirmar la entrega.</p><video ref={videoRef} muted playsInline className={streamRef.current ? "delivery-qr-video" : "hidden"}/>{!streamRef.current && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara</button>}<label>También puedes pegar el enlace QR<input value={qrValue} onChange={(event) => setQrValue(event.target.value)} placeholder="https://pikidelivery.com/?order_id=…" /></label><button type="button" disabled={!qrValue || actionBusy} className="active-order-button" onClick={() => { onConfirmDelivery(liveOrder._id, qrValue); closeScanner(); }}><ShieldCheck size={17}/> Confirmar entrega</button></section>}
+      {scannerOpen && liveOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label="Confirmar entrega con QR"><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">ENTREGA SEGURA</p><h2>Escanea el QR del Customer</h2><p>El cobro en efectivo se anotará en tu cartera solo después de validar este QR y confirmar la entrega.</p><video ref={videoRef} muted playsInline className={scannerReady ? "delivery-qr-video" : "hidden"}/>{!scannerReady && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara</button>}<label>También puedes pegar el enlace QR<input value={qrValue} onChange={(event) => setQrValue(event.target.value)} placeholder="https://pikidelivery.com/?order_id=…" /></label><button type="button" disabled={!qrValue || actionBusy} className="active-order-button" onClick={() => { onConfirmDelivery(liveOrder._id, qrValue); closeScanner(); }}><ShieldCheck size={17}/> Confirmar entrega</button></section>}
       {toast && <div className="toast active-toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
     </section>
   </main>;

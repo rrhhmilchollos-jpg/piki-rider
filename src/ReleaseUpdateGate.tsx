@@ -34,6 +34,7 @@ export default function ReleaseUpdateGate({ children }: Props) {
   }, []);
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
     void checkForRequiredRelease();
     const onFocus = () => { void checkForRequiredRelease(); };
     window.addEventListener("focus", onFocus);

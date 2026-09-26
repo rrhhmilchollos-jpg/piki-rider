@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { PIKI_RELEASE } from "./release-meta";
+import { shouldShowPushConsent } from "./pushConsentPolicy";
 
 type ReleasePolicy = {
   surface?: unknown;
@@ -77,6 +78,7 @@ async function waitForControllerChange(): Promise<void> {
   });
 }
 
+// oxlint-disable-next-line react/only-export-components
 export function installPikiReleaseHeaders(): void {
   const state = window as unknown as { __pikiReleaseFetchInstalled?: boolean };
   if (state.__pikiReleaseFetchInstalled) return;
@@ -169,22 +171,37 @@ function PushConsentControl() {
   useEffect(() => {
     if (!supported) return;
     const authenticated = customerSurface || Boolean(storedEmployeeToken());
-    if (!authenticated) { setVisible(false); return; }
-    if (Notification.permission === "default") { setVisible(true); return; }
-    if (Notification.permission === "granted") {
-      void syncPushSubscription(false).then(() => { setMessage(""); setVisible(false); }).catch((error) => { setMessage(error instanceof Error ? error.message : "No se pudo registrar este dispositivo."); setVisible(true); });
+    const permission = "Notification" in window ? Notification.permission : "default";
+    if (!shouldShowPushConsent({ supported, authenticated, permission })) {
+      // Browser permission is authoritative; hide the card even if background sync fails.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setVisible(false);
+      if (permission === "granted") {
+        void syncPushSubscription(false).catch((error) => console.warn("No se pudo sincronizar la suscripción de avisos.", error));
+      }
+      return;
     }
+    // The consent card is actionable only while browser permission is undecided.
+    setVisible(true);
   }, [authEpoch, customerSurface, supported]);
   const enable = useCallback(async () => {
     setBusy(true); setMessage("");
-    try { setMessage(await syncPushSubscription(true)); window.setTimeout(() => setVisible(false), 900); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "No se pudieron activar los avisos."); setVisible(true); }
+    try { await syncPushSubscription(true); setMessage(""); setVisible(false); }
+    catch (error) {
+      const permission = "Notification" in window ? Notification.permission : "default";
+      if (permission === "default") { setMessage(error instanceof Error ? error.message : "No se pudieron activar los avisos."); setVisible(true); }
+      else { setMessage(""); setVisible(false); console.warn("No se pudo registrar este dispositivo para avisos.", error); }
+    }
     finally { setBusy(false); }
   }, []);
   useEffect(() => {
     if (!supported) return;
     const listener = (event: MessageEvent) => {
-      if (event.data?.type === "PIKI_PUSH_SUBSCRIPTION_CHANGED" && Notification.permission === "granted") void syncPushSubscription(false).catch(() => setVisible(true));
+      if (event.data?.type === "PIKI_PUSH_SUBSCRIPTION_CHANGED" && Notification.permission === "granted") void syncPushSubscription(false).catch((error) => {
+          console.warn("No se pudo resincronizar la suscripción de avisos.", error);
+          setMessage("");
+          setVisible(false);
+        });
     };
     navigator.serviceWorker.addEventListener("message", listener);
     return () => navigator.serviceWorker.removeEventListener("message", listener);
@@ -227,6 +244,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     installPikiReleaseHeaders();
+    // oxlint-disable-next-line react/set-state-in-effect
     void check();
     const onFocus = () => void check();
     window.addEventListener("focus", onFocus);
