@@ -1,11 +1,11 @@
 {
   "name": "piki-rider",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/prepare-release.mjs && tsc -b && vite build",
     "check": "tsc -b --pretty false",
     "lint": "oxlint",
     "preview": "vite preview"

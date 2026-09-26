@@ -9,6 +9,7 @@ import {
 import "./App.css";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
+import { connectPikiRealtime } from "./realtime";
 import { loadMobilityAdvice, loadRiderOrderMessages, sendRiderOrderMessage, type RiderOrderMessage } from "./integrations/piki-api";
 
 type Status = "checking" | "ready" | "unavailable";
@@ -178,6 +179,19 @@ function App() {
     void pollOffers();
     const timer = window.setInterval(() => { void pollOffers(); }, 5000);
     return () => { disposed = true; window.clearInterval(timer); };
+  }, [apiToken, riderId, shiftActive]);
+  useEffect(() => {
+    if (!apiToken || !riderId || !shiftActive) return;
+    return connectPikiRealtime({ apiOrigin, token: apiToken, surface: "rider", onEvent: (event) => {
+      if (event.type !== "order.rider_offer") return;
+      void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, { headers: authHeaders(apiToken) }).then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json() as { offers?: RiderOffer[] };
+        setOffers(Array.isArray(data.offers) ? data.offers : []);
+        lastOfferAtRef.current = Date.now();
+        playAssignmentAlert(); setToast("Nueva oferta de reparto. Revisa tus ofertas."); setSection("Ofertas");
+      }).catch(() => undefined);
+    } });
   }, [apiToken, riderId, shiftActive]);
   useEffect(() => {
     const activeOrder = offers.find((offer) => offer.assignmentState === "assigned");
