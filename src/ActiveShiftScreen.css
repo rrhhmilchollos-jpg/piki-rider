@@ -4,6 +4,12 @@
 .active-shift-shell .real-map-shell{position:absolute;inset:0}
 .active-shift-shell .real-map-status{top:90px;max-width:calc(100% - 38px);white-space:normal;justify-content:center;text-align:center}
 .active-shift-shell .active-menu-button,.active-shift-shell .active-help-button{display:grid;place-items:center}
+.active-shift-shell .active-bottom-sheet{background:linear-gradient(180deg,#fff,#fff 80%,#f9fbfc);color:#1e252d;box-shadow:0 -12px 35px rgba(5,20,28,.18);min-height:205px}
+.active-shift-shell .active-eyebrow{color:#568b2c}
+.active-shift-shell .active-bottom-sheet h1{color:#171c22;font-size:clamp(28px,7vw,34px);letter-spacing:-1.2px}
+.active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow){color:#29313a;font-size:17px;line-height:1.48}
+.active-shift-shell .active-stop-button{background:#172a31;color:#fff}
+.active-shift-shell .active-support-button{background:#edf2f0;color:#1d2b31}
 .active-order-button,.active-retry-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:18px;border:0;border-radius:11px;background:#c9f36d;color:#14213d;padding:13px 16px;font:800 14px 'DM Sans',sans-serif;cursor:pointer}
 .active-retry-button{background:#fff;color:#14213d}
 .active-start-dialog{position:absolute;z-index:9;top:132px;left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 40px));padding:27px 25px 23px;border-radius:26px;background:#fff;color:#18212a;text-align:center;box-shadow:0 18px 45px rgba(5,20,28,.32)}
