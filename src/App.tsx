@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  Activity, ArrowDownLeft, ArrowUpRight, Bell, Bike, CalendarDays, ChevronRight,
+  Activity, ArrowDownLeft, ArrowUpRight, Bell, Bike, CalendarDays, ChevronDown, ChevronRight,
   CircleHelp, ClipboardList, Clock3, CreditCard, FileText, Headphones,
   LayoutDashboard, LifeBuoy, MapPinned, Menu, MessageCircle,
   Power, Settings, ShieldCheck, WalletCards, X, Zap
@@ -38,6 +38,22 @@ const nav = [
   ["Cuenta", Settings],
 ] as const;
 const weekdayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const supportTopics = [
+  { id: "order", title: "Ayuda con un pedido", text: "Recogida, entrega, comercio o dirección", icon: ClipboardList, options: ["El comercio está cerrado", "El pedido no está preparado", "No encuentro la dirección", "Problema durante la entrega", "Pedido cancelado o incorrecto"] },
+  { id: "account", title: "Cuenta y acceso", text: "Inicio de sesión, datos y documentación", icon: Settings, options: ["No puedo iniciar sesión", "Cambiar teléfono o correo", "Actualizar documentación", "Cambiar vehículo", "Mi cuenta está bloqueada"] },
+  { id: "shifts", title: "Turnos y horarios", text: "Reservas, ausencias y zonas asignadas", icon: CalendarDays, options: ["No veo mi turno", "Quiero cambiar un turno", "No puedo iniciar la jornada", "Llegaré tarde al turno", "Duda sobre mi zona"] },
+  { id: "payments", title: "Cartera y pagos", text: "Liquidaciones, incentivos y propinas", icon: WalletCards, options: ["No veo una liquidación", "Importe incorrecto", "Propina o incentivo", "Datos bancarios", "Certificado o justificante"] },
+  { id: "safety", title: "Seguridad y emergencias", text: "Accidentes, amenazas y situaciones urgentes", icon: ShieldCheck, options: ["He tenido un accidente", "Incidente con un tercero", "El vehículo no es seguro", "Necesito asistencia urgente", "Quiero reportar una situación"] },
+  { id: "technical", title: "Problemas técnicos", text: "GPS, ofertas, sonido y errores de la app", icon: Zap, options: ["El GPS no actualiza", "No recibo ofertas", "No suena la alerta", "La aplicación se queda en blanco", "Veo un error 401 o de conexión"] },
+] as const;
+const supportFaqs = [
+  ["¿Cuándo puedo iniciar la jornada?", "Solo durante un turno activo asignado por Fleet. Fuera de horario el botón permanece bloqueado."],
+  ["¿Quién puede ver mis datos?", "Admin y Fleet según sus permisos operativos. Los Riders no ven métricas internas de la flota."],
+  ["¿Cómo recibo un pedido?", "Con la jornada activa, el sistema te ofrece repartos disponibles y la app emite sonido y vibración."],
+  ["¿Qué hago si tengo un accidente?", "Prioriza tu seguridad, llama al 112 si existe riesgo y abre la categoría Seguridad y emergencias."],
+] as const;
+const whatsappNumber = String(import.meta.env.VITE_WHATSAPP_HELP_NUMBER ?? "").replace(/\D/g, "");
+const manychatWhatsAppUrl = String(import.meta.env.VITE_MANYCHAT_WHATSAPP_URL ?? "");
 
 function App() {
   const [section, setSection] = useState("Inicio");
@@ -53,6 +69,8 @@ function App() {
   const [toast, setToast] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({ completed: 0, cancelled: 0, accepted: 0, rating: "—", distance: "—", dailyDeliveries: [] });
+  const [supportTopic, setSupportTopic] = useState<string | null>(null);
+  const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -178,7 +196,14 @@ function App() {
       setToast(shiftActive ? "Jornada finalizada. Buen trabajo." : "Jornada iniciada. Aviso sonoro activado.");
     } catch { setToast("No se pudo validar el turno con la API."); }
   }
-  function supportAction(label: string) { setToast(`${label}: el equipo de soporte recibirá tu solicitud.`); }
+  function supportAction(label: string) { setSupportTopic(label); setFaqOpen(null); }
+  function openWhatsApp(topic: string, option: string) {
+    const base = manychatWhatsAppUrl || (whatsappNumber ? `https://wa.me/${whatsappNumber}` : "");
+    if (!base) { setToast("El centro de ayuda WhatsApp todavía no está configurado."); return; }
+    const separator = base.includes("?") ? "&" : "?";
+    const message = encodeURIComponent(`PIKI RIDER | ${topic} | ${option}`);
+    window.open(`${base}${separator}text=${message}`, "_blank", "noopener,noreferrer");
+  }
   const handleApiError = useCallback((message: string) => {
     if (message.includes("API 401") || message.includes("AUTHENTICATION_REQUIRED")) {
       sessionStorage.removeItem(tokenStorageKey);
@@ -209,7 +234,7 @@ function App() {
           {section === "Cartera" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · CARTERA" title="Tu dinero, siempre bajo control." lead="Consulta ingresos, incentivos, propinas y próximos pagos con trazabilidad." icon={<WalletCards/>}/><div className="wallet-card"><div><span>Saldo disponible</span><strong>€ —</strong><small>Se mostrará cuando existan liquidaciones confirmadas.</small></div><WalletCards size={42}/></div><div className="wallet-grid"><article className="wallet-stat"><ArrowUpRight/><span>Ingresos de entregas</span><strong>€ —</strong></article><article className="wallet-stat"><ArrowDownLeft/><span>Propinas e incentivos</span><strong>€ —</strong></article><article className="wallet-stat"><CreditCard/><span>Próximo pago</span><strong>Pendiente</strong></article></div><div className="empty-card"><div className="empty-card-top"><span>MOVIMIENTOS</span><FileText size={18}/></div><h2>Aún no hay movimientos.</h2><p>Las liquidaciones aparecerán aquí después de completar entregas y superar la validación operativa.</p></div></section>}
           {section === "Estadísticas" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · ESTADÍSTICAS" title="Mejora con cada entrega." lead="Solo tus entregas: aceptadas, completadas, canceladas y calidad." icon={<Activity/>}/><div className="stats-grid"><StatCard label="Completadas" value={stats.completed} tone="positive"/><StatCard label="Canceladas" value={stats.cancelled} tone="negative"/><StatCard label="Aceptadas" value={stats.accepted} tone="neutral"/><StatCard label="Valoración" value={stats.rating} tone="positive"/></div><div className="stats-panel"><div className="stats-panel-head"><div><span>ENTREGAS POR DÍA</span><h2>Tu historial reciente</h2></div><Zap size={22}/></div><div className="daily-deliveries">{stats.dailyDeliveries.length ? stats.dailyDeliveries.map((day) => <div className="daily-delivery-row" key={day.date}><span>{day.date}</span><strong>{day.completed}</strong><small>{day.completed === 1 ? "entrega completada" : "entregas completadas"}</small></div>) : <p className="empty-copy">Todavía no hay entregas registradas.</p>}</div></div></section>}
           {section === "Mapa" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · GOOGLE MAPS EN VIVO" title="Tu zona, tu posición, en tiempo real." lead="Google Maps muestra tu ubicación GPS, las zonas operativas asignadas y sus delimitaciones reales. Debes conceder permiso de ubicación para publicar tu posición durante la jornada." icon={<MapPinned/>}/>{apiToken && <LiveGoogleMap token={apiToken} riderId={riderId} onError={handleApiError}/>}</section>}
-          {section === "Soporte" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · SOPORTE" title="Estamos contigo en ruta." lead="Elige la ayuda que necesitas y el equipo de operaciones te responderá." icon={<LifeBuoy/>}/><div className="support-grid"><SupportCard icon={<ClipboardList/>} title="Ayuda con un pedido" text="Retraso, comercio cerrado, dirección o incidencia de entrega." onClick={() => supportAction("Ayuda con un pedido")}/><SupportCard icon={<MessageCircle/>} title="Contacta con soporte" text="Habla con operaciones de zona durante tu jornada." onClick={() => supportAction("Contacto con soporte")}/><SupportCard icon={<ShieldCheck/>} title="Seguridad y emergencias" text="Acceso rápido para incidentes de seguridad en ruta." onClick={() => supportAction("Seguridad y emergencias")}/><SupportCard icon={<CircleHelp/>} title="Preguntas frecuentes" text="Turnos, pagos, asignaciones, sanciones y documentación." onClick={() => supportAction("Preguntas frecuentes")}/></div></section>}
+          {section === "Soporte" && <section className="feature-section"><FeatureHeading eyebrow="PIKI · CENTRO DE AYUDA" title="Estamos contigo en ruta." lead="Cada consulta tiene su propio flujo para que Operaciones reciba el contexto correcto desde el primer mensaje." icon={<LifeBuoy/>}/><div className="support-quick-actions"><button className="whatsapp-help-button" onClick={() => openWhatsApp("Centro de ayuda", "Necesito ayuda general") }><MessageCircle size={18}/> Abrir centro de ayuda en WhatsApp</button><span>Atención guiada por ManyChat · WhatsApp Business</span></div><div className="support-grid">{supportTopics.map(({ id, title, text, icon: Icon }) => <SupportCard key={id} icon={<Icon/>} title={title} text={text} onClick={() => supportAction(id)}/>)}</div>{supportTopic && <SupportDetail topicId={supportTopic} onBack={() => setSupportTopic(null)} onWhatsApp={openWhatsApp}/>}<div className="faq-panel"><div className="faq-panel-heading"><div><span>PREGUNTAS FRECUENTES</span><h2>Respuestas rápidas</h2></div><CircleHelp size={22}/></div>{supportFaqs.map(([question, answer], index) => <div className="faq-row" key={question}><button onClick={() => setFaqOpen(faqOpen === index ? null : index)}><span>{question}</span>{faqOpen === index ? <ChevronDown size={17}/> : <ChevronRight size={17}/>}</button>{faqOpen === index && <p>{answer}</p>}</div>)}</div></section>}
           {!["Horarios", "Cartera", "Estadísticas", "Mapa", "Soporte"].includes(section) && <><div className="page-heading"><div><p className="eyebrow">PIKI · RIDERS</p><h1>{section === "Inicio" ? "Cada entrega, clara desde el primer metro." : section}</h1><p className="lead">Base operativa conectada a producción. Activa tu jornada, consulta horarios y recibe ofertas en tu zona.</p></div><button className="secondary-button" onClick={() => { setStatus("checking"); void loadRiderData(); }}><Activity size={17} className={status === "checking" ? "spin" : ""}/>Actualizar</button></div><section className="empty-state-grid"><article className="empty-card primary-empty"><div className="empty-card-top"><span>JORNADA</span><Power size={18}/></div><h2>{shiftActive ? "Estás conectado a tu zona." : "Tu jornada empieza aquí."}</h2><p>{shiftActive ? "El Fleet puede enviarte ofertas mientras mantengas la jornada activa." : "Consulta tus horarios y pulsa iniciar cuando llegue el turno asignado."}</p><button className="primary-button" onClick={() => showSection("Horarios")}>Ver horarios <ChevronRight size={17}/></button></article><article className="empty-card"><div className="empty-card-top"><span>RUTA</span><MapPinned size={18}/></div><h2>Mapa operativo preparado</h2><p>La ruta y las zonas de calor se activarán con ubicación consentida, pedidos y cobertura real.</p><button className="secondary-button" onClick={() => showSection("Mapa")}>Abrir mapa</button></article></section></>}
         </>}
       </section>
@@ -233,4 +258,9 @@ function ActiveShiftView({ token, riderId, onMenu, onSupport, onStop, toast, onE
 function FeatureHeading({ eyebrow, title, lead, icon }: { eyebrow: string; title: string; lead: string; icon: React.ReactNode }) { return <div className="feature-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="lead">{lead}</p></div><div className="feature-icon">{icon}</div></div>; }
 function StatCard({ label, value, tone }: { label: string; value: number | string; tone: string }) { return <article className={`stat-card ${tone}`}><span>{label}</span><strong>{value}</strong><small>{value === 0 ? "Sin actividad registrada" : "Periodo actual"}</small></article>; }
 function SupportCard({ icon, title, text, onClick }: { icon: React.ReactNode; title: string; text: string; onClick: () => void }) { return <button className="support-card" onClick={onClick}><span className="support-icon">{icon}</span><span><strong>{title}</strong><small>{text}</small></span><ChevronRight size={18}/></button>; }
+function SupportDetail({ topicId, onBack, onWhatsApp }: { topicId: string; onBack: () => void; onWhatsApp: (topic: string, option: string) => void }) {
+  const topic = supportTopics.find((item) => item.id === topicId);
+  if (!topic) return null;
+  return <section className="support-detail-panel"><div className="support-detail-heading"><div><span>PIKI · {topic.title.toUpperCase()}</span><h2>¿Qué necesitas resolver?</h2><p>Selecciona una opción para abrir el flujo específico en el centro de ayuda.</p></div><button className="secondary-button" onClick={onBack}>Volver</button></div><div className="support-option-grid">{topic.options.map((option) => <button className="support-option" key={option} onClick={() => onWhatsApp(topic.title, option)}><MessageCircle size={17}/><span>{option}</span><ChevronRight size={16}/></button>)}</div></section>;
+}
 export default App;
