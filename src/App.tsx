@@ -429,7 +429,6 @@ function App() {
       surface: "rider",
       onEvent: (event) => {
         if (event.type !== "order.rider_offer") return;
-        if (assignedOrderRef.current) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
         })
