@@ -29,5 +29,12 @@ export type RiderOffer = {
   deliveryAddress?: string | null;
   paymentMethod?: "stripe" | "bizum" | "cash";
   totalCents?: number;
-  items?: Array<{ name?: string; quantity?: number }>;
+	items?: Array<{
+		name?: string;
+		quantity?: number;
+		priceCents?: number | null;
+		totalCents?: number | null;
+		unitPriceCents?: number | null;
+		modifiers?: Array<{ name: string; quantity?: number; priceCents?: number | null }>;
+	}>;
 };
