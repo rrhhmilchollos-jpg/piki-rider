@@ -227,7 +227,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       await registerWorker();
       const policy = await fetchPolicy();
       if (!isValidPolicy(policy)) throw new Error("La política de versión no es válida.");
-      const requiresUpdate = policy.forceUpdate && (policy.updateRequired === true || isNewer(policy.minimumVersion, PIKI_RELEASE.version));
+      const requiresUpdate = policy.forceUpdate && (policy.updateRequired === true || isNewer(policy.minimumVersion, PIKI_RELEASE.version) || policy.buildId !== PIKI_RELEASE.buildId);
       if (requiresUpdate) {
         setRequiredVersion(`${String(policy.version || policy.minimumVersion)} · ${policy.buildId}`);
         setState("required");
