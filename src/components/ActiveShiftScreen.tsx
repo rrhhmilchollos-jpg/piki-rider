@@ -1,4 +1,4 @@
-import { Banknote, Camera, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Headphones, Menu, Navigation, Phone, Power, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Banknote, Camera, ChevronDown, ChevronUp, ClipboardList, Menu, Navigation, Phone, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -11,13 +11,10 @@ type Props = {
   offers: RiderOffer[];
   offersLoading: boolean;
   offersError: string;
-  shiftBusy: boolean;
   startedShiftNotice: boolean;
   toast: string;
-  onStop: () => void;
   onDismissStartNotice: () => void;
   onOpenOperations: () => void;
-  onSupport: () => void;
   onRefreshOffers: () => void;
   onOfferAction: (orderId: string, action: "picked_up" | "on_the_way") => void;
   actionBusy?: boolean;
@@ -80,7 +77,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
   </section>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, shiftBusy, startedShiftNotice, toast, actionBusy = false, onStop, onDismissStartNotice, onOpenOperations, onSupport, onRefreshOffers, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onRefreshOffers, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<"pickup" | "delivery">("delivery");
   const [scannerReady, setScannerReady] = useState(false);
@@ -115,7 +112,6 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       <LiveGoogleMap token={token} riderId={riderId} active onError={onError}/>
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
       <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin GPS/API" : "En línea"}</strong><i className="online-dot"/></div>
-      <button type="button" className="active-help-button" onClick={onSupport} aria-label="Abrir soporte"><Headphones size={23}/></button>
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div><h1>El horario de conexión ha comenzado</h1><p>Revisa el mapa y mantén la app abierta para identificar zonas de demanda y recibir pedidos en tiempo real.</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
       </section>}
@@ -130,8 +126,6 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
           {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={17}/> Iniciar ruta</button>}
           {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button" onClick={() => openScanner("delivery")}><Camera size={17}/> Escanear QR o PIN del cliente</button>}
         </> : <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Buscando pedidos…</h1><p>Estás visible para la red PIKI en {subtitle}. Cuando llegue una oferta, sonará una alerta y aparecerá aquí sin refrescar.</p></>}
-        <div className="active-sheet-actions"><button type="button" className="active-stop-button" disabled={shiftBusy || Boolean(liveOrder)} onClick={onStop}><Power size={16}/>{shiftBusy ? "Finalizando…" : "Finalizar jornada"}</button><button type="button" className="active-support-button" onClick={onSupport}><CircleHelp size={16}/> Soporte</button></div>
-        {liveOrder && <p className="active-safety-note"><ShieldCheck size={15}/> Termina o comunica la incidencia antes de cerrar la jornada.</p>}
       </section>
       {scannerOpen && liveOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label={scannerMode === "pickup" ? "Autorizar recogida" : "Confirmar entrega"}><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">{scannerMode === "pickup" ? "RECOGIDA SEGURA" : "ENTREGA SEGURA"}</p><h2>{scannerMode === "pickup" ? "Escanea el QR del establecimiento" : "Escanea el QR o introduce el PIN del cliente"}</h2><p>{scannerMode === "pickup" ? "El establecimiento debe validar este pedido antes de entregártelo. Después podrás iniciar la ruta hacia el cliente." : "El customer te facilitará un QR o un PIN. Valídalo al entregarle el pedido para cerrar la entrega."}</p><video ref={videoRef} muted playsInline className={scannerReady ? "delivery-qr-video" : "hidden"}/>{!scannerReady && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara para escanear QR</button>}<label>{scannerMode === "pickup" ? "También puedes introducir el código de recogida" : "También puedes introducir el PIN o código QR"}<input value={qrValue} onChange={(event) => setQrValue(event.target.value)} placeholder={scannerMode === "pickup" ? "Código del establecimiento" : "PIN o enlace QR del customer"} autoComplete="one-time-code" /></label><button type="button" disabled={!qrValue.trim() || actionBusy} className="active-order-button" onClick={() => { if (scannerMode === "pickup") onConfirmPickup(liveOrder._id, qrValue.trim()); else onConfirmDelivery(liveOrder._id, qrValue.trim()); closeScanner(); }}><ShieldCheck size={17}/> {scannerMode === "pickup" ? "Autorizar recogida" : "Confirmar entrega"}</button></section>}
       {toast && <div className="toast active-toast" role="status"><ShieldCheck size={17}/>{toast}</div>}

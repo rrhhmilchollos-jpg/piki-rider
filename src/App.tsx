@@ -97,18 +97,18 @@ function App() {
       audioContextRef.current = audio;
       void audio.resume();
       const now = audio.currentTime;
-      [0, 0.18, 0.36].forEach((offset, index) => {
+      Array.from({ length: 20 }, (_, index) => index * 0.5).forEach((offset, index) => {
         const oscillator = audio.createOscillator();
         const gain = audio.createGain();
-        oscillator.type = "sine";
-        oscillator.frequency.value = index === 1 ? 1046 : 880;
+        oscillator.type = index % 4 === 0 ? "triangle" : "sine";
+        oscillator.frequency.value = 660 + index * 58;
         gain.gain.setValueAtTime(0.0001, now + offset);
-        gain.gain.exponentialRampToValueAtTime(0.16, now + offset + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.32, now + offset + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.42);
         oscillator.connect(gain); gain.connect(audio.destination);
-        oscillator.start(now + offset); oscillator.stop(now + offset + 0.16);
+        oscillator.start(now + offset); oscillator.stop(now + offset + 0.45);
       });
-      if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
+      if ("vibrate" in navigator) navigator.vibrate([250, 120, 250, 120, 350, 120, 350, 120, 450, 120, 450, 120, 550, 120, 550, 120, 650, 120, 650]);
     } catch { /* The device may block audio until the next user gesture. */ }
   }
 
@@ -398,13 +398,10 @@ function App() {
     offers={offers}
     offersLoading={offersLoading}
     offersError={offersError}
-    shiftBusy={shiftBusy}
     startedShiftNotice={startedShiftNotice}
     toast={toast}
-    onStop={() => void toggleShift()}
     onDismissStartNotice={() => setStartedShiftNotice(false)}
     onOpenOperations={() => setShowOperations(true)}
-    onSupport={() => { setShowOperations(true); setSection("Soporte"); }}
     onRefreshOffers={() => { setOffersError(""); void loadRiderData(); }}
 	    actionBusy={orderActionBusy}
 	    onOfferAction={(orderId, action) => void offerAction(orderId, action)}
