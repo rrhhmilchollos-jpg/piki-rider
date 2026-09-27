@@ -88,6 +88,7 @@ function App() {
   const lastOfferAtRef = useRef(0);
   const lastMobilityAlertRef = useRef("");
   const audioContextRef = useRef<AudioContext | null>(null);
+  const assignedOrderRef = useRef(false);
 
   function playAssignmentAlert() {
     try {
@@ -182,6 +183,7 @@ function App() {
         }
         const data = await response.json() as { offers?: RiderOffer[] };
         const nextOffers = Array.isArray(data.offers) ? data.offers : [];
+        assignedOrderRef.current = nextOffers.some(offer => offer.assignmentState === "assigned");
         setOffers(nextOffers);
         setOffersError("");
         const currentIds = new Set(nextOffers.map(offer => String(offer._id)));
@@ -200,6 +202,7 @@ function App() {
     if (!apiToken || !riderId || !shiftActive) return;
     return connectPikiRealtime({ apiOrigin, token: apiToken, surface: "rider", onEvent: (event) => {
       if (event.type !== "order.rider_offer") return;
+      if (assignedOrderRef.current) return;
       void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, { headers: authHeaders(apiToken) }).then(async (response) => {
         if (!response.ok) return;
         const data = await response.json() as { offers?: RiderOffer[] };
