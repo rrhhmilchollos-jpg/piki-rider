@@ -67,11 +67,11 @@ describe("rider order alerts", () => {
     expect(result).toEqual({ soundScheduled: true, vibrationRequested: true });
     expect(AudioContext).toHaveBeenCalledTimes(1);
     expect(context.resume).toHaveBeenCalledTimes(1);
-    expect(oscillators).toHaveLength(20);
-    expect(oscillators[0].frequency.value).toBe(660);
-    expect(oscillators[19].frequency.value).toBe(1762);
+    expect(oscillators).toHaveLength(6);
+    expect(oscillators[0].frequency.value).toBe(740);
+    expect(oscillators[5].frequency.value).toBe(880);
     expect(oscillators[0].start).toHaveBeenCalledWith(10);
-    expect(oscillators[19].stop).toHaveBeenCalledWith(19.95);
+    expect(oscillators[5].stop).toHaveBeenCalledWith(11.42);
     expect(vibrate).toHaveBeenCalledWith(riderOrderVibrationPattern);
   });
 

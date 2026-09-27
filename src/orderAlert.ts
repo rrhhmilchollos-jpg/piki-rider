@@ -19,8 +19,7 @@ export type RiderAlertEnvironment = {
 };
 
 export const riderOrderVibrationPattern = [
-  250, 120, 250, 120, 350, 120, 350, 120, 450, 120, 450, 120, 550, 120, 550,
-  120, 650, 120, 650,
+  180, 100, 180, 100, 180, 260, 320, 100, 320, 100, 320,
 ];
 
 function browserEnvironment(): RiderAlertEnvironment {
@@ -67,24 +66,22 @@ export function playRiderOrderAlert(
   if (audio) {
     try {
       const now = audio.currentTime;
-      Array.from({ length: 20 }, (_, index) => index * 0.5).forEach(
-        (offset, index) => {
+      [0, 0.18, 0.36, 0.9, 1.08, 1.26].forEach((offset, index) => {
           const oscillator = audio.createOscillator();
           const gain = audio.createGain();
-          oscillator.type = index % 4 === 0 ? "triangle" : "sine";
-          oscillator.frequency.value = 660 + index * 58;
+          oscillator.type = "sine";
+          oscillator.frequency.value = index % 3 === 2 ? 880 : 740;
           gain.gain.setValueAtTime(0.0001, now + offset);
           gain.gain.exponentialRampToValueAtTime(0.32, now + offset + 0.04);
           gain.gain.exponentialRampToValueAtTime(
             0.0001,
-            now + offset + 0.42,
+            now + offset + 0.13,
           );
           oscillator.connect(gain);
           gain.connect(audio.destination);
           oscillator.start(now + offset);
-          oscillator.stop(now + offset + 0.45);
-        },
-      );
+          oscillator.stop(now + offset + 0.16);
+        });
       soundScheduled = true;
     } catch {
       /* The device may block or interrupt audio; continue with haptics. */
