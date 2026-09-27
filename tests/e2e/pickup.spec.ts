@@ -5,8 +5,9 @@ const orderId = "order-e2e-pickup";
 async function mockRiderApi(
   page: Page,
   paymentMethod: "cash" | "stripe" = "stripe",
+  initialOrderStatus: "ready_for_pickup" | "preparing" = "ready_for_pickup",
 ) {
-  let orderStatus = "ready_for_pickup";
+  let orderStatus = initialOrderStatus;
   let lastTransition: Record<string, unknown> | null = null;
   let lastPickupProof: Record<string, unknown> | null = null;
 
@@ -53,6 +54,17 @@ test("confirma la recogida sin QR/PIN", async ({ page }) => {
   await page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true }).click();
   await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
   expect(api.getLastTransition()).toMatchObject({ status: "picked_up", actorRole: "rider" });
+  expect(api.getLastPickupProof()).toBeNull();
+});
+
+test("espera a que el establecimiento marque el pedido como listo", async ({ page }) => {
+  const api = await mockRiderApi(page, "stripe", "preparing");
+  await page.goto("/");
+
+  await expect(page.getByText("El establecimiento está preparando el pedido. La recogida se habilitará automáticamente cuando lo marque como listo.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Validar QR/PIN (opcional)", exact: true })).toHaveCount(0);
+  expect(api.getLastTransition()).toBeNull();
   expect(api.getLastPickupProof()).toBeNull();
 });
 

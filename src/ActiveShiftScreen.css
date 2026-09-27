@@ -52,4 +52,5 @@
 .active-payment{display:grid;grid-template-columns:1fr auto;gap:4px 12px;border-top:1px solid #e0e4e5;padding:15px 24px 18px;font-size:15px}
 .active-payment span{color:#4d575c}.active-payment strong{font-size:16px;font-weight:500}.active-payment b{grid-column:2;grid-row:1/3;font-size:18px;align-self:center}
 .active-empty-items{margin:8px 0 12px;color:#647075;font-size:14px}
+.active-pickup-pending{margin:0 24px 18px;padding:12px 14px;border-radius:11px;background:#fff4cf;color:#6a5000;font-size:14px!important;font-weight:700;line-height:1.4}
 @media(max-width:580px){.active-shift-shell .active-bottom-sheet.has-live-order{padding-top:20px}.active-order-header{padding-left:24px;padding-right:24px}.active-call-button{width:54px;height:54px}.active-order-detail{margin-bottom:12px}.active-item-title{font-size:16px}.active-item-modifier{font-size:15px}}
