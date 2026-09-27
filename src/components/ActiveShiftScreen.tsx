@@ -1,7 +1,11 @@
-import { Banknote, Camera, ChevronDown, ChevronUp, ClipboardList, Menu, Navigation, Phone, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, ClipboardList, Menu, Navigation, Phone, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
+import {
+  getRiderPaymentInstruction,
+  isCustomerDeliveryPhase,
+} from "../orderPaymentInstruction";
 import "../ActiveShiftScreen.css";
 
 type Props = {
@@ -49,8 +53,9 @@ function productCount(order: RiderOffer) {
 function OrderDetail({ order }: { order: RiderOffer }) {
   const [expanded, setExpanded] = useState(true);
   const items = order.items || [];
-  const deliveryPhase = order.status === "picked_up" || order.status === "on_the_way";
+  const deliveryPhase = isCustomerDeliveryPhase(order.status);
   const address = deliveryPhase ? order.deliveryAddress || "Dirección del cliente protegida" : order.restaurant?.address || "Dirección del establecimiento protegida";
+  const paymentInstruction = getRiderPaymentInstruction(order);
 
   return <section className="active-order-detail" aria-label="Detalle del pedido">
     <header className="active-order-header">
@@ -75,7 +80,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
         </div>
       </article>) : <p className="active-empty-items">El detalle de productos estará disponible al sincronizar el pedido.</p>}
     </div>}
-    <div className="active-payment"><span>Pago</span><strong>{order.paymentMethod === "cash" ? "No pagar en el local" : order.paymentMethod === "bizum" ? "Bizum" : "Pago online"}</strong>{order.totalCents != null && <b>{formatPrice(order.totalCents)}</b>}</div>
+    <div className="active-payment"><span>Pago</span><strong>{paymentInstruction.detail}</strong>{paymentInstruction.amountToCollectCents != null && <b>{formatPrice(paymentInstruction.amountToCollectCents)}</b>}</div>
   </section>;
 }
 
@@ -124,7 +129,6 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
           <h1 className="active-route-title">{routeLabel(liveOrder)}</h1>
           <OrderDetail order={liveOrder}/>
           {pickupPhase && <><button type="button" className="active-order-button" disabled={actionBusy} onClick={() => openScanner("pickup")}><ClipboardList size={17}/> Validar QR/PIN (opcional)</button><button type="button" className="active-order-button pickup-skip-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "picked_up")}><Navigation size={17}/> Confirmar recogida sin QR/PIN</button></>}
-          {liveOrder.paymentMethod === "cash" && <p className="active-cash-note"><Banknote size={15}/> Cobrar en efectivo al cliente: {formatPrice(liveOrder.totalCents || 0)}</p>}
           {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={17}/> Iniciar ruta</button>}
           {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button" onClick={() => openScanner("delivery")}><Camera size={17}/> Escanear QR o PIN del cliente</button>}
         </> : <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Buscando pedidos…</h1><p>Estás visible para la red PIKI en {subtitle}. Cuando llegue una oferta, sonará una alerta y aparecerá aquí sin refrescar.</p></>}
