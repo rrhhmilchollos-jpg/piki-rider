@@ -39,6 +39,7 @@
 .active-order-header p{margin:5px 0 0;font-size:17px;color:#313a40}
 .active-call-button{display:grid;place-items:center;flex:none;width:58px;height:58px;border:2px solid #aeead9;border-radius:50%;color:#008e78;text-decoration:none}
 .active-order-address{margin:17px 24px 14px;font-size:17px;line-height:1.45;color:#161c20}
+.active-order-context{margin:14px 24px -8px;color:#258a70!important;font-size:11px!important;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
 .active-items-toggle{width:100%;display:flex;align-items:center;justify-content:flex-end;gap:8px;border:0;border-top:1px solid #e3e7e8;background:#fff;color:#258a70;padding:12px 24px;font:800 20px 'DM Sans',sans-serif;cursor:pointer}
 .active-items-list{border-top:1px solid #e8ebec;padding:11px 24px 8px}
 .active-item{display:grid;grid-template-columns:28px 1fr;gap:12px;padding:10px 0}

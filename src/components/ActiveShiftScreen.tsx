@@ -49,16 +49,18 @@ function productCount(order: RiderOffer) {
 function OrderDetail({ order }: { order: RiderOffer }) {
   const [expanded, setExpanded] = useState(true);
   const items = order.items || [];
-  const address = order.restaurant?.address || "Dirección del establecimiento protegida";
+  const deliveryPhase = order.status === "picked_up" || order.status === "on_the_way";
+  const address = deliveryPhase ? order.deliveryAddress || "Dirección del cliente protegida" : order.restaurant?.address || "Dirección del establecimiento protegida";
 
   return <section className="active-order-detail" aria-label="Detalle del pedido">
     <header className="active-order-header">
       <div>
-        <h2>{order.restaurant?.name || "Establecimiento PIKI"}</h2>
+        <h2>{deliveryPhase ? order.customerName || "Cliente final" : order.restaurant?.name || "Establecimiento PIKI"}</h2>
         <p>{productCount(order)} {productCount(order) === 1 ? "producto" : "productos"}</p>
       </div>
-      {order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
+      {!deliveryPhase && order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
     </header>
+    <p className="active-order-context">{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</p>
     <p className="active-order-address">{address}</p>
     <button type="button" className="active-items-toggle" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
       <strong>{productCount(order)} {productCount(order) === 1 ? "producto" : "productos"}</strong>
