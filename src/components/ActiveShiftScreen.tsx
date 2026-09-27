@@ -58,7 +58,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
         <h2>{deliveryPhase ? order.customerName || "Cliente final" : order.restaurant?.name || "Establecimiento PIKI"}</h2>
         <p>{productCount(order)} {productCount(order) === 1 ? "producto" : "productos"}</p>
       </div>
-      {!deliveryPhase && order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
+      {deliveryPhase ? order.customerPhone && <a className="active-call-button" href={`tel:${order.customerPhone}`} aria-label={`Llamar a ${order.customerName || "el cliente"}`}><Phone size={22}/></a> : order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
     </header>
     <p className="active-order-context">{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</p>
     <p className="active-order-address">{address}</p>
