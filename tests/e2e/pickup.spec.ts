@@ -1,10 +1,11 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 const orderId = "order-e2e-pickup";
 
-async function mockRiderApi(page: import("@playwright/test").Page) {
+async function mockRiderApi(page: Page) {
   let orderStatus = "ready_for_pickup";
   let lastTransition: Record<string, unknown> | null = null;
+  let lastPickupProof: Record<string, unknown> | null = null;
 
   await page.route("https://api.pikidelivery.com/**", async (route) => {
     const request = route.request();
@@ -23,6 +24,11 @@ async function mockRiderApi(page: import("@playwright/test").Page) {
       orderStatus = String(lastTransition.status || orderStatus);
       return json({ order: { _id: orderId, status: orderStatus }, message: "Recogida confirmada. Ya puedes iniciar la ruta." });
     }
+    if (path.endsWith(`/orders/${orderId}/confirm-pickup`) && request.method() === "POST") {
+      lastPickupProof = JSON.parse(request.postData() || "{}");
+      orderStatus = "picked_up";
+      return json({ order: { _id: orderId, status: orderStatus }, message: "Recogida confirmada. Ya puedes iniciar la ruta." });
+    }
     if (path.includes("/api/v1/riders/")) return json({});
     return json({});
   });
@@ -32,28 +38,27 @@ async function mockRiderApi(page: import("@playwright/test").Page) {
     Object.defineProperty(Notification, "permission", { configurable: true, get: () => "granted" });
   });
 
-  return { getLastTransition: () => lastTransition };
+  return {
+    getLastTransition: () => lastTransition,
+    getLastPickupProof: () => lastPickupProof,
+  };
 }
 
 test("confirma la recogida sin QR/PIN", async ({ page }) => {
   const api = await mockRiderApi(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Confirmar recogida" })).toBeVisible();
-  await page.getByRole("button", { name: "Confirmar recogida" }).click();
-  await expect(page.getByRole("heading", { name: "Confirma la recogida" })).toBeVisible();
-  await page.getByRole("button", { name: /Confirmar recogida sin QR\/PIN/ }).click();
+  await page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true }).click();
   await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
   expect(api.getLastTransition()).toMatchObject({ status: "picked_up", actorRole: "rider" });
-  expect(api.getLastTransition()).not.toHaveProperty("pickupProof");
+  expect(api.getLastPickupProof()).toBeNull();
 });
 
 test("confirma la recogida con PIN opcional", async ({ page }) => {
   const api = await mockRiderApi(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Confirmar recogida" }).click();
-  await page.getByRole("button", { name: "PIN", exact: true }).click();
-  await page.getByLabel("PIN del establecimiento (opcional)").fill("4821");
-  await page.getByRole("button", { name: "Confirmar recogida con PIN" }).click();
+  await page.getByRole("button", { name: "Validar QR/PIN (opcional)", exact: true }).click();
+  await page.getByLabel("PIN alfanumérico del pedido (opcional)").fill("4821");
+  await page.getByRole("button", { name: "Autorizar recogida" }).click();
   await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
-  expect(api.getLastTransition()).toMatchObject({ status: "picked_up", pickupProof: { kind: "pin", value: "4821" } });
+  expect(api.getLastPickupProof()).toMatchObject({ pickupPin: "4821", pickupQr: "4821" });
 });
