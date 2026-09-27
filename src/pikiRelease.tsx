@@ -48,36 +48,6 @@ async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   return registration;
 }
 
-async function waitForWaitingWorker(registration: ServiceWorkerRegistration): Promise<ServiceWorker | null> {
-  if (registration.waiting) return registration.waiting;
-  return new Promise((resolve) => {
-    const timeout = window.setTimeout(() => resolve(registration.waiting ?? null), 10_000);
-    const inspect = () => {
-      const worker = registration.installing;
-      if (!worker) return;
-      worker.addEventListener("statechange", () => {
-        if (worker.state === "installed" || worker.state === "activated" || worker.state === "redundant") {
-          window.clearTimeout(timeout);
-          resolve(registration.waiting ?? (worker.state === "activated" ? worker : null));
-        }
-      }, { once: true });
-    };
-    registration.addEventListener("updatefound", inspect, { once: true });
-    inspect();
-  });
-}
-
-async function waitForControllerChange(): Promise<void> {
-  if (!("serviceWorker" in navigator)) return;
-  await new Promise<void>((resolve) => {
-    const timeout = window.setTimeout(resolve, 10_000);
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.clearTimeout(timeout);
-      resolve();
-    }, { once: true });
-  });
-}
-
 // oxlint-disable-next-line react/only-export-components
 export function installPikiReleaseHeaders(): void {
   const state = window as unknown as { __pikiReleaseFetchInstalled?: boolean };
@@ -257,10 +227,11 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     setDetail("");
     try {
       const registration = await registerWorker();
-      const waiting = registration ? await waitForWaitingWorker(registration) : null;
-      if (waiting && waiting.state !== "activated") waiting.postMessage({ type: "SKIP_WAITING" });
-      await waitForControllerChange();
-      window.location.replace(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+      const waiting = registration?.waiting ?? null;
+      if (waiting) waiting.postMessage({ type: "SKIP_WAITING" });
+      const url = new URL(window.location.href);
+      url.searchParams.set("piki_update", String(Date.now()));
+      window.location.replace(url.toString());
     } catch (error) {
       setUpdating(false);
       setDetail(error instanceof Error ? error.message : "No se pudo descargar la actualización.");
