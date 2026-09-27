@@ -31,6 +31,7 @@ import "./App.css";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
+import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
@@ -989,6 +990,7 @@ function App() {
     );
   if (shiftActive && !showOperations && riderId)
     return (
+      <LocationPermissionGate appLabel="Rider">
       <ActiveShiftScreen
         token={apiToken}
         riderId={riderId}
@@ -1014,8 +1016,10 @@ function App() {
         }
         onError={handleApiError}
       />
+      </LocationPermissionGate>
     );
   return (
+    <LocationPermissionGate appLabel="Rider">
     <div className="app-shell">
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="brand-block">
@@ -2031,6 +2035,7 @@ function App() {
         </section>
       </main>
     </div>
+    </LocationPermissionGate>
   );
 }
 
