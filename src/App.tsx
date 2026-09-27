@@ -363,6 +363,8 @@ function App() {
     const message = encodeURIComponent(`PIKI RIDER | ${topic} | ${option}`);
     window.open(`${base}${separator}text=${message}`, "_blank", "noopener,noreferrer");
   }
+  const [profileOpen, setProfileOpen] = useState(false);
+  const logout = async () => { try { await fetch(`${apiOrigin}/api/v1/auth/employee/logout`, { method: "POST", headers: authHeaders(apiToken) }); } catch {} localStorage.removeItem(tokenStorageKey); sessionStorage.removeItem(tokenStorageKey); setApiToken(""); setProfileOpen(false); setAuthRequired(false); };
   const handleApiError = useCallback((message: string) => {
     if (message.includes("API 401") || message.includes("AUTHENTICATION_REQUIRED")) {
       sessionStorage.removeItem(tokenStorageKey);
@@ -403,7 +405,7 @@ function App() {
     </aside>
     {open && <button className="backdrop" onClick={() => setOpen(false)} aria-label="Cerrar navegación"/>}
     <main className="main-content">
-      <header className="topbar"><button className="menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={21}/></button><div className="location-pill"><Bike size={16}/><span>Operativa de reparto</span><span className="status-dot"/></div><div className="topbar-actions"><button className="icon-button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={19}/></button><div className="user-avatar">R</div></div></header>
+      <header className="topbar"><button className="menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={21}/></button><div className="location-pill"><Bike size={16}/><span>Operativa de reparto</span><span className="status-dot"/></div><div className="topbar-actions"><button className="icon-button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={19}/></button><div className="profile-wrap"><button className="profile-trigger" onClick={() => setProfileOpen(value => !value)} aria-expanded={profileOpen} aria-label="Abrir perfil"><span className="user-avatar">R</span></button>{profileOpen && <div className="profile-menu"><strong>Cuenta Rider</strong><span>rrhh.milchollos@gmail.com</span><button onClick={() => showSection("Cuenta")}>Ver mi cuenta</button><button className="profile-logout" onClick={() => void logout()}>Cerrar sesión</button></div>}</div></div></header>
       <section className="page-content">
         {toast && <div className="toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
         {authRequired && <EmployeeAuthGate apiOrigin={apiOrigin} onAuthenticated={(token)=>{sessionStorage.setItem(tokenStorageKey,token);setApiToken(token);setAuthRequired(false);setStatus("checking")}} />}
