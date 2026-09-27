@@ -15,7 +15,9 @@ export default function LiveGoogleMap({ token, riderId, active = false, onError 
   const polygonsRef = useRef<google.maps.Polygon[]>([]);
   const lastPointRef = useRef<Point | null>(null);
   const [zones, setZones] = useState<OperationalZone[]>([]);
+  const [zonesState, setZonesState] = useState<"loading" | "ready" | "error">("loading");
   const [locationState, setLocationState] = useState(active ? "Solicitando GPS real…" : "Activa una jornada para compartir ubicación");
+  const [gpsRetryKey, setGpsRetryKey] = useState(0);
 
   useEffect(() => {
     let disposed = false;
@@ -34,30 +36,38 @@ export default function LiveGoogleMap({ token, riderId, active = false, onError 
       if (!active) return;
       if (!navigator.geolocation) { setLocationState("GPS no disponible"); onError("Este dispositivo no ofrece geolocalización"); return; }
       const success = (position: GeolocationPosition) => void publish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
-      const failure = (error: GeolocationPositionError) => { setLocationState("Ubicación no autorizada"); onError(error.message || "No se ha concedido el permiso de ubicación"); };
+      const failure = (error: GeolocationPositionError) => { setLocationState(error.code === error.PERMISSION_DENIED ? "Permiso GPS no concedido" : "GPS temporalmente no disponible"); onError(error.code === error.PERMISSION_DENIED ? "Activa el permiso de ubicación del navegador para publicar tu posición." : error.message || "No se ha podido obtener la ubicación."); };
       watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 });
       heartbeat = window.setInterval(() => { if (document.visibilityState === "visible") navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }); }, 15_000);
     };
     const beginMap = async () => {
+      let maps: typeof google.maps | null = null;
       try {
-        const maps = await loadGoogleMaps();
-        if (disposed || !containerRef.current) return;
+        maps = await loadGoogleMaps();
+      } catch {
+        if (!lastPointRef.current) setLocationState(active ? "GPS activo · mapa no disponible" : "Mapa no disponible");
+      }
+      if (maps && !disposed && containerRef.current) {
         const point = lastPointRef.current || XATIVA;
         const map = new maps.Map(containerRef.current, { center: point, zoom: 13, mapTypeControl: false, streetViewControl: false, fullscreenControl: true });
         mapRef.current = map;
         markerRef.current = new maps.Marker({ map, position: point, title: active ? "Ubicación PIKI" : "Centro operativo Xàtiva", zIndex: 20 });
+      }
+      try {
         const loadedZones = await loadOperationalZones(token);
         if (disposed) return;
         setZones(loadedZones);
-        for (const item of toGoogleZonePaths(loadedZones)) polygonsRef.current.push(new maps.Polygon({ map, paths: item.path, strokeColor: "#84CC16", strokeOpacity: 0.95, strokeWeight: 2, fillColor: "#84CC16", fillOpacity: 0.12 }));
+        setZonesState("ready");
+        if (maps && mapRef.current) for (const item of toGoogleZonePaths(loadedZones)) polygonsRef.current.push(new maps.Polygon({ map: mapRef.current, paths: item.path, strokeColor: "#84CC16", strokeOpacity: 0.95, strokeWeight: 2, fillColor: "#84CC16", fillOpacity: 0.12 }));
       } catch {
-        // A missing map key must never stop real GPS publishing or order dispatch.
-        if (!lastPointRef.current) setLocationState(active ? "GPS activo · mapa no disponible" : "Mapa no disponible");
+        if (!disposed) setZonesState("error");
       }
     };
     beginGps(); void beginMap();
     return () => { disposed = true; if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); if (heartbeat !== undefined) window.clearInterval(heartbeat); markerRef.current?.setMap(null); polygonsRef.current.forEach((polygon) => polygon.setMap(null)); polygonsRef.current = []; mapRef.current = null; };
-  }, [active, onError, riderId, token]);
+  }, [active, gpsRetryKey, onError, riderId, token]);
 
-  return <section className="real-map-shell" aria-label="Ubicación GPS en vivo"><div ref={containerRef} className="google-map-canvas"/><div className="real-map-status"><span className="gps-dot" />{locationState}<strong>{zones.filter((zone) => zone.isActive !== false).length} zonas activas</strong></div></section>;
+  const activeZoneCount = zones.filter((zone) => zone.isActive !== false).length;
+  const zoneLabel = zonesState === "loading" ? "Cargando zonas…" : zonesState === "error" ? "Zonas no disponibles" : `${activeZoneCount} zonas activas`;
+  return <section className="real-map-shell" aria-label="Ubicación GPS en vivo"><div ref={containerRef} className="google-map-canvas"/><div className="real-map-status"><span className="gps-dot" />{locationState}{(locationState.includes("Permiso") || locationState.includes("no disponible")) && <button type="button" onClick={() => setGpsRetryKey((value) => value + 1)}>Reintentar GPS</button>}<strong>{zoneLabel}</strong></div></section>;
 }

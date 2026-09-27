@@ -40,3 +40,5 @@
 .profile-menu button { border: 0; background: transparent; color: #30425f; text-align: left; padding: 8px 5px; border-radius: 7px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .profile-menu button:hover { background: #f0f5fb; }
 .profile-menu .profile-logout { color: #b64250; border-top: 1px solid #edf0f5; margin-top: 2px; padding-top: 11px; }
+
+.real-map-status button{border:0;border-radius:8px;padding:5px 8px;background:#d4ff57;color:#10294f;font:700 11px 'DM Sans';cursor:pointer}.real-map-status button:hover{filter:brightness(.96)}
