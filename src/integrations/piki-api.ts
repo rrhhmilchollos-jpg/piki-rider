@@ -61,3 +61,12 @@ export async function sendRiderOrderMessage(token: string, riderId: string, orde
   const result = await apiJson<{ message: RiderOrderMessage }>(`/api/v1/riders/${encodeURIComponent(riderId)}/orders/${encodeURIComponent(orderId)}/messages`, token, { method: "POST", body: JSON.stringify({ body }) });
   return result.message;
 }
+
+export type RiderSupportTicket = { id: string; ticketNumber: string; status: string };
+export async function createRiderSupportTicket(input: { token: string; riderId: string; subject: string; description: string; priority?: "low" | "normal" | "high" | "urgent"; orderId?: string }): Promise<RiderSupportTicket> {
+  const result = await apiJson<{ ticket: RiderSupportTicket }>(`/api/v1/riders/${encodeURIComponent(input.riderId)}/support/tickets`, input.token, {
+    method: "POST",
+    body: JSON.stringify({ subject: input.subject, description: input.description, priority: input.priority || "normal", ...(input.orderId ? { orderId: input.orderId } : {}) }),
+  });
+  return result.ticket;
+}

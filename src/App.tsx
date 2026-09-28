@@ -39,6 +39,7 @@ import {
   type RiderAlertAudioContext,
 } from "./orderAlert";
 import {
+  createRiderSupportTicket,
   loadMobilityAdvice,
   loadRiderOrderMessages,
   sendRiderOrderMessage,
@@ -945,6 +946,32 @@ function App() {
     setSupportTopic(label);
     setFaqOpen(null);
   }
+  async function createSupportTicket(topic: string, option: string) {
+    if (!apiToken || !riderId) {
+      setToast("Inicia sesión como Rider para enviar una incidencia a Soporte PIKI.");
+      return;
+    }
+    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+    const priority = topic === "safety" ? "urgent" : topic === "order" ? "high" : "normal";
+    const orderContext = activeOrder
+      ? `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`
+      : "No hay un pedido activo vinculado en este momento.";
+    try {
+      const ticket = await createRiderSupportTicket({
+        token: apiToken,
+        riderId,
+        subject: `${topic === "order" ? "Pedido" : "Soporte Rider"}: ${option}`,
+        description: `Incidencia seleccionada desde la app Rider: ${option}.\n\nContexto automático: ${orderContext}`,
+        priority,
+        orderId: activeOrder?._id,
+      });
+      setToast(`Incidencia ${ticket.ticketNumber || "creada"}. Soporte PIKI ya tiene el contexto.`);
+      setSupportTopic(null);
+    } catch (ticketError) {
+      const message = ticketError instanceof Error ? ticketError.message : "No se pudo crear la incidencia.";
+      setToast(`${message} Puedes usar WhatsApp como alternativa.`);
+    }
+  }
   function openWhatsApp(topic: string, option: string) {
     const base =
       manychatWhatsAppUrl ||
@@ -1762,6 +1789,7 @@ function App() {
                     <SupportDetail
                       topicId={supportTopic}
                       onBack={() => setSupportTopic(null)}
+                      onCreateTicket={createSupportTicket}
                       onWhatsApp={openWhatsApp}
                     />
                   )}
@@ -2101,10 +2129,12 @@ function SupportCard({
 function SupportDetail({
   topicId,
   onBack,
+  onCreateTicket,
   onWhatsApp,
 }: {
   topicId: string;
   onBack: () => void;
+  onCreateTicket: (topic: string, option: string) => void;
   onWhatsApp: (topic: string, option: string) => void;
 }) {
   const topic = supportTopics.find((item) => item.id === topicId);
@@ -2126,15 +2156,18 @@ function SupportDetail({
       </div>
       <div className="support-option-grid">
         {topic.options.map((option) => (
-          <button
+          <div
             className="support-option"
             key={option}
-            onClick={() => onWhatsApp(topic.title, option)}
           >
-            <MessageCircle size={17} />
-            <span>{option}</span>
-            <ChevronRight size={16} />
-          </button>
+            <span className="support-option-label"><LifeBuoy size={17} />{option}</span>
+            <button type="button" className="primary-button" onClick={() => onCreateTicket(topicId, option)}>
+              Enviar a Soporte
+            </button>
+            <button type="button" className="secondary-button" onClick={() => onWhatsApp(topic.title, option)}>
+              <MessageCircle size={16} /> WhatsApp
+            </button>
+          </div>
         ))}
       </div>
     </section>
