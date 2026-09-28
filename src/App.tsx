@@ -839,25 +839,6 @@ function App() {
     }
   }
   async function pickupOrder(orderId: string) {
-    const order = offers.find((offer) => offer._id === orderId);
-    if (order?.assignmentState === "offered") {
-      try {
-        const response = await fetch(`${apiOrigin}/api/v1/dispatch/orders/${orderId}/offer-response`, {
-          method: "POST",
-          headers: { ...authHeaders(apiToken), "Content-Type": "application/json" },
-          body: JSON.stringify({ accept: true }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          setToast(data.message || data.error || "No se pudo aceptar el pedido.");
-          await loadRiderData();
-          return;
-        }
-      } catch {
-        setToast("No se pudo aceptar el pedido por un problema de conexión.");
-        return;
-      }
-    }
     await offerAction(orderId, "picked_up");
   }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
