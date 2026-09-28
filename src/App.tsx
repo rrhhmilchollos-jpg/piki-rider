@@ -46,6 +46,11 @@ import {
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 import { orderRiderQueue } from "./orderQueue";
+import {
+  clearStoredToken,
+  getStoredToken,
+  storeToken,
+} from "./authStorage";
 
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
@@ -102,7 +107,6 @@ async function encodeApplicationDocument(
 const apiOrigin = (
   import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com"
 ).replace(/\/$/, "");
-const tokenStorageKey = `piki-${location.hostname}-api-token`;
 function authHeaders(token: string): Record<string, string> {
   return token.trim() ? { Authorization: `Bearer ${token.trim()}` } : {};
 }
@@ -239,9 +243,7 @@ function App() {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("checking");
   const [authRequired, setAuthRequired] = useState(false);
-  const [apiToken, setApiToken] = useState(
-    () => sessionStorage.getItem(tokenStorageKey) || "",
-  );
+  const [apiToken, setApiToken] = useState(() => getStoredToken());
   const [applicationStatus, setApplicationStatus] =
     useState<ApplicationStatus>("idle");
   const [error, setError] = useState("");
@@ -299,7 +301,7 @@ function App() {
       );
       if (!sessionResponse.ok) {
         if ([401, 403, 428].includes(sessionResponse.status)) {
-          sessionStorage.removeItem(tokenStorageKey);
+          clearStoredToken();
           setApiToken("");
           setAuthRequired(true);
           setRiderId("");
@@ -373,7 +375,7 @@ function App() {
         );
         if (!response.ok || disposed) {
           if (!disposed && [401, 403, 428].includes(response.status)) {
-            sessionStorage.removeItem(tokenStorageKey);
+            clearStoredToken();
             setApiToken("");
             setAuthRequired(true);
             setRiderId("");
@@ -953,8 +955,7 @@ function App() {
         headers: authHeaders(apiToken),
       });
     } catch {}
-    localStorage.removeItem(tokenStorageKey);
-    sessionStorage.removeItem(tokenStorageKey);
+    clearStoredToken();
     setApiToken("");
     setProfileOpen(false);
     setAuthRequired(false);
@@ -964,7 +965,7 @@ function App() {
       message.includes("API 401") ||
       message.includes("AUTHENTICATION_REQUIRED")
     ) {
-      sessionStorage.removeItem(tokenStorageKey);
+      clearStoredToken();
       setApiToken("");
       setAuthRequired(false);
       setToast("Tu sesión ha caducado. Vuelve a iniciar sesión.");
@@ -979,7 +980,7 @@ function App() {
         <EmployeeAuthGate
           apiOrigin={apiOrigin}
           onAuthenticated={(token) => {
-            sessionStorage.setItem(tokenStorageKey, token);
+            storeToken(token);
             setApiToken(token);
             setAuthRequired(false);
             window.dispatchEvent(new Event("piki-authenticated"));
@@ -1126,7 +1127,7 @@ function App() {
             <EmployeeAuthGate
               apiOrigin={apiOrigin}
               onAuthenticated={(token) => {
-                sessionStorage.setItem(tokenStorageKey, token);
+                storeToken(token);
                 setApiToken(token);
                 setAuthRequired(false);
                 setStatus("checking");

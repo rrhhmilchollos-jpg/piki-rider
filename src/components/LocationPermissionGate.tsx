@@ -6,7 +6,7 @@ export default function LocationPermissionGate({ appLabel, children }: { appLabe
   const [state, setState] = useState<PermissionState>("checking");
   const [detail, setDetail] = useState("");
 
-  const requestLocation = useCallback(() => {
+  const requestLocation = useCallback(async () => {
     if (!navigator.geolocation) {
       setState("unsupported");
       setDetail("Este dispositivo o navegador no ofrece geolocalización.");
@@ -14,19 +14,31 @@ export default function LocationPermissionGate({ appLabel, children }: { appLabe
     }
     setState("checking");
     setDetail("");
+    try {
+      const permission = await navigator.permissions?.query({ name: "geolocation" });
+      if (permission?.state === "denied") {
+        setState("denied");
+        setDetail("Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo.");
+        return;
+      }
+    } catch {
+      // Algunos navegadores móviles no exponen Permissions API; usamos GPS real igualmente.
+    }
     navigator.geolocation.getCurrentPosition(
       () => setState("granted"),
       (error) => {
         setState(error.code === error.PERMISSION_DENIED ? "denied" : "required");
         setDetail(error.code === error.PERMISSION_DENIED ? "Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo." : "No se pudo obtener la posición. Comprueba que el GPS esté activo.");
       },
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
     );
   }, []);
 
   useEffect(() => {
+    // The effect only starts the device GPS check; state is updated by its async result.
+    // oxlint-disable-next-line react/set-state-in-effect
     requestLocation();
-    const onVisibility = () => { if (document.visibilityState === "visible") requestLocation(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") void requestLocation(); };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [requestLocation]);
