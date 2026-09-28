@@ -1427,7 +1427,7 @@ function App() {
                   <FeatureHeading
                     eyebrow="PIKI · ENTREGAS ACTIVAS"
                     title="Cada paso queda registrado."
-                    lead="Confirma la recogida con QR/PIN opcional, inicia la ruta y valida la entrega con el código del cliente."
+                    lead="Retira el pedido en el Partner, inicia la ruta hacia el cliente y valida la entrega con su código."
                     icon={<ClipboardList />}
                   />
                   <div className="delivery-list">
@@ -1492,7 +1492,7 @@ function App() {
                                     void offerAction(offer._id, "picked_up")
                                   }
                                 >
-                                  Confirmar recogida sin QR/PIN
+                                  Retirar pedido
                                 </button>
                               </>
                             )}

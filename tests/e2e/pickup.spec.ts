@@ -51,7 +51,7 @@ async function mockRiderApi(
 test("confirma la recogida sin QR/PIN", async ({ page }) => {
   const api = await mockRiderApi(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true }).click();
+  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
   await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
   expect(api.getLastTransition()).toMatchObject({ status: "picked_up", actorRole: "rider" });
   expect(api.getLastPickupProof()).toBeNull();
@@ -62,7 +62,7 @@ test("espera a que el establecimiento marque el pedido como listo", async ({ pag
   await page.goto("/");
 
   await expect(page.getByText("El establecimiento está preparando el pedido. La recogida se habilitará automáticamente cuando lo marque como listo.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retirar pedido", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Validar QR/PIN (opcional)", exact: true })).toHaveCount(0);
   expect(api.getLastTransition()).toBeNull();
   expect(api.getLastPickupProof()).toBeNull();
@@ -84,7 +84,7 @@ test("oculta el cobro al ir al local y muestra el efectivo al ver al cliente", a
   await expect(page.getByText("No tienes que pagar en el establecimiento")).toBeVisible();
   await expect(page.getByText("Cobrar en efectivo al cliente")).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true }).click();
+  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
   await page.reload();
 
   await expect(page.getByText("Cliente E2E")).toBeVisible();
@@ -99,7 +99,7 @@ test("muestra pagado online solo en la vista del cliente", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Pagado online")).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Confirmar recogida sin QR/PIN", exact: true }).click();
+  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
   await page.reload();
 
   await expect(page.getByText("Pagado online")).toBeVisible();
