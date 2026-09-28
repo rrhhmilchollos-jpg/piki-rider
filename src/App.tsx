@@ -28,6 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
+import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
@@ -1062,6 +1063,7 @@ function App() {
             <span className="status-dot" />
           </div>
           <div className="topbar-actions">
+            <NotificationCenter apiOrigin={apiOrigin} token={apiToken} surface="rider" />
             <button
               className="icon-button"
               onClick={() => showSection("Soporte")}
