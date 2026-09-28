@@ -32,7 +32,7 @@ export function connectPikiRealtime(input: { apiOrigin: string; token: string; s
             try {
               const parsed = JSON.parse(data) as PikiRealtimeEvent;
               if (eventId) sessionStorage.setItem(storageKey, eventId);
-              if (parsed.type) { window.dispatchEvent(new CustomEvent("piki:realtime", { detail: parsed })); input.onEvent(parsed); }
+              if (parsed.type) input.onEvent(parsed);
             } catch { /* malformed frames are ignored and the stream continues */ }
           }
         }
