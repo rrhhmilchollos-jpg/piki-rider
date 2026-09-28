@@ -16,6 +16,11 @@ export type CurrentShift = {
 
 export type RiderOffer = {
   _id: string;
+  createdAt?: string | null;
+  requestedAt?: string | null;
+  assignedAt?: string | null;
+  created_at?: string | null;
+  requested_at?: string | null;
   publicCode?: string;
   displayCode?: string | null;
   assignmentState: "offered" | "assigned";

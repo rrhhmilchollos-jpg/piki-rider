@@ -45,6 +45,7 @@ import {
   type RiderOrderMessage,
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
+import { orderRiderQueue } from "./orderQueue";
 
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
@@ -449,9 +450,7 @@ function App() {
     });
   }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
   useEffect(() => {
-    const activeOrder = offers.find(
-      (offer) => offer.assignmentState === "assigned",
-    );
+    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     if (!apiToken || !riderId || !activeOrder) {
       // oxlint-disable-next-line react/set-state-in-effect
       setOrderMessages([]);
@@ -479,9 +478,7 @@ function App() {
   }, [apiToken, riderId, offers]);
   async function submitOrderMessage(event: FormEvent) {
     event.preventDefault();
-    const activeOrder = offers.find(
-      (offer) => offer.assignmentState === "assigned",
-    );
+    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     const body = messageDraft.trim();
     if (!apiToken || !riderId || !activeOrder || !body || messageBusy) return;
     setMessageBusy(true);
