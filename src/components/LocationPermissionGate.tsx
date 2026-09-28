@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 type PermissionState = "checking" | "required" | "granted" | "unsupported" | "denied";
 
 export default function LocationPermissionGate({ appLabel, children }: { appLabel: string; children: ReactNode }) {
   const [state, setState] = useState<PermissionState>("checking");
   const [detail, setDetail] = useState("");
+  const wasGrantedRef = useRef(false);
 
-  const requestLocation = useCallback(async () => {
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setState("unsupported");
       setDetail("Este dispositivo o navegador no ofrece geolocalización.");
@@ -14,34 +15,68 @@ export default function LocationPermissionGate({ appLabel, children }: { appLabe
     }
     setState("checking");
     setDetail("");
-    try {
-      const permission = await navigator.permissions?.query({ name: "geolocation" });
-      if (permission?.state === "denied") {
-        setState("denied");
-        setDetail("Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo.");
-        return;
-      }
-    } catch {
-      // Algunos navegadores móviles no exponen Permissions API; usamos GPS real igualmente.
-    }
     navigator.geolocation.getCurrentPosition(
-      () => setState("granted"),
+      () => {
+        wasGrantedRef.current = true;
+        setState("granted");
+      },
       (error) => {
+        wasGrantedRef.current = false;
         setState(error.code === error.PERMISSION_DENIED ? "denied" : "required");
-        setDetail(error.code === error.PERMISSION_DENIED ? "Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo." : "No se pudo obtener la posición. Comprueba que el GPS esté activo.");
+        setDetail(error.code === error.PERMISSION_DENIED
+          ? "Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo."
+          : "No se pudo obtener la posición. Comprueba que el GPS esté activo.");
       },
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
     );
   }, []);
 
+  const checkPermission = useCallback(async (initial = false) => {
+    if (!navigator.geolocation) {
+      setState("unsupported");
+      setDetail("Este dispositivo o navegador no ofrece geolocalización.");
+      return;
+    }
+    try {
+      const permission = await navigator.permissions?.query({ name: "geolocation" });
+      if (permission?.state === "granted") {
+        wasGrantedRef.current = true;
+        setDetail("");
+        setState("granted");
+        return;
+      }
+      if (permission?.state === "denied") {
+        wasGrantedRef.current = false;
+        setState("denied");
+        setDetail("Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo.");
+        return;
+      }
+      if (initial) {
+        // Preserve the browser's standard first-time permission prompt.
+        requestLocation();
+        return;
+      }
+      if (permission?.state === "prompt" || !wasGrantedRef.current) {
+        wasGrantedRef.current = false;
+        setState("required");
+        setDetail("Permite el acceso a la ubicación para continuar.");
+      }
+    } catch {
+      // Some mobile browsers cannot query permission; never hide an already running app on resume.
+      if (initial && !wasGrantedRef.current) requestLocation();
+    }
+  }, [requestLocation]);
+
   useEffect(() => {
-    // The effect only starts the device GPS check; state is updated by its async result.
+    // Restore the app as soon as permission is known; do not wait for a new GPS fix.
     // oxlint-disable-next-line react/set-state-in-effect
-    requestLocation();
-    const onVisibility = () => { if (document.visibilityState === "visible") void requestLocation(); };
+    void checkPermission(true);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void checkPermission(false);
+    };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [requestLocation]);
+  }, [checkPermission]);
 
   useEffect(() => {
     if (state !== "granted" || !navigator.geolocation) return;
