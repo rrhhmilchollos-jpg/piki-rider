@@ -292,12 +292,16 @@ function App() {
   const [messageBusy, setMessageBusy] = useState(false);
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
+  const [supportForm, setSupportForm] = useState({ subject: "", description: "", priority: "high" });
+  const [supportFormBusy, setSupportFormBusy] = useState(false);
+  const [supportFormMessage, setSupportFormMessage] = useState("");
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
   const lastOfferAtRef = useRef(0);
   const lastMobilityAlertRef = useRef("");
   const audioContextRef = useRef<RiderAlertAudioContext | null>(null);
   const assignedOrderRef = useRef(false);
   const riderRefreshInFlightRef = useRef(false);
+  const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
 
   const playAssignmentAlert = useCallback(() => {
     playRiderOrderAlert(audioContextRef);
@@ -906,6 +910,17 @@ function App() {
     } finally {
       setOrderActionBusy(false);
     }
+  }
+  async function submitSupportTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiToken || !riderId || !supportForm.subject.trim() || !supportForm.description.trim()) return;
+    setSupportFormBusy(true); setSupportFormMessage("");
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ subject: supportForm.subject.trim(), description: supportForm.description.trim(), priority: supportForm.priority, orderId: activeOrder?._id }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || "No se pudo enviar la incidencia.");
+      setSupportForm({ subject: "", description: "", priority: "high" }); setSupportFormMessage(`Incidencia ${data.ticket?.ticketNumber || "enviada"}. Soporte ya tiene el pedido y sus datos operativos.`);
+    } catch (error) { setSupportFormMessage(error instanceof Error ? error.message : "No se pudo enviar la incidencia."); } finally { setSupportFormBusy(false); }
   }
   function supportAction(label: string) {
     setSupportTopic(label);
@@ -1731,6 +1746,9 @@ function App() {
                       onWhatsApp={openWhatsApp}
                     />
                   )}
+                  <form className="support-ticket-form" onSubmit={submitSupportTicket}>
+                    <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general o seleccionar un pedido activo para adjuntar todo su contexto."}</p></div>
+                    <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div><button className="primary-button" disabled={supportFormBusy}>{supportFormBusy ? "Enviando…" : "Enviar incidencia vinculada al pedido"}</button>{supportFormMessage && <p className="support-form-message">{supportFormMessage}</p>}</form>
                   <div className="faq-panel">
                     <div className="faq-panel-heading">
                       <div>
