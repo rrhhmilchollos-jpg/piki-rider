@@ -9,7 +9,7 @@
     "check": "tsc -b --pretty false",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run --exclude tests/e2e/**",
+    "test": "vitest run tests/*.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
