@@ -1473,9 +1473,9 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            {offer.status === "ready_for_pickup" && (
+                            {(offer.status === "preparing" || offer.status === "ready_for_pickup") && (
                               <>
-                                <button
+                                {offer.status === "ready_for_pickup" && <button
                                   className="secondary-button"
                                   onClick={() => {
                                     const code = window.prompt(
@@ -1485,15 +1485,17 @@ function App() {
                                   }}
                                 >
                                   Validar QR/PIN de recogida (opcional)
-                                </button>
+                                </button>}
                                 <button
                                   className="primary-button"
+                                  disabled={offer.status !== "ready_for_pickup" || orderActionBusy}
                                   onClick={() =>
                                     void offerAction(offer._id, "picked_up")
                                   }
                                 >
                                   Retirar pedido
                                 </button>
+                                {offer.status === "preparing" && <small>Disponible cuando el establecimiento marque el pedido como listo.</small>}
                               </>
                             )}
                             {offer.status === "picked_up" && (

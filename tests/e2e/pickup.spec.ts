@@ -62,7 +62,8 @@ test("espera a que el establecimiento marque el pedido como listo", async ({ pag
   await page.goto("/");
 
   await expect(page.getByText("El establecimiento está preparando el pedido. La recogida se habilitará automáticamente cuando lo marque como listo.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retirar pedido", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retirar pedido", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retirar pedido", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Validar QR/PIN (opcional)", exact: true })).toHaveCount(0);
   expect(api.getLastTransition()).toBeNull();
   expect(api.getLastPickupProof()).toBeNull();
