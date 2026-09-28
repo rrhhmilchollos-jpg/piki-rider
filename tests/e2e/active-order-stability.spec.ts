@@ -33,6 +33,8 @@ test("mantiene visible el pedido activo mientras actualiza ofertas", async ({ pa
     Object.defineProperty(Notification, "permission", { configurable: true, get: () => "granted" });
   });
 
+  await page.context().grantPermissions(["geolocation"], { origin: "http://127.0.0.1:4173" });
+  await page.context().setGeolocation({ latitude: 38.99, longitude: -0.52 });
   await page.goto("/");
   await expect(page.getByText("Restaurante estable E2E")).toBeVisible();
   await page.waitForTimeout(5200);
