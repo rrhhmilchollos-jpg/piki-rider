@@ -1473,29 +1473,17 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            {(offer.status === "preparing" || offer.status === "ready_for_pickup") && (
+                            {["accepted", "preparing", "ready_for_pickup"].includes(offer.status) && (
                               <>
-                                {offer.status === "ready_for_pickup" && <button
-                                  className="secondary-button"
-                                  onClick={() => {
-                                    const code = window.prompt(
-                                      "Introduce el PIN o pega el QR del establecimiento. Pulsa Cancelar para confirmar sin QR/PIN.",
-                                    );
-                                    void confirmPickup(offer._id, code?.trim());
-                                  }}
-                                >
-                                  Validar QR/PIN de recogida (opcional)
-                                </button>}
                                 <button
                                   className="primary-button"
-                                  disabled={offer.status !== "ready_for_pickup" || orderActionBusy}
+                                  disabled={orderActionBusy}
                                   onClick={() =>
                                     void offerAction(offer._id, "picked_up")
                                   }
                                 >
                                   Retirar pedido
                                 </button>
-                                {offer.status === "preparing" && <small>Disponible cuando el establecimiento marque el pedido como listo.</small>}
                               </>
                             )}
                             {offer.status === "picked_up" && (
