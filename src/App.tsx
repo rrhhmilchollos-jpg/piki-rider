@@ -51,6 +51,7 @@ import {
   getStoredToken,
   storeToken,
 } from "./authStorage";
+import { requiresRiderAuthentication } from "./apiAuthPolicy";
 
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
@@ -121,6 +122,20 @@ const nav = [
   ["Soporte", LifeBuoy],
   ["Cuenta", Settings],
 ] as const;
+const riderSectionStorageKey = `piki-${location.hostname}-rider-section`;
+function getInitialRiderSection(): string {
+  const requested = new URLSearchParams(window.location.search).get("section");
+  const isKnownSection = (value: string | null): value is string =>
+    Boolean(value && (value === "Solicitar alta" || nav.some(([label]) => label === value)));
+  if (isKnownSection(requested)) return requested;
+  try {
+    const saved = localStorage.getItem(riderSectionStorageKey);
+    if (isKnownSection(saved)) return saved;
+  } catch {
+    // Storage can be unavailable in private browsing; the app still works.
+  }
+  return "Inicio";
+}
 const weekdayNames = [
   "Lunes",
   "Martes",
@@ -236,10 +251,7 @@ const manychatWhatsAppUrl = String(
 );
 
 function App() {
-  const [section, setSection] = useState(
-    () =>
-      new URLSearchParams(window.location.search).get("section") || "Inicio",
-  );
+  const [section, setSection] = useState(getInitialRiderSection);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("checking");
   const [authRequired, setAuthRequired] = useState(false);
@@ -274,7 +286,6 @@ function App() {
   const [offers, setOffers] = useState<RiderOffer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
-  const [testOrderBusy, setTestOrderBusy] = useState(false);
   const [orderActionBusy, setOrderActionBusy] = useState(false);
   const [orderMessages, setOrderMessages] = useState<RiderOrderMessage[]>([]);
   const [messageDraft, setMessageDraft] = useState("");
@@ -286,13 +297,15 @@ function App() {
   const lastMobilityAlertRef = useRef("");
   const audioContextRef = useRef<RiderAlertAudioContext | null>(null);
   const assignedOrderRef = useRef(false);
+  const riderRefreshInFlightRef = useRef(false);
 
   const playAssignmentAlert = useCallback(() => {
     playRiderOrderAlert(audioContextRef);
   }, []);
 
   const loadRiderData = useCallback(async () => {
-    if (!apiToken) return;
+    if (!apiToken || riderRefreshInFlightRef.current) return;
+    riderRefreshInFlightRef.current = true;
     const headers = authHeaders(apiToken);
     try {
       const sessionResponse = await fetch(
@@ -300,7 +313,7 @@ function App() {
         { headers },
       );
       if (!sessionResponse.ok) {
-        if ([401, 403, 428].includes(sessionResponse.status)) {
+        if (await requiresRiderAuthentication(sessionResponse)) {
           clearStoredToken();
           setApiToken("");
           setAuthRequired(true);
@@ -344,6 +357,8 @@ function App() {
       }
     } catch {
       /* Panels remain usable while the API is unavailable. */
+    } finally {
+      riderRefreshInFlightRef.current = false;
     }
   }, [apiToken]);
 
@@ -353,6 +368,24 @@ function App() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadRiderData]);
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadRiderData();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("pageshow", refreshWhenVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("pageshow", refreshWhenVisible);
+    };
+  }, [loadRiderData]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(riderSectionStorageKey, section);
+    } catch {
+      // Section persistence is best-effort and must not block navigation.
+    }
+  }, [section]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3500);
@@ -374,7 +407,8 @@ function App() {
           { headers: authHeaders(apiToken) },
         );
         if (!response.ok || disposed) {
-          if (!disposed && [401, 403, 428].includes(response.status)) {
+          const requiresAuthentication = !disposed && await requiresRiderAuthentication(response);
+          if (requiresAuthentication && !disposed) {
             clearStoredToken();
             setApiToken("");
             setAuthRequired(true);
@@ -420,9 +454,14 @@ function App() {
     const timer = window.setInterval(() => {
       void pollOffers();
     }, 5000);
+    const refreshOffersWhenVisible = () => {
+      if (document.visibilityState === "visible") void pollOffers();
+    };
+    document.addEventListener("visibilitychange", refreshOffersWhenVisible);
     return () => {
       disposed = true;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshOffersWhenVisible);
     };
   }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
   useEffect(() => {
@@ -729,65 +768,6 @@ function App() {
       setToast("No se pudo validar el turno con la API.");
     } finally {
       setShiftBusy(false);
-    }
-  }
-  async function createRiderTestOrder() {
-    if (testOrderBusy) return;
-    if (!apiToken) {
-      setToast("Inicia sesión para crear un pedido de prueba.");
-      return;
-    }
-    if (!riderId) {
-      setToast(
-        "La sesión todavía no está vinculada a una cuenta Rider. Pulsa Actualizar e inténtalo de nuevo.",
-      );
-      return;
-    }
-    setTestOrderBusy(true);
-    try {
-      const response = await fetch(
-        `${apiOrigin}/api/v1/riders/${riderId}/test-orders`,
-        {
-          method: "POST",
-          headers: {
-            ...authHeaders(apiToken),
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      const data = (await response.json().catch(() => ({}))) as {
-        order?: RiderOffer;
-        message?: string;
-        error?: string;
-      };
-      if (!response.ok) {
-        const message =
-          data.error === "TEST_ORDER_ALREADY_ACTIVE"
-            ? "Ya tienes un pedido de prueba activo. Revísalo en Entregas."
-            : data.message ||
-              data.error ||
-              `No se pudo crear el pedido de prueba (HTTP ${response.status}).`;
-        setToast(message);
-        await loadRiderData();
-        return;
-      }
-      if (data.order) {
-        setOffers((previous) => [
-          data.order as RiderOffer,
-          ...previous.filter((offer) => offer._id !== data.order?._id),
-        ]);
-        playAssignmentAlert();
-      }
-      setToast(
-        data.message || "Pedido de prueba creado. No genera ningún cobro real.",
-      );
-      await loadRiderData();
-    } catch {
-      setToast(
-        "No se pudo conectar con la API. Comprueba la conexión y vuelve a intentarlo.",
-      );
-    } finally {
-      setTestOrderBusy(false);
     }
   }
   async function offerAction(
@@ -1354,21 +1334,6 @@ function App() {
                     lead="Los pedidos se asignan automáticamente. Si existe una incidencia, utiliza Soporte PIKI; no se rechazan desde la app."
                     icon={<Bell />}
                   />
-                  <div className="support-quick-actions">
-                    <button
-                      className="secondary-button"
-                      disabled={testOrderBusy}
-                      onClick={() => void createRiderTestOrder()}
-                    >
-                      {testOrderBusy
-                        ? "Creando pedido…"
-                        : "Crear pedido de prueba"}
-                    </button>
-                    <span>
-                      Solo para comprobar el flujo completo; no genera ningún
-                      cobro.
-                    </span>
-                  </div>
                   <div className="delivery-list">
                     {offers
                       .filter((offer) => offer.assignmentState === "offered")
