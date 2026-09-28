@@ -838,6 +838,28 @@ function App() {
       setOrderActionBusy(false);
     }
   }
+  async function pickupOrder(orderId: string) {
+    const order = offers.find((offer) => offer._id === orderId);
+    if (order?.assignmentState === "offered") {
+      try {
+        const response = await fetch(`${apiOrigin}/api/v1/dispatch/orders/${orderId}/offer-response`, {
+          method: "POST",
+          headers: { ...authHeaders(apiToken), "Content-Type": "application/json" },
+          body: JSON.stringify({ accept: true }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setToast(data.message || data.error || "No se pudo aceptar el pedido.");
+          await loadRiderData();
+          return;
+        }
+      } catch {
+        setToast("No se pudo aceptar el pedido por un problema de conexión.");
+        return;
+      }
+    }
+    await offerAction(orderId, "picked_up");
+  }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
     if (orderActionBusy) return;
     const normalizedDeliveryQr = deliveryQr.trim();
@@ -1006,6 +1028,7 @@ function App() {
           setOffersError("");
           void loadRiderData();
         }}
+        onPickupOrder={(orderId) => void pickupOrder(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
         onConfirmPickup={(orderId, verificationCode) =>
@@ -1394,9 +1417,7 @@ function App() {
                                 .join(" · ")}
                             </p>
                             <small>
-                              Pedido aceptado automáticamente. Dirígete al
-                              establecimiento; QR/PIN es opcional para confirmar
-                              la recogida.
+                              Pulsa Retirar pedido al recogerlo en el establecimiento.
                             </small>
                           </div>
                           <div className="delivery-actions">
@@ -1408,6 +1429,9 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
+                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void pickupOrder(offer._id)}>
+                              Retirar pedido
+                            </button>
                           </div>
                         </article>
                       ))}
