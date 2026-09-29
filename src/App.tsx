@@ -481,6 +481,17 @@ function App() {
       apiOrigin,
       token: apiToken,
       surface: "rider",
+      onAuthExpired: () => {
+        clearStoredToken();
+        setApiToken("");
+        setAuthRequired(true);
+        setRiderId("");
+        setShiftActive(false);
+        setToast("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
+      },
+      onAuthorizationError: () => {
+        setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
+      },
       onEvent: (event) => {
         if (event.type !== "order.rider_offer") return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
