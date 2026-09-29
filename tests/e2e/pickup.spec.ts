@@ -5,8 +5,9 @@ const orderId = "order-e2e-pickup";
 async function mockRiderApi(
   page: Page,
   paymentMethod: "cash" | "stripe" = "stripe",
-  initialOrderStatus: "ready_for_pickup" | "preparing" | "on_the_way" = "ready_for_pickup",
+  initialOrderStatus: "pending" | "ready_for_pickup" | "preparing" | "on_the_way" = "ready_for_pickup",
   initialShiftStatus: "active" | "finished" = "active",
+  initialAssignmentState: "offered" | "assigned" = "assigned",
 ) {
   let orderStatus = initialOrderStatus;
   let lastTransition: Record<string, unknown> | null = null;
@@ -24,7 +25,7 @@ async function mockRiderApi(
     if (path === "/api/v1/riders/statistics") return json({ statistics: {} });
     if (path.endsWith("/shift")) return json({ eligible: true, shift: { status: initialShiftStatus, zone: "E2E" } });
     if (path.endsWith("/cash-wallet")) return json({ wallet: { availableCents: 0, collectedCents: 0, handedOverCents: 0, collectedEntries: 0 } });
-    if (path.endsWith("/offers")) return json({ offers: [{ _id: orderId, assignmentState: "assigned", status: orderStatus, restaurant: { name: "Restaurante E2E", address: "Calle Test 1" }, customerName: "Cliente E2E", deliveryAddress: "Calle Cliente 2", paymentMethod, totalCents: 2909, items: [] }] });
+    if (path.endsWith("/offers")) return json({ offers: [{ _id: orderId, assignmentState: initialAssignmentState, status: orderStatus, restaurant: { name: "Restaurante E2E", address: "Calle Test 1" }, customerName: "Cliente E2E", deliveryAddress: "Calle Cliente 2", paymentMethod, totalCents: 2909, items: [] }] });
     if (path.endsWith(`/orders/${orderId}/transitions`) && request.method() === "POST") {
       lastTransition = JSON.parse(request.postData() || "{}");
       orderStatus = String(lastTransition.status || orderStatus);
@@ -70,20 +71,30 @@ test("la pantalla Ofertas ya no ofrece crear pedidos de prueba", async ({ page }
 test("confirma la recogida sin QR/PIN", async ({ page }) => {
   const api = await mockRiderApi(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar recogida", exact: true }).click();
   await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
   expect(api.getLastTransition()).toMatchObject({ status: "picked_up", actorRole: "rider" });
   expect(api.getLastPickupProof()).toBeNull();
 });
 
+test("muestra Confirmar recogida para un pedido que aún está pendiente del Partner", async ({ page }) => {
+  const api = await mockRiderApi(page, "stripe", "pending", "active", "offered");
+  await page.goto("/");
+  await expect(page.locator(".active-route-title")).toContainText("Nuevo pedido");
+  const button = page.getByRole("button", { name: "Confirmar recogida", exact: true });
+  await expect(button).toBeVisible();
+  await button.click();
+  await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
+  expect(api.getLastTransition()).toMatchObject({ status: "picked_up", actorRole: "rider" });
+});
 test("espera a que el establecimiento marque el pedido como listo", async ({ page }) => {
   const api = await mockRiderApi(page, "stripe", "preparing");
   await page.goto("/");
 
   await expect(page.locator(".active-route-title")).toContainText("Ve al establecimiento");
   await expect(page.getByText("No tienes que pagar en el establecimiento")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retirar pedido", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Confirmar recogida", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Confirmar recogida", exact: true }).click();
   await expect(page.getByText("Recogida confirmada. Ya puedes iniciar la ruta.")).toBeVisible();
   expect(api.getLastTransition()).toMatchObject({ status: "picked_up", actorRole: "rider" });
   expect(api.getLastPickupProof()).toBeNull();
@@ -106,7 +117,7 @@ test("oculta el cobro al ir al local y muestra el efectivo al ver al cliente", a
   await expect(page.getByText("No tienes que pagar en el establecimiento")).toBeVisible();
   await expect(page.getByText("Cobrar en efectivo al cliente")).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar recogida", exact: true }).click();
   await page.reload();
 
   await expect(page.getByRole("heading", { name: "Cliente E2E" })).toBeVisible();
@@ -121,7 +132,7 @@ test("muestra pagado online solo en la vista del cliente", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Pagado online")).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Retirar pedido", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar recogida", exact: true }).click();
   await page.reload();
 
   await expect(page.getByText("Pagado online")).toBeVisible();
