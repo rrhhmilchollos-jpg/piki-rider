@@ -51,6 +51,7 @@ import {
   clearStoredToken,
   getStoredToken,
   storeToken,
+  markStoredTokenValidated,
 } from "./authStorage";
 import { requiresRiderAuthentication } from "./apiAuthPolicy";
 
@@ -339,6 +340,7 @@ function App() {
       };
       const id = String(sessionData.rider?.id || "");
       if (!id) return;
+      markStoredTokenValidated();
       setRiderId(id);
       const [slotResponse, statsResponse, shiftResponse, cashResponse] =
         await Promise.all([

@@ -98,7 +98,12 @@ function storedEmployeeToken(): string | null {
   return sessionStorage.getItem(key) || localStorage.getItem(key);
 }
 
+function hasValidatedEmployeeSession(): boolean {
+  return Boolean(storedEmployeeToken() && sessionStorage.getItem(`piki-${location.hostname}-employee-session-validated`) === "1");
+}
+
 async function syncPushSubscription(showNotification: boolean): Promise<string> {
+  if (!hasValidatedEmployeeSession()) throw new Error("Inicia sesión antes de activar avisos.");
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) throw new Error("Este navegador no admite notificaciones push.");
   const config = await fetch(`${apiOrigin}/api/v1/push/config`, { cache: "no-store", headers: { Accept: "application/json" } }).then(async (response) => {
     if (!response.ok) throw new Error("La configuración de avisos no está disponible.");
@@ -140,13 +145,13 @@ function PushConsentControl() {
   }, []);
   useEffect(() => {
     if (!supported) return;
-    const authenticated = customerSurface || Boolean(storedEmployeeToken());
+    const authenticated = customerSurface || hasValidatedEmployeeSession();
     const permission = "Notification" in window ? Notification.permission : "default";
     if (!shouldShowPushConsent({ supported, authenticated, permission })) {
       // Browser permission is authoritative; hide the card even if background sync fails.
       // oxlint-disable-next-line react/set-state-in-effect
       setVisible(false);
-      if (permission === "granted") {
+      if (authenticated && permission === "granted") {
         void syncPushSubscription(false).catch((error) => console.warn("No se pudo sincronizar la suscripción de avisos.", error));
       }
       return;
@@ -167,7 +172,7 @@ function PushConsentControl() {
   useEffect(() => {
     if (!supported) return;
     const listener = (event: MessageEvent) => {
-      if (event.data?.type === "PIKI_PUSH_SUBSCRIPTION_CHANGED" && Notification.permission === "granted") void syncPushSubscription(false).catch((error) => {
+      if (event.data?.type === "PIKI_PUSH_SUBSCRIPTION_CHANGED" && Notification.permission === "granted" && hasValidatedEmployeeSession()) void syncPushSubscription(false).catch((error) => {
           console.warn("No se pudo resincronizar la suscripción de avisos.", error);
           setMessage("");
           setVisible(false);
