@@ -111,18 +111,18 @@ test("exige el PIN del cliente antes de confirmar la entrega", async ({ page }) 
   expect(api.getLastDeliveryProof()).toMatchObject({ deliveryQr: "4821", deliveryPin: "4821" });
 });
 
-test("oculta el cobro al ir al local y muestra el efectivo al ver al cliente", async ({ page }) => {
+test("oculta el cobro al ir al local y muestra el contrarreembolso al ver al cliente", async ({ page }) => {
   await mockRiderApi(page, "cash");
   await page.goto("/");
   await expect(page.getByText("No tienes que pagar en el establecimiento")).toBeVisible();
-  await expect(page.getByText("Cobrar en efectivo al cliente")).not.toBeVisible();
+  await expect(page.getByText("Contrarreembolso · cobrar en efectivo al cliente")).not.toBeVisible();
 
   await page.getByRole("button", { name: "Confirmar recogida", exact: true }).click();
   await page.reload();
 
   await expect(page.getByRole("heading", { name: "Cliente E2E" })).toBeVisible();
   await expect(page.locator(".active-order-detail").getByText("Calle Cliente 2")).toBeVisible();
-  await expect(page.getByText("Cobrar en efectivo al cliente")).toBeVisible();
+  await expect(page.getByText("Contrarreembolso · cobrar en efectivo al cliente")).toBeVisible();
   await expect(page.getByText(/29,09/)).toBeVisible();
   await expect(page.getByText("No tienes que pagar en el establecimiento")).not.toBeVisible();
 });
@@ -136,7 +136,7 @@ test("muestra pagado online solo en la vista del cliente", async ({ page }) => {
   await page.reload();
 
   await expect(page.getByText("Pagado online")).toBeVisible();
-  await expect(page.getByText("Cobrar en efectivo al cliente")).not.toBeVisible();
+  await expect(page.getByText("Contrarreembolso · cobrar en efectivo al cliente")).not.toBeVisible();
 });
 
 test("avisa con sonido y vibración al recibir una nueva oferta", async ({ page }) => {

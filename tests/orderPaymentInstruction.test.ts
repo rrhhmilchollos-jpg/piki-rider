@@ -41,7 +41,7 @@ describe("rider payment instructions", () => {
         totalCents: 2909,
       }),
     ).toEqual({
-      detail: "Cobrar en efectivo al cliente",
+      detail: "Contrarreembolso · cobrar en efectivo al cliente",
       amountToCollectCents: 2909,
     });
   });
