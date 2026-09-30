@@ -1415,7 +1415,7 @@ function App() {
                         <article className="delivery-card" key={offer._id}>
                           <div>
                             <span className="eyebrow">
-                              PEDIDO ASIGNADO ·{" "}
+                              {offer.assignmentState === "offered" ? "NUEVA OFERTA · " : "PEDIDO ASIGNADO · "}
                               {offer.displayCode || offer.publicCode}
                             </span>
                             <h2>
@@ -1435,7 +1435,7 @@ function App() {
                                 .join(" · ")}
                             </p>
                             <small>
-                              Pulsa Retirar pedido al recogerlo en el establecimiento.
+                              Pulsa «Confirmar recogida» cuando tengas físicamente el pedido.
                             </small>
                           </div>
                           <div className="delivery-actions">
@@ -1448,7 +1448,7 @@ function App() {
                               <MapPinned size={16} /> Maps
                             </a>
                             <button className="primary-button" disabled={orderActionBusy} onClick={() => void pickupOrder(offer._id)}>
-                              Retirar pedido
+                              Confirmar recogida
                             </button>
                           </div>
                         </article>
@@ -1483,15 +1483,13 @@ function App() {
                               {offer.status}
                             </span>
                             <h2>
-                              {offer.status === "ready_for_pickup" ||
-                              offer.status === "preparing"
+                              {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status)
                                 ? offer.restaurant?.name ||
                                   "Establecimiento PIKI"
                                 : offer.customerName || "Cliente"}
                             </h2>
                             <p>
-                              {offer.status === "ready_for_pickup" ||
-                              offer.status === "preparing"
+                              {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status)
                                 ? offer.restaurant?.address ||
                                   "Dirección del establecimiento protegida"
                                 : offer.deliveryAddress ||
@@ -1509,13 +1507,13 @@ function App() {
                           <div className="delivery-actions">
                             <a
                               className="secondary-button"
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(offer.status === "ready_for_pickup" || offer.status === "preparing" ? offer.restaurant?.address || offer.restaurant?.name || "" : offer.deliveryAddress || "")}`}
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) ? offer.restaurant?.address || offer.restaurant?.name || "" : offer.deliveryAddress || "")}`}
                               target="_blank"
                               rel="noreferrer"
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            {["accepted", "preparing", "ready_for_pickup"].includes(offer.status) && (
+                            {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) && (
                               <>
                                 <button
                                   className="primary-button"
@@ -1524,7 +1522,7 @@ function App() {
                                     void offerAction(offer._id, "picked_up")
                                   }
                                 >
-                                  Retirar pedido
+                                  Confirmar recogida
                                 </button>
                               </>
                             )}

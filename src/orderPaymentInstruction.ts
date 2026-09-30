@@ -25,7 +25,7 @@ export function getRiderPaymentInstruction(
 
   if (order.paymentMethod === "cash") {
     return {
-      detail: "Cobrar en efectivo al cliente",
+      detail: "Contrarreembolso · cobrar en efectivo al cliente",
       amountToCollectCents: order.totalCents,
     };
   }

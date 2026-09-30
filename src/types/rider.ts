@@ -25,7 +25,7 @@ export type RiderOffer = {
   displayCode?: string | null;
   assignmentState: "offered" | "assigned";
   assignmentExpiresAt?: string | null;
-  status: "ready_for_pickup" | "picked_up" | "on_the_way" | "accepted" | "preparing";
+  status: "pending" | "ready_for_pickup" | "picked_up" | "on_the_way" | "accepted" | "preparing";
   phase?: string;
   etaMinutes?: number | null;
   vehicle?: string;

@@ -19,6 +19,14 @@ describe("rider navigation target", () => {
     });
   });
 
+  it("sends a pending early offer to the Partner, not the customer", () => {
+    expect(getRiderNavigationTarget({ ...baseOrder, status: "pending" })).toMatchObject({
+      label: "GPS · Partner",
+      address: "Calle Partner 10",
+      phase: "partner",
+    });
+  });
+
   it("points to the customer after pickup", () => {
     expect(getRiderNavigationTarget({ ...baseOrder, status: "picked_up" })).toMatchObject({
       label: "GPS · Cliente",
