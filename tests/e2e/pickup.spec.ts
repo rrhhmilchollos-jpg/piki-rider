@@ -78,7 +78,7 @@ test("confirma la recogida sin QR/PIN", async ({ page }) => {
 });
 
 test("muestra Confirmar recogida para un pedido que aún está pendiente del Partner", async ({ page }) => {
-  const api = await mockRiderApi(page, "stripe", "pending", "active", "offered");
+  const api = await mockRiderApi(page, "cash", "pending", "active", "offered");
   await page.goto("/");
   await expect(page.locator(".active-route-title")).toContainText("Nuevo pedido");
   const button = page.getByRole("button", { name: "Confirmar recogida", exact: true });
