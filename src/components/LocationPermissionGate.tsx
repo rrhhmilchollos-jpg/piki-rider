@@ -1,91 +1,44 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
+import "./LocationPermissionGate.css";
 
-type PermissionState = "checking" | "required" | "granted" | "unsupported" | "denied";
+type LocationState = "idle" | "checking" | "granted" | "denied" | "unavailable" | "unsupported";
 
 export default function LocationPermissionGate({ appLabel, children }: { appLabel: string; children: ReactNode }) {
-  const [state, setState] = useState<PermissionState>("checking");
+  const [state, setState] = useState<LocationState>("idle");
   const [detail, setDetail] = useState("");
-  const wasGrantedRef = useRef(false);
 
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setState("unsupported");
-      setDetail("Este dispositivo o navegador no ofrece geolocalización.");
+      setDetail("Este navegador no ofrece geolocalización. Puedes entrar en PIKI; las funciones Rider que necesitan GPS te avisarán cuando las uses.");
       return;
     }
     setState("checking");
     setDetail("");
     navigator.geolocation.getCurrentPosition(
-      () => {
-        wasGrantedRef.current = true;
-        setState("granted");
-      },
+      () => { setDetail(""); setState("granted"); },
       (error) => {
-        wasGrantedRef.current = false;
-        setState(error.code === error.PERMISSION_DENIED ? "denied" : "required");
-        setDetail(error.code === error.PERMISSION_DENIED
-          ? "Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo."
-          : "No se pudo obtener la posición. Comprueba que el GPS esté activo.");
+        if (error.code === error.PERMISSION_DENIED) {
+          setState("denied");
+          setDetail("Permite la ubicación para este sitio en los ajustes del navegador y activa la ubicación del teléfono. Después vuelve a intentarlo.");
+        } else {
+          setState("unavailable");
+          setDetail("No se recibió una posición. Comprueba que el GPS del teléfono esté activo y vuelve a intentarlo.");
+        }
       },
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
     );
   }, []);
 
-  const checkPermission = useCallback(async (initial = false) => {
-    if (!navigator.geolocation) {
-      setState("unsupported");
-      setDetail("Este dispositivo o navegador no ofrece geolocalización.");
-      return;
-    }
-    try {
-      const permission = await navigator.permissions?.query({ name: "geolocation" });
-      if (permission?.state === "granted") {
-        wasGrantedRef.current = true;
-        setDetail("");
-        setState("granted");
-        return;
-      }
-      if (permission?.state === "denied") {
-        wasGrantedRef.current = false;
-        setState("denied");
-        setDetail("Activa la ubicación para este sitio desde los ajustes del navegador y vuelve a intentarlo.");
-        return;
-      }
-      if (initial) {
-        // Preserve the browser's standard first-time permission prompt.
-        requestLocation();
-        return;
-      }
-      if (permission?.state === "prompt" || !wasGrantedRef.current) {
-        wasGrantedRef.current = false;
-        setState("required");
-        setDetail("Permite el acceso a la ubicación para continuar.");
-      }
-    } catch {
-      // Some mobile browsers cannot query permission; never hide an already running app on resume.
-      if (initial && !wasGrantedRef.current) requestLocation();
-    }
-  }, [requestLocation]);
-
-  useEffect(() => {
-    // Restore the app as soon as permission is known; do not wait for a new GPS fix.
-    // oxlint-disable-next-line react/set-state-in-effect
-    void checkPermission(true);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void checkPermission(false);
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [checkPermission]);
-
-  useEffect(() => {
-    if (state !== "granted" || !navigator.geolocation) return;
-    const watchId = navigator.geolocation.watchPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 });
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [state]);
-
   if (state === "granted") return <>{children}</>;
-  const title = state === "checking" ? "Comprobando ubicación" : state === "unsupported" ? "Ubicación no disponible" : "Necesitamos tu ubicación";
-  const message = state === "checking" ? "Permite el acceso a la ubicación para continuar." : state === "unsupported" ? "Usa HTTPS y un navegador compatible con la ubicación." : "La ubicación es obligatoria para acceder a la operación de PIKI desde este dispositivo.";
-  return <main className="location-permission-gate" role="alert" aria-live="polite"><section className="location-permission-card"><div className="location-permission-icon" aria-hidden="true">⌖</div><p className="location-permission-eyebrow">PIKI · {appLabel.toUpperCase()}</p><h1>{title}</h1><p>{message}</p>{detail && <small>{detail}</small>}{state !== "unsupported" && <button type="button" onClick={requestLocation}>{state === "checking" ? "Solicitar permiso de ubicación" : "Permitir ubicación y continuar"}</button>}{state === "unsupported" && <button type="button" onClick={() => window.location.reload()}>Volver a comprobar</button>}</section></main>;
+  return <>
+    <aside className="location-permission-assist" role={state === "denied" || state === "unavailable" || state === "unsupported" ? "status" : "region"} aria-live="polite">
+      <div className="location-permission-assist-copy">
+        <strong>{state === "checking" ? "Comprobando ubicación…" : state === "denied" ? "Permiso de ubicación bloqueado" : state === "unavailable" ? "No se pudo obtener el GPS" : state === "unsupported" ? "Ubicación no disponible" : `PIKI ${appLabel}: ubicación opcional`}</strong>
+        <span>{detail || "Puedes acceder a PIKI Rider sin GPS. Activa la ubicación para iniciar una jornada y compartir tu posición."}</span>
+      </div>
+      <button type="button" onClick={requestLocation} disabled={state === "checking"}>{state === "checking" ? "Esperando GPS…" : state === "denied" ? "Volver a intentar" : "Activar ubicación"}</button>
+    </aside>
+    {children}
+  </>;
 }

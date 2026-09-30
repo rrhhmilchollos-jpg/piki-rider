@@ -1033,8 +1033,8 @@ function App() {
       <main className="page-content">
         <EmployeeAuthGate
           apiOrigin={apiOrigin}
-          onAuthenticated={(token) => {
-            storeToken(token);
+          onAuthenticated={(token, rememberDevice) => {
+            storeToken(token, rememberDevice);
             setApiToken(token);
             setAuthRequired(false);
             window.dispatchEvent(new Event("piki-authenticated"));
@@ -1180,8 +1180,8 @@ function App() {
           {authRequired && (
             <EmployeeAuthGate
               apiOrigin={apiOrigin}
-              onAuthenticated={(token) => {
-                storeToken(token);
+              onAuthenticated={(token, rememberDevice) => {
+                storeToken(token, rememberDevice);
                 setApiToken(token);
                 setAuthRequired(false);
                 setStatus("checking");
