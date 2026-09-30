@@ -1,0 +1,13 @@
+.employee-auth-card { width: min(100%, 520px); margin: 7vh auto; grid-template-columns: minmax(0, 1fr) !important; }
+.employee-auth-card .employee-password-field { position: relative; min-width: 0; }
+.employee-auth-card .employee-password-field input { width: 100%; box-sizing: border-box; padding-right: 50px; }
+.employee-auth-card .employee-password-toggle { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 38px; height: 38px; display: grid; place-items: center; justify-self: auto; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #64748b; box-shadow: none; cursor: pointer; }
+.employee-auth-card .employee-password-toggle:hover { background: #eef2f8; color: #1e293b; }
+.employee-auth-card .employee-password-toggle:focus-visible { outline: 3px solid #a4cf45; outline-offset: 2px; }
+.employee-remember-row { display: flex; align-items: center; gap: 9px; color: #34435a; font-size: 12px; line-height: 1.4; cursor: pointer; }
+.employee-auth-card .employee-remember-row input { width: 18px; height: 18px; flex: 0 0 auto; margin: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; accent-color: #91b93c; }
+.employee-security-note, .employee-recovery-note { display: block; color: #718096; font-size: 11px; line-height: 1.5; }
+.employee-forgot-link { justify-self: start; color: #345b83; font-size: 13px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.employee-forgot-link:focus-visible { outline: 3px solid #a4cf45; outline-offset: 3px; border-radius: 3px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 560px) { .employee-auth-card { margin: 4vh auto; } }

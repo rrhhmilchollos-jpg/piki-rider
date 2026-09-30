@@ -1,0 +1,8 @@
+.location-permission-assist { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 18px; color: #29394f; background: #f1f8df; border-bottom: 1px solid #dce9c1; }
+.location-permission-assist-copy { display: grid; gap: 3px; min-width: 0; }
+.location-permission-assist-copy strong { font-size: 13px; }
+.location-permission-assist-copy span { color: #5f6f82; font-size: 12px; line-height: 1.4; }
+.location-permission-assist button { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 10px 14px; background: #c9ff60; color: #183047; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.location-permission-assist button:disabled { opacity: .65; cursor: wait; }
+.location-permission-assist button:focus-visible { outline: 3px solid #527c21; outline-offset: 2px; }
+@media (max-width: 620px) { .location-permission-assist { align-items: stretch; flex-direction: column; padding: 12px 15px; } .location-permission-assist button { width: 100%; } }
