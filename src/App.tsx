@@ -835,9 +835,6 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function pickupOrder(orderId: string) {
-    await offerAction(orderId, "picked_up");
-  }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
     if (orderActionBusy) return;
     const normalizedDeliveryQr = deliveryQr.trim();
@@ -1057,7 +1054,6 @@ function App() {
           setOffersError("");
           void loadRiderData();
         }}
-        onPickupOrder={(orderId) => void pickupOrder(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
         onConfirmPickup={(orderId, verificationCode) =>
@@ -1440,8 +1436,8 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void pickupOrder(offer._id)}>
-                              Confirmar recogida
+                            <button className="primary-button" disabled={orderActionBusy} onClick={() => { const code = window.prompt("Introduce el PIN o pega el QR que muestra el Partner para confirmar la recogida."); if (code?.trim()) void confirmPickup(offer._id, code.trim()); }}>
+                              Validar recogida QR/PIN
                             </button>
                           </div>
                         </article>
