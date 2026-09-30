@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   Activity,
-  ArrowDownLeft,
-  ArrowUpRight,
   Bell,
   Bike,
   CalendarDays,
@@ -12,7 +10,6 @@ import {
   CircleHelp,
   ClipboardList,
   Clock3,
-  CreditCard,
   FileText,
   Headphones,
   LayoutDashboard,
@@ -29,7 +26,6 @@ import {
 } from "lucide-react";
 import "./App.css";
 import EmployeeAuthGate from "./EmployeeAuthGate";
-import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
@@ -117,12 +113,10 @@ const nav = [
   ["Inicio", LayoutDashboard],
   ["Ofertas", Bell],
   ["Entregas", ClipboardList],
-  ["Mapa", MapPinned],
   ["Horarios", CalendarDays],
   ["Cartera", WalletCards],
   ["Estadísticas", Activity],
   ["Soporte", LifeBuoy],
-  ["Cuenta", Settings],
 ] as const;
 const riderSectionStorageKey = `piki-${location.hostname}-rider-section`;
 function getInitialRiderSection(): string {
@@ -945,11 +939,13 @@ function App() {
   const refreshSupportChat = useCallback(async () => {
     if (!apiToken || !riderId || !supportTicketId) return;
     try { const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { headers: { ...authHeaders(apiToken), "X-PIKI-Surface": "rider" } }); if (!response.ok) return; const data = await response.json() as { tickets?: any[] }; const ticket = (data.tickets || []).find((item) => String(item._id) === supportTicketId); if (ticket) { setSupportTicketStatus(ticket.status || ""); setSupportAgentName(ticket.assignedTo?.name || ticket.messages?.find((message: any) => message.senderRole === "support")?.senderName || "Agente de soporte"); setSupportChatMessages(Array.isArray(ticket.messages) ? ticket.messages : []); } } catch { /* el chat conserva el último estado mientras vuelve la red */ }
-  }, [apiToken, apiOrigin, riderId, supportTicketId]);
+  }, [apiToken, riderId, supportTicketId]);
   useEffect(() => {
     if (!apiToken || !riderId || supportTicketId) return;
     void (async () => { try { const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { headers: { ...authHeaders(apiToken), "X-PIKI-Surface": "rider" } }); if (!response.ok) return; const data = await response.json() as { tickets?: any[] }; const openTicket = (data.tickets || []).find((item) => !["closed", "resolved"].includes(item.status)); if (openTicket) setSupportTicketId(String(openTicket._id)); } catch { /* sin conexión, se reintentará al enviar una incidencia */ } })();
-  }, [apiToken, apiOrigin, riderId, supportTicketId]);
+  }, [apiToken, riderId, supportTicketId]);
+  // Polling the support thread intentionally synchronizes external ticket state.
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { if (!supportTicketId) return; void refreshSupportChat(); const timer = window.setInterval(() => void refreshSupportChat(), 2000); return () => window.clearInterval(timer); }, [supportTicketId, refreshSupportChat]);
   async function sendSupportChatMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const body = supportChatDraft.trim(); if (!body || !apiToken || !riderId || !supportTicketId || supportChatBusy) return; setSupportChatBusy(true);
@@ -1155,10 +1151,7 @@ function App() {
               {profileOpen && (
                 <div className="profile-menu">
                   <strong>Cuenta Rider</strong>
-                  <span>rrhh.milchollos@gmail.com</span>
-                  <button onClick={() => showSection("Cuenta")}>
-                    Ver mi cuenta
-                  </button>
+                  <span>{riderId ? `ID Rider ${riderId}` : "Sesión operativa activa"}</span>
                   <button
                     className="profile-logout"
                     onClick={() => void logout()}
@@ -1578,7 +1571,7 @@ function App() {
                       <strong>Calendario de jornada</strong>
                       <span>Asignaciones recibidas desde Fleet</span>
                     </div>
-                    <span className="zone-chip">Zona Xàtiva</span>
+                    <span className="zone-chip">{currentShift.shift?.zone || shifts.find((shift) => shift.zone)?.zone || "Zona pendiente"}</span>
                   </div>
                   <div className="schedule-grid">
                     {activeShifts.map((shift) => (
@@ -1653,23 +1646,6 @@ function App() {
                     </div>
                     <WalletCards size={42} />
                   </div>
-                  <div className="wallet-grid">
-                    <article className="wallet-stat">
-                      <ArrowUpRight />
-                      <span>Ingresos de entregas</span>
-                      <strong>€ —</strong>
-                    </article>
-                    <article className="wallet-stat">
-                      <ArrowDownLeft />
-                      <span>Propinas e incentivos</span>
-                      <strong>€ —</strong>
-                    </article>
-                    <article className="wallet-stat">
-                      <CreditCard />
-                      <span>Próximo pago</span>
-                      <strong>Pendiente</strong>
-                    </article>
-                  </div>
                   <div className="empty-card">
                     <div className="empty-card-top">
                       <span>MOVIMIENTOS</span>
@@ -1743,23 +1719,6 @@ function App() {
                   </div>
                 </section>
               )}
-              {section === "Mapa" && (
-                <section className="feature-section">
-                  <FeatureHeading
-                    eyebrow="PIKI · GOOGLE MAPS EN VIVO"
-                    title="Tu zona, tu posición, en tiempo real."
-                    lead="Google Maps muestra tu ubicación GPS, las zonas operativas asignadas y sus delimitaciones reales. Debes conceder permiso de ubicación para publicar tu posición durante la jornada."
-                    icon={<MapPinned />}
-                  />
-                  {apiToken && (
-                    <LiveGoogleMap
-                      token={apiToken}
-                      riderId={riderId}
-                      onError={handleApiError}
-                    />
-                  )}
-                </section>
-              )}
               {section === "Soporte" && (
                 <section className="feature-section">
                   <FeatureHeading
@@ -1805,8 +1764,8 @@ function App() {
                     />
                   )}
                   <form className="support-ticket-form" onSubmit={submitSupportTicket}>
-                    <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general o seleccionar un pedido activo para adjuntar todo su contexto."}</p></div>
-                    <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div><button className="primary-button" disabled={supportFormBusy}>{supportFormBusy ? "Enviando…" : "Enviar incidencia vinculada al pedido"}</button>{supportFormMessage && <p className="support-form-message">{supportFormMessage}</p>}</form>
+                    <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general; si tienes un pedido activo se adjuntará su contexto."}</p></div>
+                    <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div><button className="primary-button" disabled={supportFormBusy}>{supportFormBusy ? "Enviando…" : activeOrder ? "Enviar incidencia vinculada al pedido" : "Enviar incidencia"}</button>{supportFormMessage && <p className="support-form-message">{supportFormMessage}</p>}</form>
                   {supportTicketId && <section className="support-chat-panel"><div className="support-chat-heading"><div><span>CHAT OPERATIVO</span><h2>{supportAgentName ? `Agente: ${supportAgentName}` : "Esperando asignación de agente"}</h2><p>{supportTicketStatus === "closed" || supportTicketStatus === "resolved" ? "La conversación ha sido cerrada por el agente." : "Mantén esta conversación abierta. El agente te irá indicando cada paso hasta resolver la incidencia."}</p></div><strong>{supportTicketStatus || "open"}</strong></div><div className="support-chat-messages">{supportChatMessages.map((message, index) => <article key={message._id || `${message.createdAt}-${index}`} className={message.senderRole === "rider" ? "chat-message chat-message-rider" : "chat-message chat-message-support"}><b>{message.senderRole === "rider" ? "Tú" : message.senderName || supportAgentName || "Agente de soporte"}</b><span>{message.body}</span><small>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></article>)}</div>{!['closed','resolved'].includes(supportTicketStatus) && <form className="support-chat-compose" onSubmit={sendSupportChatMessage}><input value={supportChatDraft} onChange={(event) => setSupportChatDraft(event.target.value)} placeholder="Escribe al agente de soporte…" /><button className="primary-button" disabled={supportChatBusy || !supportChatDraft.trim()}>{supportChatBusy ? "Enviando…" : "Enviar"}</button></form>}</section>}
                   <div className="faq-panel">
                     <div className="faq-panel-heading">
@@ -1983,7 +1942,6 @@ function App() {
                 "Horarios",
                 "Cartera",
                 "Estadísticas",
-                "Mapa",
                 "Soporte",
               ].includes(section) && (
                 <>
@@ -2047,19 +2005,18 @@ function App() {
                     </article>
                     <article className="empty-card">
                       <div className="empty-card-top">
-                        <span>RUTA</span>
+                        <span>UBICACIÓN</span>
                         <MapPinned size={18} />
                       </div>
-                      <h2>Mapa operativo preparado</h2>
+                      <h2>Ubicación protegida durante la jornada</h2>
                       <p>
-                        La ruta y las zonas de calor se activarán con ubicación
-                        consentida, pedidos y cobertura real.
+                        La ubicación GPS se comparte automáticamente mientras la jornada está activa. La vista operativa aparece junto a tus pedidos.
                       </p>
                       <button
                         className="secondary-button"
-                        onClick={() => showSection("Mapa")}
+                        onClick={() => showSection("Horarios")}
                       >
-                        Abrir mapa
+                        Ver horarios
                       </button>
                     </article>
                   </section>
