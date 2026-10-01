@@ -28,6 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
+import OperationsMockupFrame from "./OperationsMockupFrame";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
