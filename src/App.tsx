@@ -28,7 +28,6 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
-import OperationsMockupFrame from "./OperationsMockupFrame";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
@@ -116,7 +115,6 @@ function authHeaders(token: string): Record<string, string> {
 }
 const nav = [
   ["Inicio", LayoutDashboard],
-  ["Operativa", ClipboardList],
   ["Ofertas", Bell],
   ["Entregas", ClipboardList],
   ["Mapa", MapPinned],
@@ -1402,7 +1400,6 @@ function App() {
             </section>
           ) : (
             <>
-              {section === "Operativa" && <OperationsMockupFrame label="Operativa Rider · pedidos y mapa" />}
               {section === "Ofertas" && (
                 <section className="feature-section">
                   <FeatureHeading
@@ -1981,7 +1978,6 @@ function App() {
                 </section>
               )}
               {![
-                "Operativa",
                 "Ofertas",
                 "Entregas",
                 "Horarios",
