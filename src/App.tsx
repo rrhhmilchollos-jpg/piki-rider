@@ -412,8 +412,12 @@ function App() {
       return;
     }
     let disposed = false;
+    let pollInFlight = false;
     const pollOffers = async () => {
-      if (!disposed) setOffersLoading(true);
+      if (pollInFlight || disposed) return;
+      pollInFlight = true;
+      const initialSync = knownOfferIdsRef.current === null;
+      if (!disposed && initialSync) setOffersLoading(true);
       try {
         const response = await fetch(
           `${apiOrigin}/api/v1/riders/${riderId}/offers`,
@@ -460,7 +464,8 @@ function App() {
         if (!disposed)
           setOffersError("La red no está disponible temporalmente");
       } finally {
-        if (!disposed) setOffersLoading(false);
+        if (!disposed && initialSync) setOffersLoading(false);
+        pollInFlight = false;
       }
     };
     void pollOffers();
@@ -1611,9 +1616,7 @@ function App() {
                         {shiftActive
                           ? "Puedes recibir ofertas en tu zona."
                           : currentShift.eligible
-                            ? currentShift.selfStartAllowed
-                              ? "Puedes abrir tu jornada diaria ahora en una zona operativa activa."
-                              : "Tu turno está abierto: puedes iniciar ahora."
+                            ? "Tu turno está abierto: puedes iniciar ahora."
                             : "No hay un turno disponible en esta franja. Revisa los horarios o contacta con Fleet."}
                       </span>
                     </div>
