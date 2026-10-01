@@ -19,19 +19,19 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/piki-icon-192.png",
+      "src": "/piki-mascot-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/piki-icon-512.png",
+      "src": "/piki-mascot-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/piki-icon-512.png",
+      "src": "/piki-mascot-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -60,7 +60,7 @@
       "url": "/?section=Horarios",
       "icons": [
         {
-          "src": "/piki-icon-192.png",
+          "src": "/piki-mascot-192.png",
           "sizes": "192x192",
           "type": "image/png"
         }
@@ -72,7 +72,7 @@
       "url": "/?section=Cartera",
       "icons": [
         {
-          "src": "/piki-icon-192.png",
+          "src": "/piki-mascot-192.png",
           "sizes": "192x192",
           "type": "image/png"
         }
@@ -84,7 +84,7 @@
       "url": "/?section=Soporte",
       "icons": [
         {
-          "src": "/piki-icon-192.png",
+          "src": "/piki-mascot-192.png",
           "sizes": "192x192",
           "type": "image/png"
         }

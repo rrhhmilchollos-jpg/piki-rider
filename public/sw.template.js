@@ -53,8 +53,8 @@ self.addEventListener("push", (event) => {
   const path = typeof payload.url === "string" && payload.url.startsWith("/") ? payload.url : "/";
   event.waitUntil(self.registration.showNotification(title, {
     body,
-    icon: "/piki-icon-192.png",
-    badge: "/piki-icon-192.png",
+    icon: "/piki-mascot-192.png",
+    badge: "/piki-mascot-192.png",
     tag: typeof payload.tag === "string" ? payload.tag : "piki-notification",
     renotify: Boolean(payload.renotify),
     data: { path },
