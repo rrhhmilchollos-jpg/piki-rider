@@ -7,7 +7,7 @@ const CONTROL_PATHS = new Set(["/sw.js", "/release.json", "/manifest.json"]);
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(APP_SHELL);
+    await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
   })());
 });
 
