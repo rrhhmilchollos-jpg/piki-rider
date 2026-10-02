@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "node scripts/prepare-release.mjs && tsc -b && vite build",
     "check": "tsc -b --pretty false",
-    "lint": "oxlint",
+    "lint": "oxlint --ignore-pattern public/sw.js",
     "preview": "vite preview",
     "test": "vitest run tests/*.test.ts",
     "test:e2e": "playwright test"
