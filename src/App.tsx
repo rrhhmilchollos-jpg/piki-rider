@@ -14,6 +14,7 @@ import {
   Clock3,
   CreditCard,
   FileText,
+  Gift,
   Headphones,
   LayoutDashboard,
   LifeBuoy,
@@ -32,6 +33,7 @@ import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
+import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
 import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
 import {
@@ -121,6 +123,7 @@ const nav = [
   ["Mapa", MapPinned],
   ["Horarios", CalendarDays],
   ["Cartera", WalletCards],
+  ["Incentivos", Gift],
   ["Estadísticas", Activity],
   ["Soporte", LifeBuoy],
   ["Cuenta", Settings],
@@ -1422,6 +1425,7 @@ function App() {
             </section>
           ) : (
             <>
+              {section === "Incentivos" && <RiderIncentivesPanel token={apiToken} riderId={riderId} />}
               {section === "Ofertas" && (
                 <section className="feature-section">
                   <FeatureHeading
@@ -1598,7 +1602,7 @@ function App() {
                   <div className="shift-toolbar">
                     <div>
                       <strong>Calendario de jornada</strong>
-                      <span>Asignaciones recibidas desde Fleet</span>
+                      <span>Asignaciones de Fleet · sincronización automática cada 30 segundos y al volver a abrir la app</span>
                     </div>
                     <span className="zone-chip">Zona Xàtiva</span>
                   </div>
@@ -2002,6 +2006,7 @@ function App() {
                 "Entregas",
                 "Horarios",
                 "Cartera",
+                "Incentivos",
                 "Estadísticas",
                 "Mapa",
                 "Soporte",

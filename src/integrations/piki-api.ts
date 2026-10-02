@@ -70,3 +70,25 @@ export async function createRiderSupportTicket(input: { token: string; riderId: 
   });
   return result.ticket;
 }
+
+
+export type RiderIncentiveEntry = { _id: string; entryType: string; amountCents: number; status: "earned" | "paid" | "reversed"; createdAt: string };
+export type RiderIncentiveSnapshot = {
+  program: {
+    referralsEnabled: boolean;
+    hourlyGuaranteeEnabled: boolean;
+    monthlyCapCents: number;
+    budgetCommittedCents?: number;
+    budgetRemainingCents?: number;
+    policy: { hourlyRateCents: number; requiredShiftHours: number; minimumAcceptanceRate: number; centralZoneSlug: string; acquisitionDeliveries: number; acquisitionBonusCents: number; referralDeliveries: number; referralBonusCents: number; campaignStartAt?: string | null };
+  };
+  referral: null | { code: string | null; referredBy: string | null; completedDeliveries: number; eligibleToClaim?: boolean; acquisitionProgress: number; acquisitionTarget: number; referralProgress: number | null; referralTarget: number | null; successfulInvitations: number };
+  wallet: { earnedCents: number; paidCents: number; entries: RiderIncentiveEntry[] };
+  guarantee: { active: boolean; currentShift: null | { date: string; startTime: string; endTime: string; zoneSlug?: string; sampleCount: number; trackedSeconds: number; centralZoneOk: boolean | null } };
+};
+export async function loadRiderIncentives(token: string, riderId: string): Promise<RiderIncentiveSnapshot> {
+  return apiJson<RiderIncentiveSnapshot>(`/api/v1/riders/${encodeURIComponent(riderId)}/incentives`, token);
+}
+export async function claimRiderReferralCode(token: string, riderId: string, code: string): Promise<{ claimed: boolean }> {
+  return apiJson<{ claimed: boolean }>(`/api/v1/riders/${encodeURIComponent(riderId)}/referrals/claim`, token, { method: "POST", body: JSON.stringify({ code }) });
+}
