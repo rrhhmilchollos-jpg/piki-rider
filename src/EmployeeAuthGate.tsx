@@ -1,45 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { getStoredEmail, storeEmail } from "./authStorage";
-
 type Props = { apiOrigin: string; onAuthenticated: (token: string) => void };
-
+function BeeRiderMark() { return <div className="auth-brand-illustration" aria-hidden="true"><svg viewBox="0 0 180 150"><path d="M45 112h88" stroke="#17365e" strokeWidth="7" strokeLinecap="round"/><circle cx="63" cy="112" r="16" fill="#d4ff57" stroke="#17365e" strokeWidth="6"/><circle cx="123" cy="112" r="16" fill="#d4ff57" stroke="#17365e" strokeWidth="6"/><path d="M63 108h59l-18-35h35l-17-27" fill="none" stroke="#17365e" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/><ellipse cx="93" cy="55" rx="28" ry="25" fill="#ffd72e" stroke="#17365e" strokeWidth="6"/><path d="M70 47h46M69 61h47" stroke="#17365e" strokeWidth="6"/><circle cx="86" cy="50" r="3" fill="#17365e"/><circle cx="106" cy="50" r="3" fill="#17365e"/><path d="M76 27c-5-17 10-25 20-13 10-12 25-4 20 13" fill="#e8f2ff" stroke="#17365e" strokeWidth="6"/><path d="M116 70l30 18v27h-30z" fill="#e45c39" stroke="#17365e" strokeWidth="6"/></svg></div>; }
 export default function EmployeeAuthGate({ apiOrigin, onAuthenticated }: Props) {
-  const [mode, setMode] = useState<"login" | "change">("login");
-  const [token, setToken] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [password, setPassword] = useState("");
-  const [email, setEmail] = useState(() => getStoredEmail());
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError("");
-    try {
-      if (mode === "login") {
-        const normalizedEmail = email.trim().toLowerCase();
-        const response = await fetch(`${apiOrigin}/api/v1/auth/employee/login`, { method: "POST", headers: { "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ email: normalizedEmail, password: currentPassword }) });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || data.error || "No se pudo iniciar sesión");
-        storeEmail(normalizedEmail); setToken(data.accessToken);
-        if (data.requiresPasswordChange) setMode("change"); else onAuthenticated(data.accessToken);
-      } else {
-        const response = await fetch(`${apiOrigin}/api/v1/auth/employee/change-password`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ currentPassword, newPassword: password }) });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || data.error || "No se pudo cambiar la contraseña");
-        onAuthenticated(token);
-      }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "No se pudo completar el acceso"); }
-    finally { setBusy(false); }
-  }
-
-  return <form className="token-card employee-auth-card" onSubmit={submit} autoComplete="on">
-    <strong>{mode === "login" ? "Acceso de empleados PIKI" : "Cambia tu contraseña temporal"}</strong>
-    <span>{mode === "login" ? "Usa el correo corporativo y la contraseña entregada por Administración." : "Debes definir una contraseña permanente antes de acceder a cualquier herramienta."}</span>
-    {mode === "login" && <input type="email" name="username" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="correo@pikidelivery.com" autoComplete="username" required />}
-    <input type="password" name={mode === "login" ? "password" : "current-password"} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder={mode === "login" ? "Contraseña" : "Contraseña temporal actual"} autoComplete="current-password" required />
-    {mode === "change" && <input type="password" name="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Nueva contraseña (12+ caracteres)" autoComplete="new-password" minLength={12} required />}
-    {error && <small className="form-error">{error}</small>}
-    {mode === "login" && <small>El correo se recordará en este dispositivo. La contraseña la gestiona el navegador o el gestor de contraseñas del móvil.</small>}
-    <button type="submit" disabled={busy}>{busy ? "Validando…" : mode === "login" ? "Iniciar sesión" : "Guardar contraseña definitiva"}</button>
-  </form>;
+ const [mode,setMode]=useState<"login"|"change">("login"); const [token,setToken]=useState(""); const [email,setEmail]=useState(""); const [current,setCurrent]=useState(""); const [next,setNext]=useState(""); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
+ async function submit(event:FormEvent){event.preventDefault();setBusy(true);setError("");try{if(mode==="login"){const r=await fetch(`${apiOrigin}/api/v1/auth/employee/login`,{method:"POST",headers:{"Content-Type":"application/json","X-PIKI-Surface":"rider"},body:JSON.stringify({email:email.trim().toLowerCase(),password:current})});const d=await r.json();if(!r.ok)throw new Error(d.message||d.error||"No se pudo iniciar sesión");setToken(d.accessToken);if(d.requiresPasswordChange)setMode("change");else onAuthenticated(d.accessToken);}else{const r=await fetch(`${apiOrigin}/api/v1/auth/employee/change-password`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({currentPassword:current,newPassword:next})});const d=await r.json();if(!r.ok)throw new Error(d.message||d.error||"No se pudo cambiar la contraseña");onAuthenticated(token);}}catch(e){setError(e instanceof Error?e.message:"No se pudo completar el acceso")}finally{setBusy(false)}}
+ return <main className="employee-auth-shell"><section className="employee-auth-visual"><BeeRiderMark/><p className="auth-kicker">PIKI DELIVERY · Riders</p><h1>Todo listo para el próximo pedido.</h1><p>Accede a tu operativa con una cuenta corporativa aprobada por Administración.</p><div className="auth-points"><span>● Operativa en tiempo real</span><span>● Sesión protegida por rol</span><span>● Soporte interno PIKI</span></div></section><form className="employee-auth-card" onSubmit={submit}><div className="auth-card-top"><div className="auth-mini-mark">P</div><span>Acceso seguro</span></div><h2>{mode==="login"?"Bienvenido a Riders":"Activa tu cuenta"}</h2><p className="auth-help">{mode==="login"?"Usa el correo corporativo entregado por Administración.":"Define una contraseña permanente antes de operar."}</p>{mode==="login"&&<label>Correo corporativo<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@empresa.es" autoComplete="username" required/></label>}<label>{mode==="login"?"Contraseña":"Contraseña temporal actual"}<input type="password" value={current} onChange={e=>setCurrent(e.target.value)} placeholder="Introduce tu contraseña" autoComplete="current-password" required/></label>{mode==="change"&&<label>Nueva contraseña<input type="password" value={next} onChange={e=>setNext(e.target.value)} placeholder="12 caracteres o más" minLength={12} autoComplete="new-password" required/></label>}{error&&<p className="form-error" role="alert">{error}</p>}<button className="auth-submit" type="submit" disabled={busy}>{busy?"Validando…":mode==="login"?"Iniciar sesión":"Guardar contraseña"}</button><p className="auth-legal">Las cuentas corporativas se crean y aprueban desde Administración. Si aún no tienes acceso, solicita el alta a tu responsable.</p></form></main>;
 }
