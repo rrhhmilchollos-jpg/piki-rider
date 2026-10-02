@@ -394,6 +394,14 @@ function App() {
     };
   }, [loadRiderData]);
   useEffect(() => {
+    if (!apiToken) return;
+    // The API is authoritative for Europe/Madrid date/time and slot eligibility.
+    // Refresh while the app stays open so a shift starts/ends without relying
+    // on the rider's device clock or a manual refresh.
+    const timer = window.setInterval(() => { void loadRiderData(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [apiToken, loadRiderData]);
+  useEffect(() => {
     try {
       localStorage.setItem(riderSectionStorageKey, section);
     } catch {
