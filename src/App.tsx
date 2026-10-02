@@ -2010,6 +2010,7 @@ function App() {
                   <div className="page-heading">
                     <div>
                       <p className="eyebrow">PIKI · RIDERS</p>
+                      <p className="brand-vibe">Tu turno, tu ritmo, tu ciudad.</p>
                       <h1>
                         {section === "Inicio"
                           ? "Cada entrega, clara desde el primer metro."
