@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { getStoredEmail, storeEmail } from "./authStorage";
+import { buildRiderEmployeeLoginPayload } from "./employeeLogin";
 
 type Props = { apiOrigin: string; onAuthenticated: (token: string) => void };
 
@@ -17,7 +18,7 @@ export default function EmployeeAuthGate({ apiOrigin, onAuthenticated }: Props) 
     try {
       if (mode === "login") {
         const normalizedEmail = email.trim().toLowerCase();
-        const response = await fetch(`${apiOrigin}/api/v1/auth/employee/login`, { method: "POST", headers: { "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ email: normalizedEmail, password: currentPassword }) });
+        const response = await fetch(`${apiOrigin}/api/v1/auth/employee/login`, { method: "POST", headers: { "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify(buildRiderEmployeeLoginPayload(normalizedEmail, currentPassword)) });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || data.error || "No se pudo iniciar sesión");
         storeEmail(normalizedEmail); setToken(data.accessToken);
