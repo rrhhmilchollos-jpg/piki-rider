@@ -1,5 +1,7 @@
-export const RIDER_RELEASE_VERSION = "0.2.2";
-export const RIDER_SURFACE = "rider";
+import { PIKI_RELEASE } from "./release-meta";
+
+export const RIDER_RELEASE_VERSION = PIKI_RELEASE.version;
+export const RIDER_SURFACE = PIKI_RELEASE.surface;
 
 export type ServedRelease = {
   version?: string;

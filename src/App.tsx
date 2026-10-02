@@ -29,6 +29,7 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
+import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
@@ -1159,6 +1160,7 @@ function App() {
             <span className="status-dot" />
           </div>
           <div className="topbar-actions">
+            <NotificationCenter apiOrigin={apiOrigin} token={apiToken} surface="rider" />
             <button
               className="icon-button"
               onClick={() => showSection("Soporte")}
@@ -2013,6 +2015,7 @@ function App() {
                   <div className="page-heading">
                     <div>
                       <p className="eyebrow">PIKI · RIDERS</p>
+                      <p className="brand-vibe">Tu turno, tu ritmo, tu ciudad.</p>
                       <h1>
                         {section === "Inicio"
                           ? "Cada entrega, clara desde el primer metro."

@@ -1,14 +1,13 @@
-const BUILD_ID = "2cf9c4c445ac";
-const BUILD_ID = "2cf9c4c445ac";
+const BUILD_ID = "657eab483f79";
 const CACHE_PREFIX = "piki-rider-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
-const APP_SHELL = ["/","/manifest.json","/piki-icon-192.png","/piki-icon-512.png"];
+const APP_SHELL = ["/","/manifest.json","/piki-mascot-192.png","/piki-mascot-512.png"];
 const CONTROL_PATHS = new Set(["/sw.js", "/release.json", "/manifest.json"]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(APP_SHELL);
+    await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
   })());
 });
 
@@ -54,8 +53,8 @@ self.addEventListener("push", (event) => {
   const path = typeof payload.url === "string" && payload.url.startsWith("/") ? payload.url : "/";
   event.waitUntil(self.registration.showNotification(title, {
     body,
-    icon: "/piki-icon-192.png",
-    badge: "/piki-icon-192.png",
+    icon: "/piki-mascot-192.png",
+    badge: "/piki-mascot-192.png",
     tag: typeof payload.tag === "string" ? payload.tag : "piki-notification",
     renotify: Boolean(payload.renotify),
     data: { path },
