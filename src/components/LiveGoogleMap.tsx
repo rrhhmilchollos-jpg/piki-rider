@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { publishRiderLocation } from "../integrations/piki-api";
-
-type Props = { token: string; riderId?: string; active?: boolean; onError: (message: string) => void };
+type Props = { token: string; riderId?: string; active?: boolean; nativeTracking?: boolean; onError: (message: string) => void };
 type Point = { lat: number; lng: number; accuracy: number };
 const fallbackPoint = { lat: 38.9908, lng: -0.5185 };
 
 /** Visible map with GPS publishing independent from Google Maps credentials. */
-export default function LiveGoogleMap({ token, riderId, active = false, onError }: Props) {
+export default function LiveGoogleMap({ token, riderId, active = false, nativeTracking = false, onError }: Props) {
   const [point, setPoint] = useState<Point | null>(null);
   const [locationMessage, setLocationMessage] = useState("Mapa centrado en Xàtiva · activa la jornada para compartir tu posición");
   const onErrorRef = useRef(onError);
@@ -18,7 +17,7 @@ export default function LiveGoogleMap({ token, riderId, active = false, onError 
     const publish = async (next: Point) => {
       setPoint(next);
       setLocationMessage(`GPS actualizado · precisión aproximada ${Math.round(next.accuracy)} m`);
-      if (!active || !riderId) return;
+      if (!active || !riderId || nativeTracking) return;
       const previous = lastPublishedRef.current;
       const elapsed = previous ? Date.now() - previous.at : Number.POSITIVE_INFINITY;
       const movedMeters = previous ? Math.hypot((next.lat - previous.lat) * 111_000, (next.lng - previous.lng) * 88_000) : Number.POSITIVE_INFINITY;
@@ -41,7 +40,7 @@ export default function LiveGoogleMap({ token, riderId, active = false, onError 
       }
     }
     return () => { if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); if (heartbeat !== undefined) window.clearInterval(heartbeat); };
-  }, [active, riderId, token]);
+  }, [active, nativeTracking, riderId, token]);
   const center = point ?? fallbackPoint;
   const mapUrl = useMemo(() => `https://www.google.com/maps?q=${encodeURIComponent(`${center.lat},${center.lng}`)}&z=15&output=embed`, [center.lat, center.lng]);
   return <div className="rider-map-card"><div className="rider-map-status">{locationMessage}</div><iframe title="Mapa operativo de Google Maps" className="rider-google-map-frame" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`} target="_blank" rel="noreferrer">Abrir en Google Maps</a></div>;

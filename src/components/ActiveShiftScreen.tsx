@@ -23,6 +23,7 @@ type Props = {
   offersError: string;
   startedShiftNotice: boolean;
   toast: string;
+  nativeTracking?: boolean;
   onDismissStartNotice: () => void;
   onOpenOperations: () => void;
   onRefreshOffers: () => void;
@@ -94,7 +95,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
   </section>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onRefreshOffers, onOfferAction, onAcceptOffer, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onRefreshOffers, onOfferAction, onAcceptOffer, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<"pickup" | "delivery">("delivery");
   const [scannerReady, setScannerReady] = useState(false);
@@ -180,11 +181,11 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
 
   return <main className="active-shift-shell" aria-label="Jornada activa PIKI Rider">
     <section className="active-map real-google-map-section">
-      <LiveGoogleMap token={token} riderId={riderId} active onError={onError}/>
+      <LiveGoogleMap token={token} riderId={riderId} active nativeTracking={nativeTracking} onError={onError}/>
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
       <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : "En línea"}</strong><i className="online-dot"/></div>
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
-        <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>Mantén la app visible para recibir asignaciones y avisos en tiempo real.</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
+        <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>{nativeTracking ? "El GPS nativo seguirá activo durante tu jornada, incluso al cerrar la app desde recientes." : "Mantén la app visible para recibir asignaciones y avisos en tiempo real."}</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
       </section>}
 
       <section className={`active-bottom-sheet ${liveOrder ? "has-live-order" : ""} ${sheetCollapsed && liveOrder ? "is-collapsed" : ""}`} aria-live="polite">

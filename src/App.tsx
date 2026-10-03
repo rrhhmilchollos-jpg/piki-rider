@@ -57,7 +57,11 @@ import {
   markStoredTokenValidated,
 } from "./authStorage";
 import { requiresRiderAuthentication } from "./apiAuthPolicy";
-
+import {
+  startNativeBackgroundTracking,
+  stopNativeBackgroundTracking,
+  supportsNativeBackgroundTracking,
+} from "./native/backgroundLocation";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -1094,6 +1098,27 @@ function App() {
     setToast(message);
   }, []);
 
+  const nativeTracking = supportsNativeBackgroundTracking();
+  useEffect(() => {
+    if (!nativeTracking || !shiftActive || !apiToken || !riderId) {
+      void stopNativeBackgroundTracking();
+      return;
+    }
+    let disposed = false;
+    void startNativeBackgroundTracking({
+      apiOrigin,
+      token: apiToken,
+      riderId,
+      onError: (message) => {
+        if (!disposed) setToast(message);
+      },
+    });
+    return () => {
+      disposed = true;
+      void stopNativeBackgroundTracking();
+    };
+  }, [apiOrigin, apiToken, nativeTracking, riderId, shiftActive]);
+
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
@@ -1121,6 +1146,7 @@ function App() {
         offersError={offersError}
         startedShiftNotice={startedShiftNotice}
         toast={toast}
+        nativeTracking={nativeTracking}
         onDismissStartNotice={() => setStartedShiftNotice(false)}
         onOpenOperations={() => setShowOperations(true)}
         onRefreshOffers={() => {
