@@ -547,7 +547,7 @@ function App() {
         setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
       },
       onEvent: (event) => {
-        if (event.type !== "order.rider_offer") return;
+        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
         })
@@ -555,12 +555,12 @@ function App() {
             if (!response.ok) return;
             const data = (await response.json()) as { offers?: RiderOffer[] };
             setOffers(Array.isArray(data.offers) ? data.offers : []);
-            lastOfferAtRef.current = Date.now();
             setOffersError("");
-            playAssignmentAlert();
-            setToast(
-              "Nueva oferta de reparto. Revísala en la pantalla de jornada.",
-            );
+            if (event.type === "order.rider_offer") {
+              lastOfferAtRef.current = Date.now();
+              playAssignmentAlert();
+              setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
+            }
           })
           .catch(() => undefined);
       },
@@ -853,7 +853,7 @@ function App() {
   }
   async function offerAction(
     orderId: string,
-    action: "picked_up" | "on_the_way",
+    action: "on_the_way",
   ) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
@@ -862,10 +862,7 @@ function App() {
       const body = {
         status: action,
         actorRole: "rider",
-        reason:
-          action === "picked_up"
-            ? "Pedido recogido en el establecimiento"
-            : "Ruta iniciada hacia el cliente",
+        reason: "Ruta iniciada hacia el cliente",
       };
       const response = await fetch(`${apiOrigin}${endpoint}`, {
         method: "POST",
@@ -884,11 +881,7 @@ function App() {
         return;
       }
       setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, assignmentState: "assigned", assignmentExpiresAt: null, status: action } : offer));
-      setToast(
-        action === "picked_up"
-          ? "Recogida confirmada. Ahora se muestra la tarjeta del cliente."
-          : "Ruta iniciada. Confirma la entrega al llegar al cliente.",
-      );
+      setToast("Ruta iniciada. El Customer ya ve el seguimiento en tiempo real.");
       await loadRiderData();
     } catch {
       setToast(
@@ -899,8 +892,29 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function pickupOrder(orderId: string) {
-    await offerAction(orderId, "picked_up");
+  async function acceptOffer(orderId: string) {
+    if (orderActionBusy) return;
+    setOrderActionBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/accept-offer`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setToast(data.message || data.error || "No se pudo aceptar el pedido."); await loadRiderData(); return; }
+      setToast(data.message || "Pedido aceptado. Navega al Partner.");
+      await loadRiderData();
+    } catch { setToast("No se pudo aceptar por red. Se actualizará el estado antes de reintentar."); await loadRiderData(); }
+    finally { setOrderActionBusy(false); }
+  }
+  async function confirmPartnerArrival(orderId: string) {
+    if (orderActionBusy) return;
+    setOrderActionBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-arrival`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setToast(data.message || data.error || "No se pudo verificar la llegada al Partner."); await loadRiderData(); return; }
+      setToast(data.message || "Llegada al Partner verificada.");
+      await loadRiderData();
+    } catch { setToast("No se pudo verificar la llegada. Comprueba GPS y conexión."); await loadRiderData(); }
+    finally { setOrderActionBusy(false); }
   }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
     if (orderActionBusy) return;
@@ -1113,7 +1127,8 @@ function App() {
           setOffersError("");
           void loadRiderData();
         }}
-        onPickupOrder={(orderId) => void pickupOrder(orderId)}
+        onAcceptOffer={(orderId) => void acceptOffer(orderId)}
+        onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
         onConfirmPickup={(orderId, verificationCode) =>
@@ -1495,8 +1510,8 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void pickupOrder(offer._id)}>
-                              Confirmar recogida
+                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void acceptOffer(offer._id)}>
+                              Aceptar pedido
                             </button>
                           </div>
                         </article>
@@ -1561,18 +1576,15 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) && (
-                              <>
-                                <button
-                                  className="primary-button"
-                                  disabled={orderActionBusy}
-                                  onClick={() =>
-                                    void offerAction(offer._id, "picked_up")
-                                  }
-                                >
-                                  Confirmar recogida
-                                </button>
-                              </>
+                            {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) && !offer.riderArrivedAt && (
+                              <button className="primary-button" disabled={orderActionBusy} onClick={() => void confirmPartnerArrival(offer._id)}>
+                                Confirmar llegada al Partner
+                              </button>
+                            )}
+                            {offer.status === "ready_for_pickup" && offer.riderArrivedAt && (
+                              <button className="primary-button" disabled={orderActionBusy} onClick={() => void confirmPickup(offer._id)}>
+                                Confirmar recogida
+                              </button>
                             )}
                             {offer.status === "picked_up" && (
                               <button
