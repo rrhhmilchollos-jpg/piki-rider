@@ -70,3 +70,5 @@
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-order-summary{display:block}
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-handle{margin:0 0 2px}
 @media(max-width:580px){.active-order-summary{padding:5px 22px 7px}.active-order-summary strong{font-size:18px}.active-order-summary p{font-size:14px}}
+
+.active-start-banner{display:inline-block;margin:0 auto 8px;padding:4px 28px;background:#59cbb0;color:#166e62;font:800 15px 'Space Grotesk';letter-spacing:1px;clip-path:polygon(0 15%,100% 0,96% 100%,4% 85%)}.active-info-dot{display:grid;place-items:center;width:19px;height:19px;margin-top:15px;border:2px solid #253338;border-radius:50%;color:#253338;font:700 12px 'Space Grotesk'}
