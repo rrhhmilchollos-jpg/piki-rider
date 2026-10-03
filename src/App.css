@@ -61,3 +61,63 @@ body { background:radial-gradient(circle at 100% 0%, rgba(212,255,87,.17), trans
 .brand-vibe::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--piki-coral); box-shadow:0 0 0 4px rgba(255,120,95,.14); }
 .offer-card, .delivery-card, .support-card, .schedule-day { transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
 .offer-card:hover, .delivery-card:hover, .support-card:hover, .schedule-day:hover { transform:translateY(-2px); box-shadow:0 16px 30px rgba(16,41,79,.1); border-color:#d4e7a7; }
+
+
+/* PIKI Rider 2.0 — dashboard coherente con la jornada activa */
+:root { --rider-ink:#101d2b; --rider-blue:#163452; --rider-lime:#d7ff61; --rider-paper:#f7faf7; --rider-coral:#ff795f; }
+body { background:radial-gradient(circle at 100% 0%,rgba(215,255,97,.15),transparent 26%),#f4f7f5; }
+.app-shell { background:transparent; }
+.sidebar { width:232px; padding:20px 14px; background:linear-gradient(180deg,#102a45 0%,#102235 100%); }
+.brand-block { padding:2px 11px 26px; }
+.brand-mark { width:40px; height:40px; border-radius:14px; box-shadow:0 7px 16px rgba(215,255,97,.15); }
+.brand-block strong { font-size:21px; }
+.nav-label { color:#90abb5; font-size:9px; letter-spacing:.16em; }
+.nav-list { gap:5px; }
+.nav-item { min-height:44px; border-radius:13px; color:#adc0c8; }
+.nav-item:hover { background:#1c4261; color:#fff; }
+.nav-item-active { background:var(--rider-lime); color:var(--rider-ink); box-shadow:0 8px 18px rgba(215,255,97,.12); }
+.nav-item-active:hover { background:#e0ff83; color:var(--rider-ink); }
+.sidebar-footer { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.08); border-radius:15px; }
+.sidebar-footer span { color:#a8c0c5; }
+.main-content { margin-left:232px; width:calc(100% - 232px); }
+.topbar { height:68px; background:rgba(255,255,255,.82); border-bottom:1px solid #e3ebe6; padding:0 38px; backdrop-filter:blur(14px); }
+.location-pill { color:#4e686b; font-size:12px; font-weight:700; }
+.location-pill svg { color:#4d7f45; }
+.status-dot { background:#b6e759; box-shadow:0 0 0 4px rgba(182,231,89,.16); }
+.topbar-actions { gap:12px; }
+.icon-button { width:38px; height:38px; display:grid; place-items:center; border-radius:12px; background:#edf5ed; color:#3d6c59; }
+.user-avatar { background:var(--rider-lime); box-shadow:0 5px 12px rgba(215,255,97,.18); }
+.page-content { max-width:1160px; padding:38px 42px 74px; }
+.page-heading,.feature-heading { margin-bottom:30px; }
+.page-heading::after,.feature-heading::after { content:""; width:76px; height:6px; position:absolute; left:0; bottom:-14px; border-radius:99px; background:linear-gradient(90deg,var(--rider-lime),var(--rider-coral)); }
+.page-heading h1,.feature-heading h1 { color:var(--rider-ink); font-size:clamp(31px,4.5vw,51px); letter-spacing:-2.4px; }
+.lead { color:#607379; max-width:620px; }
+.connection-card,.metric-card,.stat-card,.empty-card,.process-card,.partner-form,.support-card,.delivery-card,.stats-panel,.wallet-stat,.shift-toolbar,.schedule-day { border-color:#dfe9e2; border-radius:18px; box-shadow:0 8px 24px rgba(16,29,43,.045); }
+.connection-card:hover,.metric-card:hover,.stat-card:hover,.empty-card:hover,.support-card:hover,.delivery-card:hover,.wallet-stat:hover,.schedule-day:hover { border-color:#c7dfb9; box-shadow:0 16px 30px rgba(16,29,43,.09); }
+.connection-icon,.feature-icon,.support-icon { background:#e7f7e1; color:#327447; }
+.metric-card strong,.stat-card strong,.wallet-stat strong { color:var(--rider-ink); }
+.metric-card:first-child { border-top:3px solid var(--rider-lime); }
+.primary-empty { background:linear-gradient(135deg,#163452,#21486a); border-color:#163452; }
+.primary-button { border-radius:13px; background:var(--rider-lime); box-shadow:0 8px 16px rgba(215,255,97,.18); }
+.secondary-button { border-radius:13px; }
+.delivery-card { padding:19px 20px; }
+.delivery-card h2 { color:var(--rider-ink); }
+.delivery-card .primary-button { background:var(--rider-lime); }
+.wallet-card,.shift-action { background:linear-gradient(135deg,#163452,#21486a); border-radius:20px; box-shadow:0 14px 32px rgba(22,52,82,.16); }
+.wallet-card svg,.shift-action>svg { color:var(--rider-lime); }
+.toast { border-radius:14px; background:#163452; }
+@media (max-width:900px) { .sidebar { width:248px; } .main-content { margin-left:0; width:100%; } .page-content { padding:31px 24px 60px; } .topbar { padding:0 22px; } }
+@media (max-width:580px) { .page-content { padding:28px 17px 52px; } .page-heading h1,.feature-heading h1 { font-size:34px; } .topbar { height:62px; padding:0 16px; } .location-pill span:first-of-type { max-width:135px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } }
+
+
+/* Access screen: one calm, centered action instead of a compressed token grid */
+.employee-auth-card { display:grid; grid-template-columns:1fr; gap:13px; width:min(520px,100%); margin:0 auto 24px; padding:25px; background:rgba(255,255,255,.94); border:1px solid #dfe9e2; border-radius:22px; box-shadow:0 18px 42px rgba(16,29,43,.1); }
+.employee-auth-card strong { color:var(--rider-ink); font:800 23px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.5px; }
+.employee-auth-card span { color:#62737a; line-height:1.5; font-size:13px; }
+.employee-auth-card input { width:100%; min-height:46px; margin:0; border:1px solid #d7e5dc; border-radius:13px; background:#fbfdfb; color:var(--rider-ink); padding:0 13px; outline:0; }
+.employee-auth-card input:focus { border-color:#8bbf71; box-shadow:0 0 0 4px rgba(139,191,113,.16); }
+.employee-auth-card small { color:#76868a; line-height:1.45; font-size:11px; }
+.employee-auth-card .form-error { margin:0; color:#a94d45!important; background:#fff0ed; border:1px solid #ffd2c8; border-radius:11px; padding:10px 12px; }
+.employee-auth-card button { min-height:46px; border:0; border-radius:13px; background:var(--rider-blue); color:#fff; font:800 14px 'DM Sans',sans-serif; cursor:pointer; box-shadow:0 8px 18px rgba(22,52,82,.18); }
+.employee-auth-card button:hover { background:#214d70; transform:translateY(-1px); }
+.employee-auth-card button:disabled { opacity:.65; cursor:wait; transform:none; }

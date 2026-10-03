@@ -70,3 +70,97 @@
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-order-summary{display:block}
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-handle{margin:0 0 2px}
 @media(max-width:580px){.active-order-summary{padding:5px 22px 7px}.active-order-summary strong{font-size:18px}.active-order-summary p{font-size:14px}}
+
+
+/* PIKI Rider 2.0 — mapa primero, una acción clara, lectura a distancia */
+.active-shift-shell {
+  --rider-ink:#101d2b;
+  --rider-blue:#163452;
+  --rider-lime:#d7ff61;
+  --rider-coral:#ff795f;
+  --rider-paper:#fbfcf8;
+  background:#dce8e3;
+  font-family:'DM Sans',system-ui,sans-serif;
+}
+.active-shift-shell .active-map { background:#dce8e3; }
+.active-shift-shell .real-map-shell { filter:saturate(.92) contrast(1.02); }
+.active-shift-shell .active-menu-button,
+.active-shift-shell .active-help-button {
+  top:20px; width:48px; height:48px; border-radius:16px;
+  background:rgba(16,29,43,.94); color:#fff;
+  box-shadow:0 10px 24px rgba(16,29,43,.18);
+  transition:transform .18s ease, background .18s ease;
+}
+.active-shift-shell .active-menu-button:hover,
+.active-shift-shell .active-help-button:hover { transform:translateY(-2px); background:#244a68; }
+.active-shift-shell .active-menu-button { left:20px; }
+.active-shift-shell .active-help-button { right:20px; }
+.active-shift-shell .online-pill {
+  top:17px; min-width:142px; padding:9px 17px 10px 18px;
+  border:1px solid rgba(255,255,255,.23); border-radius:16px;
+  background:rgba(16,29,43,.94); box-shadow:0 10px 24px rgba(16,29,43,.17);
+  backdrop-filter:blur(12px); text-align:left;
+}
+.active-shift-shell .online-pill span:not(.online-dot) { color:#aac1cc; font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.active-shift-shell .online-pill strong { color:#f4fbf7; font:800 18px/1.1 'Space Grotesk',sans-serif; }
+.active-shift-shell .online-dot { right:14px; top:19px; width:10px; height:10px; background:var(--rider-lime); box-shadow:0 0 0 5px rgba(215,255,97,.15); }
+.active-shift-shell .active-bottom-sheet {
+  left:50%; right:auto; transform:translateX(-50%); width:min(620px,100%);
+  min-height:188px; padding:18px 22px 22px; border-radius:28px 28px 0 0;
+  background:rgba(251,252,248,.97); color:var(--rider-ink);
+  box-shadow:0 -16px 40px rgba(16,29,43,.20); backdrop-filter:blur(16px);
+}
+.active-shift-shell .active-sheet-handle { height:20px; margin:-10px 0 4px; }
+.active-shift-shell .active-sheet-handle span { width:38px; height:4px; background:#b7c7bf; }
+.active-shift-shell .active-eyebrow { color:#4d7f45; font-size:10px; letter-spacing:.14em; margin:0 0 7px; }
+.active-shift-shell .active-bottom-sheet h1 { margin:0 0 7px; color:var(--rider-ink); font:800 clamp(25px,6vw,33px)/1.04 'Space Grotesk',sans-serif; letter-spacing:-1.2px; }
+.active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow) { max-width:520px; color:#52636b; font-size:15px; line-height:1.42; }
+.active-shift-shell .active-bottom-sheet.has-live-order { padding-top:18px; max-height:min(82dvh,760px); }
+.active-shift-shell .has-live-order>.active-eyebrow,
+.active-shift-shell .has-live-order>.active-route-title,
+.active-shift-shell .has-live-order>.active-order-button,
+.active-shift-shell .has-live-order>.active-cash-note,
+.active-shift-shell .has-live-order>.active-sheet-actions,
+.active-shift-shell .has-live-order>.active-safety-note { margin-left:0; margin-right:0; }
+.active-shift-shell .active-route-title { margin:2px 0 12px!important; font-size:25px!important; }
+.active-shift-shell .active-order-detail { margin:0 0 12px; overflow:hidden; border:1px solid #dfe9e2; border-radius:18px; background:#fff; box-shadow:0 6px 18px rgba(16,29,43,.06); }
+.active-shift-shell .active-order-header { padding:17px 17px 4px; }
+.active-shift-shell .active-order-header h2 { font-size:21px; }
+.active-shift-shell .active-order-header p { margin-top:4px; color:#68777c; font-size:14px; }
+.active-shift-shell .active-call-button { width:42px; height:42px; border:0; border-radius:13px; background:#e7f7e1; color:#327447; }
+.active-shift-shell .active-order-context { margin:13px 17px -7px; color:#4d7f45!important; font-size:9px!important; }
+.active-shift-shell .active-order-address { margin:15px 17px 13px; color:#26373e; font-size:15px; line-height:1.4; }
+.active-shift-shell .active-items-toggle { justify-content:space-between; border-top:1px solid #edf1ed; color:#314b4a; padding:11px 17px; font-size:14px; }
+.active-shift-shell .active-items-list { padding:7px 17px 5px; border-top:1px solid #edf1ed; }
+.active-shift-shell .active-item { grid-template-columns:24px 1fr; gap:9px; padding:8px 0; }
+.active-shift-shell .active-item-quantity { font-size:15px; color:#59706a; }
+.active-shift-shell .active-item-title { font-size:14px; }
+.active-shift-shell .active-item-modifier { font-size:13px; color:#68777c; }
+.active-shift-shell .active-payment { padding:12px 17px 14px; font-size:13px; }
+.active-shift-shell .active-payment strong { font-size:14px; }
+.active-shift-shell .active-payment b { font-size:16px; }
+.active-shift-shell .active-order-button,
+.active-shift-shell .active-retry-button {
+  width:100%; min-height:48px; margin-top:10px; border-radius:14px;
+  padding:13px 16px; font-size:14px; box-shadow:0 7px 16px rgba(215,255,97,.22);
+  transition:transform .18s ease, filter .18s ease;
+}
+.active-shift-shell .active-order-button:hover,
+.active-shift-shell .active-retry-button:hover { transform:translateY(-1px); filter:saturate(1.06); }
+.active-shift-shell .active-gps-button { background:var(--rider-blue); color:#fff; box-shadow:0 7px 16px rgba(22,52,82,.2); }
+.active-shift-shell .active-pickup-pending { margin:10px 0 0; border-radius:12px; background:#fff4d5; color:#755400; font-size:12px!important; }
+.active-shift-shell .active-start-dialog { top:94px; width:min(400px,calc(100% - 32px)); padding:22px 20px 18px; border-radius:22px; box-shadow:0 18px 42px rgba(16,29,43,.24); }
+.active-shift-shell .active-start-dialog h1 { font-size:24px; }
+.active-shift-shell .active-start-dialog button { width:100%; border-radius:13px; background:var(--rider-blue); }
+.active-shift-shell .delivery-qr-dialog { border:1px solid #dfe9e2; border-radius:22px; box-shadow:0 24px 60px rgba(16,29,43,.3); }
+@media (min-width:700px) {
+  .active-shift-shell .active-bottom-sheet { bottom:18px; border-radius:28px; }
+}
+@media (max-width:580px) {
+  .active-shift-shell .active-menu-button,.active-shift-shell .active-help-button { top:14px; width:46px; height:46px; }
+  .active-shift-shell .active-menu-button { left:14px; }
+  .active-shift-shell .active-help-button { right:14px; }
+  .active-shift-shell .online-pill { top:12px; }
+  .active-shift-shell .active-bottom-sheet { padding:15px 16px 18px; border-radius:24px 24px 0 0; }
+  .active-shift-shell .active-route-title { font-size:22px!important; }
+}

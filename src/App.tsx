@@ -1426,7 +1426,7 @@ function App() {
                 <section className="feature-section">
                   <FeatureHeading
                     eyebrow="PIKI · OFERTAS"
-                    title="Repartos asignados a tu jornada."
+                    title="Tu ruta, sin ruido."
                     lead="Los pedidos se asignan automáticamente. Si existe una incidencia, utiliza Soporte PIKI; no se rechazan desde la app."
                     icon={<Bell />}
                   />
