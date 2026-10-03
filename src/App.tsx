@@ -5,7 +5,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Bell,
-  Bike,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -29,11 +28,12 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
-import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
+import RiderNavigation from "./components/RiderNavigation";
+import RiderTopbar from "./components/RiderTopbar";
 import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
 import {
@@ -1129,43 +1129,13 @@ function App() {
   return (
     <LocationPermissionGate appLabel="Rider">
     <div className="app-shell">
-      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
-        <div className="brand-block">
-          <img className="brand-mark brand-logo" src="/piki-mascot.png" alt="PIKI" />
-          <div>
-            <strong>piki</strong>
-            <span>Riders</span>
-          </div>
-          <button
-            className="close-menu"
-            onClick={() => setOpen(false)}
-            aria-label="Cerrar menú"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <nav className="nav-list">
-          <p className="nav-label">TU JORNADA</p>
-          {nav.map(([label, Icon]) => (
-            <button
-              key={label}
-              className={`nav-item ${section === label ? "nav-item-active" : ""}`}
-              onClick={() => showSection(label)}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <div className="support-dot" />
-          <div>
-            <strong>Red PIKI</strong>
-            <span>{status === "ready" ? "Conectada" : "Comprobando"}</span>
-          </div>
-          <ChevronRight size={16} />
-        </div>
-      </aside>
+      <RiderNavigation
+        section={section}
+        open={open}
+        status={status}
+        onNavigate={showSection}
+        onClose={() => setOpen(false)}
+      />
       {open && (
         <button
           className="backdrop"
@@ -1174,49 +1144,15 @@ function App() {
         />
       )}
       <main className="main-content">
-        <header className="topbar">
-          <button
-            className="menu-button"
-            onClick={() => setOpen(true)}
-            aria-label="Abrir menú"
-          >
-            <Menu size={21} />
-          </button>
-          <div className="location-pill">
-            <Bike size={16} />
-            <span>Operativa de reparto</span>
-            <span className="status-dot" />
-          </div>
-          <div className="topbar-actions">
-            <NotificationCenter apiOrigin={apiOrigin} token={apiToken} surface="rider" />
-            <button
-              className="icon-button"
-              onClick={() => showSection("Soporte")}
-              aria-label="Abrir soporte"
-            >
-              <Headphones size={19} />
-            </button>
-            <div className="profile-wrap">
-              <button
-                className="profile-trigger"
-                onClick={() => setProfileOpen((value) => !value)}
-                aria-expanded={profileOpen}
-                aria-label="Abrir perfil"
-              >
-                <span className="user-avatar">R</span>
-              </button>
-              {profileOpen && (
-                <div className="profile-menu">
-                  <strong>Cuenta Rider</strong>
-                  <span>rrhh.milchollos@gmail.com</span>
-                  <button onClick={() => showSection("Cuenta")}>
-                    Ver mi cuenta
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
+        <RiderTopbar
+          apiOrigin={apiOrigin}
+          token={apiToken}
+          profileOpen={profileOpen}
+          onOpenMenu={() => setOpen(true)}
+          onOpenSupport={() => showSection("Soporte")}
+          onToggleProfile={() => setProfileOpen((value) => !value)}
+          onOpenAccount={() => showSection("Cuenta")}
+        />
         <section className="page-content">
           {toast && (
             <div className="toast" role="status">

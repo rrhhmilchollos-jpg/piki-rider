@@ -1,0 +1,16 @@
+{
+  "routes": [
+    { "path": "/", "title": "PIKI Riders" },
+    { "path": "/?section=Inicio", "title": "Inicio" },
+    { "path": "/?section=Ofertas", "title": "Ofertas" },
+    { "path": "/?section=Entregas", "title": "Entregas" },
+    { "path": "/?section=Mapa", "title": "Mapa" },
+    { "path": "/?section=Horarios", "title": "Horarios" },
+    { "path": "/?section=Cartera", "title": "Cartera" },
+    { "path": "/?section=Incentivos", "title": "Incentivos" },
+    { "path": "/?section=Estadísticas", "title": "Estadísticas" },
+    { "path": "/?section=Soporte", "title": "Soporte" },
+    { "path": "/?section=Cuenta", "title": "Cuenta" },
+    { "path": "/?section=Solicitar%20alta", "title": "Solicitar alta" }
+  ]
+}
