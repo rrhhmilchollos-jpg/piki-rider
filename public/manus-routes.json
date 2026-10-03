@@ -1,16 +1,16 @@
 {
   "routes": [
-    { "path": "/", "title": "PIKI Riders" },
-    { "path": "/?section=Inicio", "title": "Inicio" },
-    { "path": "/?section=Ofertas", "title": "Ofertas" },
-    { "path": "/?section=Entregas", "title": "Entregas" },
-    { "path": "/?section=Mapa", "title": "Mapa" },
-    { "path": "/?section=Horarios", "title": "Horarios" },
-    { "path": "/?section=Cartera", "title": "Cartera" },
-    { "path": "/?section=Incentivos", "title": "Incentivos" },
-    { "path": "/?section=Estadísticas", "title": "Estadísticas" },
-    { "path": "/?section=Soporte", "title": "Soporte" },
-    { "path": "/?section=Cuenta", "title": "Cuenta" },
-    { "path": "/?section=Solicitar%20alta", "title": "Solicitar alta" }
+    { "path": "/", "title": "PIKI Rider · Inicio" },
+    { "path": "/?section=Inicio", "title": "PIKI Rider · Inicio" },
+    { "path": "/?section=Ofertas", "title": "PIKI Rider · Ofertas" },
+    { "path": "/?section=Entregas", "title": "PIKI Rider · Entregas" },
+    { "path": "/?section=Mapa", "title": "PIKI Rider · Mapa" },
+    { "path": "/?section=Horarios", "title": "PIKI Rider · Horarios" },
+    { "path": "/?section=Cartera", "title": "PIKI Rider · Cartera" },
+    { "path": "/?section=Incentivos", "title": "PIKI Rider · Incentivos" },
+    { "path": "/?section=Estadísticas", "title": "PIKI Rider · Estadísticas" },
+    { "path": "/?section=Soporte", "title": "PIKI Rider · Soporte" },
+    { "path": "/?section=Cuenta", "title": "PIKI Rider · Cuenta" },
+    { "path": "/?section=Solicitar%20alta", "title": "PIKI Rider · Solicitar alta" }
   ]
 }

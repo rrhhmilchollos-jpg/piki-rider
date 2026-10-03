@@ -1,17 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
   font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #15213a;
-  background: #f5f7fb;
+  color: #0b1220;
+  background: #f6f3ec;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --piki-ink: #0b1220;
+  --piki-ink-soft: #334155;
+  --piki-muted: #758092;
+  --piki-paper: #f6f3ec;
+  --piki-surface: #ffffff;
+  --piki-lime: #e9ff62;
+  --piki-coral: #ff765d;
+  --piki-aqua: #b8f6df;
+  --piki-line: #e5e7df;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, input { font: inherit; }
+html { background: var(--piki-paper); }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--piki-paper); }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-button:focus-visible, input:focus-visible { outline: 3px solid rgba(129, 174, 50, .35); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(233, 255, 98, .85); outline-offset: 3px; }
+::selection { background: var(--piki-lime); color: var(--piki-ink); }
