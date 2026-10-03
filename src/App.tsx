@@ -42,9 +42,6 @@ import {
 import {
   createRiderSupportTicket,
   loadMobilityAdvice,
-  loadRiderOrderMessages,
-  sendRiderOrderMessage,
-  type RiderOrderMessage,
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 import { orderRiderQueue } from "./orderQueue";
@@ -312,9 +309,6 @@ function App() {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [orderActionBusy, setOrderActionBusy] = useState(false);
-  const [orderMessages, setOrderMessages] = useState<RiderOrderMessage[]>([]);
-  const [messageDraft, setMessageDraft] = useState("");
-  const [messageBusy, setMessageBusy] = useState(false);
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const [supportForm, setSupportForm] = useState({ subject: "", description: "", priority: "high" });
@@ -564,54 +558,6 @@ function App() {
       },
     });
   }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
-  useEffect(() => {
-    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
-    if (!apiToken || !riderId || !activeOrder) {
-      // oxlint-disable-next-line react/set-state-in-effect
-      setOrderMessages([]);
-      return;
-    }
-    let disposed = false;
-    const pollMessages = async () => {
-      try {
-        const messages = await loadRiderOrderMessages(
-          apiToken,
-          riderId,
-          activeOrder._id,
-        );
-        if (!disposed) setOrderMessages(messages);
-      } catch {
-        /* el pedido puede cerrarse mientras se actualiza */
-      }
-    };
-    void pollMessages();
-    const timer = window.setInterval(pollMessages, 4000);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, [apiToken, riderId, offers]);
-  async function submitOrderMessage(event: FormEvent) {
-    event.preventDefault();
-    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
-    const body = messageDraft.trim();
-    if (!apiToken || !riderId || !activeOrder || !body || messageBusy) return;
-    setMessageBusy(true);
-    try {
-      const message = await sendRiderOrderMessage(
-        apiToken,
-        riderId,
-        activeOrder._id,
-        body,
-      );
-      setOrderMessages((previous) => [...previous, message]);
-      setMessageDraft("");
-    } catch {
-      setToast("No se pudo enviar el mensaje. Revisa la conexión.");
-    } finally {
-      setMessageBusy(false);
-    }
-  }
   useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
@@ -1816,147 +1762,6 @@ function App() {
                   </div>
                 </section>
               )}
-              {section === "Inicio" && (
-                <section className="feature-section current-order-panel">
-                  <FeatureHeading
-                    eyebrow="PIKI · PEDIDO ACTIVO"
-                    title={
-                      offers.some(
-                        (offer) => offer.assignmentState === "assigned",
-                      )
-                        ? "Tu pedido en curso"
-                        : "No tienes ningún pedido en curso"
-                    }
-                    lead="La información del reparto actual aparece siempre aquí arriba."
-                    icon={<ClipboardList />}
-                  />
-                  {(() => {
-                    const order = offers.find(
-                      (offer) => offer.assignmentState === "assigned",
-                    );
-                    if (!order)
-                      return (
-                        <div className="empty-card">
-                          <p className="empty-copy">
-                            Activa tu jornada para recibir repartos asignados.
-                          </p>
-                        </div>
-                      );
-                    const phaseLabels: Record<string, string> = {
-                      going_to_restaurant: "Yendo al restaurante",
-                      waiting_for_food: "Esperando comida",
-                      going_to_customer: "Yendo al cliente",
-                      assigned: "Pedido aceptado",
-                    };
-                    const vehicleLabels: Record<string, string> = {
-                      bike: "Bicicleta",
-                      electric_bike: "Bicicleta eléctrica",
-                      electric_scooter: "Patinete eléctrico",
-                      motorcycle: "Moto",
-                      scooter: "Moto",
-                      car: "Coche",
-                    };
-                    return (
-                      <>
-                        <article className="current-order-card">
-                          <div className="current-order-code">
-                            #
-                            {order.displayCode ||
-                              order.publicCode ||
-                              order._id.slice(-3)}
-                          </div>
-                          <div className="current-order-main">
-                            <strong>
-                              {phaseLabels[order.phase || "assigned"] ||
-                                "Pedido aceptado"}
-                            </strong>
-                            <span>
-                              {vehicleLabels[order.vehicle || ""] ||
-                                "Vehículo asignado"}
-                            </span>
-                            <p>
-                              {order.status === "ready_for_pickup" ||
-                              order.status === "preparing"
-                                ? order.restaurant?.name ||
-                                  "Establecimiento PIKI"
-                                : order.customerName || "Cliente"}
-                            </p>
-                            <p>
-                              {order.status === "ready_for_pickup" ||
-                              order.status === "preparing"
-                                ? order.restaurant?.address ||
-                                  "Dirección del establecimiento protegida"
-                                : order.deliveryAddress ||
-                                  "Dirección del cliente"}
-                            </p>
-                          </div>
-                          <div className="current-order-eta">
-                            <Clock3 size={17} />
-                            <strong>
-                              {order.etaMinutes == null
-                                ? "—"
-                                : `${order.etaMinutes} min`}
-                            </strong>
-                            <span>tiempo estimado</span>
-                          </div>
-                        </article>
-                        <section className="order-chat-card">
-                          <div>
-                            <span className="eyebrow">CHAT DEL PEDIDO</span>
-                            <h2>Comunicación con el cliente</h2>
-                            <p>
-                              Usa este canal para coordinar la entrega. No
-                              muestra el teléfono del cliente.
-                            </p>
-                          </div>
-                          <div className="order-chat-messages">
-                            {orderMessages.length ? (
-                              orderMessages.map((message) => (
-                                <div
-                                  className={`order-chat-message ${message.senderRole === "rider" ? "from-rider" : "from-customer"}`}
-                                  key={message._id}
-                                >
-                                  <span>
-                                    {message.senderRole === "rider"
-                                      ? "Tú"
-                                      : "Cliente"}
-                                  </span>
-                                  <p>{message.body}</p>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="empty-copy">
-                                Aún no hay mensajes en este pedido.
-                              </p>
-                            )}
-                          </div>
-                          <form
-                            className="order-chat-form"
-                            onSubmit={submitOrderMessage}
-                          >
-                            <input
-                              value={messageDraft}
-                              onChange={(event) =>
-                                setMessageDraft(event.target.value)
-                              }
-                              maxLength={500}
-                              placeholder="Escribe un mensaje al cliente…"
-                              aria-label="Mensaje al cliente"
-                            />
-                            <button
-                              className="primary-button"
-                              disabled={messageBusy || !messageDraft.trim()}
-                            >
-                              {messageBusy ? "Enviando…" : "Enviar"}
-                              <MessageCircle size={16} />
-                            </button>
-                          </form>
-                        </section>
-                      </>
-                    );
-                  })()}
-                </section>
-              )}
               {![
                 "Ofertas",
                 "Entregas",
@@ -1999,9 +1804,10 @@ function App() {
                   <section className="rider-session-preview" aria-label="Inicio de jornada Rider">
                     <div className="rider-session-map">
                       <LiveGoogleMap token={apiToken} riderId={riderId} active={shiftActive} onError={handleApiError} />
+                      <div className="rider-offline-pill" aria-live="polite"><span>Estado</span><strong>{shiftActive ? "En línea" : "Offline"}</strong><i /></div>
                     </div>
                     <div className="rider-session-sheet">
-                      <div className="rider-session-heading"><div><span>SESIÓN RESERVADA</span><h2>{reservedShiftCountdown || "Consulta tu próximo turno"}</h2></div><button type="button" onClick={() => showSection("Horarios")}>Ver todo</button></div>
+                      <div className="rider-session-heading"><div><span>{shiftActive ? "PIKI · EN LÍNEA" : "PIKI · OFFLINE"}</span><h2>{reservedShiftCountdown || "Consulta tu próximo turno"}</h2></div><button type="button" onClick={() => showSection("Horarios")}>Ver todo</button></div>
                       {currentShift.shift ? <div className="rider-reserved-card">
                         <strong>{currentShift.shift.start} – {currentShift.shift.end}</strong>
                         <span><MapPinned size={18} /> {currentShift.shift.zone || "Zona asignada"}</span>
