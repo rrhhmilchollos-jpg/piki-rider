@@ -1066,18 +1066,6 @@ function App() {
     );
   }
   const [profileOpen, setProfileOpen] = useState(false);
-  const logout = async () => {
-    try {
-      await fetch(`${apiOrigin}/api/v1/auth/employee/logout`, {
-        method: "POST",
-        headers: authHeaders(apiToken),
-      });
-    } catch {}
-    clearStoredToken();
-    setApiToken("");
-    setProfileOpen(false);
-    setAuthRequired(false);
-  };
   const handleApiError = useCallback((message: string) => {
     if (
       message.includes("API 401") ||
@@ -1223,12 +1211,6 @@ function App() {
                   <span>rrhh.milchollos@gmail.com</span>
                   <button onClick={() => showSection("Cuenta")}>
                     Ver mi cuenta
-                  </button>
-                  <button
-                    className="profile-logout"
-                    onClick={() => void logout()}
-                  >
-                    Cerrar sesión
                   </button>
                 </div>
               )}
