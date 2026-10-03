@@ -2007,7 +2007,7 @@ function App() {
                         <span><MapPinned size={18} /> {currentShift.shift.zone || "Zona asignada"}</span>
                         <div><b>1.00 x</b><button type="button" onClick={() => showSection("Horarios")}><CalendarDays size={19} /> Calendario</button></div>
                       </div> : <div className="rider-reserved-empty">No tienes una sesión reservada para este momento. Fleet debe asignarte fecha, horario y zona.</div>}
-                      <button className="rider-session-start" type="button" disabled={shiftBusy || !currentShift.eligible || !currentShift.shift} onClick={() => void toggleShift()}>{shiftBusy ? "Comprobando…" : currentShift.eligible ? "Empezar sesión" : "Fuera del horario asignado"}</button>
+                      {currentShift.eligible && currentShift.shift && <button className="rider-session-start" type="button" disabled={shiftBusy} onClick={() => void toggleShift()}>{shiftBusy ? "Comprobando…" : "Empezar sesión"}</button>}
                       <small className="rider-server-clock">Hora oficial PIKI · {authoritativeNow.date} {authoritativeNow.time} · Europe/Madrid</small>
                     </div>
                   </section>

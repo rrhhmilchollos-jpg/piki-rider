@@ -24,3 +24,8 @@
 .delivery-qr-dialog { border:1px solid #e5e7df; border-radius:24px; background:#f6f3ec; color:#0b1220; }
 .delivery-qr-dialog .active-order-button { box-shadow:none; }
 @media(max-width:580px) { .active-shift-shell .real-map-status{top:16px;max-width:calc(100% - 32px)} .active-shift-shell .active-bottom-sheet{border-radius:24px 24px 0 0} }
+
+
+/* Estado de espera Rider: texto nítido, oscuro y completamente opaco. */
+.active-shift-shell .searching-orders-title{color:#0b1220!important;opacity:1;text-shadow:none;font-weight:850;-webkit-font-smoothing:antialiased}
+.active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow){color:#26313a;opacity:1}
