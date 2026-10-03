@@ -52,12 +52,14 @@
 
 .brand-logo{object-fit:contain;background:#d4ff57;padding:2px}
 
-
 /* PIKI visual refresh — the rider owns the route */
 :root { --piki-lime:#d4ff57; --piki-coral:#ff785f; }
 body { background:radial-gradient(circle at 100% 0%, rgba(212,255,87,.17), transparent 30%), #f5f7fb; }
-.page-heading::before { content:""; position:absolute; right:0; top:0; width:170px; height:110px; border-radius:42% 58% 55% 45%; background:linear-gradient(135deg,rgba(212,255,87,.24),rgba(255,120,95,.09)); pointer-events:none; }
 .brand-vibe { display:inline-flex; align-items:center; gap:7px; margin:0 0 8px; color:#527029; font-size:11px; font-weight:800; letter-spacing:.02em; }
 .brand-vibe::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--piki-coral); box-shadow:0 0 0 4px rgba(255,120,95,.14); }
 .offer-card, .delivery-card, .support-card, .schedule-day { transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
 .offer-card:hover, .delivery-card:hover, .support-card:hover, .schedule-day:hover { transform:translateY(-2px); box-shadow:0 16px 30px rgba(16,41,79,.1); border-color:#d4e7a7; }
+.rider-map-card{display:grid;gap:12px;background:#fff;border:1px solid #d9e8dd;border-radius:18px;padding:14px;box-shadow:0 10px 24px rgba(20,59,43,.06)}
+.rider-map-status{color:#587066;font-size:12px;font-weight:700;padding:2px 4px}
+.rider-google-map-frame{width:100%;height:min(58vh,520px);min-height:320px;border:0;border-radius:14px;background:#e8eef3}
+.rider-map-open{justify-self:start;text-decoration:none}
