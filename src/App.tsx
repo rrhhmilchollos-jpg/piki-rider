@@ -883,9 +883,10 @@ function App() {
         await loadRiderData();
         return;
       }
+      setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, assignmentState: "assigned", assignmentExpiresAt: null, status: action } : offer));
       setToast(
         action === "picked_up"
-          ? "Recogida confirmada. Ya puedes iniciar la ruta."
+          ? "Recogida confirmada. Ahora se muestra la tarjeta del cliente."
           : "Ruta iniciada. Confirma la entrega al llegar al cliente.",
       );
       await loadRiderData();
