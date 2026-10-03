@@ -1773,6 +1773,7 @@ function App() {
                 "Soporte",
               ].includes(section) && (
                 <>
+                  {section !== "Inicio" && (
                   <div className="page-heading">
                     <div>
                       <p className="eyebrow">PIKI · RIDERS</p>
@@ -1801,6 +1802,7 @@ function App() {
                       Actualizar
                     </button>
                   </div>
+                  )}
                   <section className="rider-session-preview" aria-label="Inicio de jornada Rider">
                     <div className="rider-session-map">
                       <LiveGoogleMap token={apiToken} riderId={riderId} active={shiftActive} onError={handleApiError} />
