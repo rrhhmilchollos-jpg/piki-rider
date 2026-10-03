@@ -71,6 +71,82 @@
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-handle{margin:0 0 2px}
 @media(max-width:580px){.active-order-summary{padding:5px 22px 7px}.active-order-summary strong{font-size:18px}.active-order-summary p{font-size:14px}}
 
+.active-start-banner{display:inline-block;margin:0 auto 8px;padding:4px 28px;background:#59cbb0;color:#166e62;font:800 15px 'Space Grotesk';letter-spacing:1px;clip-path:polygon(0 15%,100% 0,96% 100%,4% 85%)}.active-info-dot{display:grid;place-items:center;width:19px;height:19px;margin-top:15px;border:2px solid #253338;border-radius:50%;color:#253338;font:700 12px 'Space Grotesk'}
+
+/* Local Rider 2.0 overrides preserved after merge */
+/* Real-time Rider shift screen: the map is supplied by LiveGoogleMap, never CSS-simulated data. */
+.active-shift-shell{min-height:100dvh;background:#101820;color:#fff;overflow:hidden}
+.active-shift-shell .active-map{min-height:100dvh;position:relative;background:#e8eef3}
+.active-shift-shell .real-map-shell{position:absolute;inset:0}
+.active-shift-shell .real-map-status{top:90px;max-width:calc(100% - 38px);white-space:normal;justify-content:center;text-align:center}
+.active-shift-shell .active-menu-button,.active-shift-shell .active-help-button{display:grid;place-items:center}
+.active-shift-shell .active-bottom-sheet{background:linear-gradient(180deg,#fff,#fff 80%,#f9fbfc);color:#1e252d;box-shadow:0 -12px 35px rgba(5,20,28,.18);min-height:205px}
+.active-shift-shell .active-eyebrow{color:#568b2c}
+.active-shift-shell .active-bottom-sheet h1{color:#171c22;font-size:clamp(28px,7vw,34px);letter-spacing:-1.2px}
+.active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow){color:#29313a;font-size:17px;line-height:1.48}
+.active-shift-shell .active-stop-button{background:#172a31;color:#fff}
+.active-shift-shell .active-support-button{background:#edf2f0;color:#1d2b31}
+.active-order-button,.active-retry-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:18px;border:0;border-radius:11px;background:#c9f36d;color:#14213d;padding:13px 16px;font:800 14px 'DM Sans',sans-serif;cursor:pointer}
+.active-retry-button{background:#fff;color:#14213d}
+.active-start-dialog{position:absolute;z-index:9;top:132px;left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 40px));padding:27px 25px 23px;border-radius:26px;background:#fff;color:#18212a;text-align:center;box-shadow:0 18px 45px rgba(5,20,28,.32)}
+.active-start-icon{height:54px;width:54px;margin:0 auto 14px;display:grid;place-items:center;border-radius:18px;background:#daf5ac;color:#286a3e}
+.active-start-dialog h1{margin:0 0 10px;font:800 clamp(23px,5vw,31px)/1.08 'Space Grotesk',sans-serif;letter-spacing:-.8px}
+.active-start-dialog p{margin:0;color:#59656d;font-size:15px;line-height:1.45}
+.active-start-dialog button{margin-top:18px;border:0;border-radius:10px;padding:11px 25px;background:#1c3138;color:#fff;font:800 13px 'DM Sans',sans-serif;cursor:pointer}
+.active-stop-button:disabled{cursor:not-allowed;opacity:.55}
+.active-safety-note{display:flex;align-items:center;gap:7px;margin:15px 0 0!important;color:#cfd5d3!important;font-size:12px!important}
+@media (max-width:580px){
+  .active-shift-shell .real-map-status{top:82px;font-size:11px;padding:8px 11px}
+  .active-start-dialog{top:122px;padding:24px 20px 20px}
+  .active-order-button,.active-retry-button{width:100%}
+}
+
+.active-cash-note{display:flex;align-items:center;gap:7px;margin:12px 0 0!important;padding:10px 12px;border-radius:10px;background:#fff1c7;color:#654a00!important;font-weight:800;font-size:13px!important}
+.delivery-qr-dialog{position:absolute;z-index:20;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));border-radius:22px;background:#fff;color:#17212a;padding:25px;box-shadow:0 20px 55px rgba(0,0,0,.35)}
+.delivery-qr-dialog h2{margin:5px 0 8px;font:800 26px/1.05 'Space Grotesk',sans-serif}.delivery-qr-dialog>p{margin:0;color:#5b6971;line-height:1.45}.delivery-qr-close{position:absolute;right:14px;top:14px;border:0;border-radius:50%;height:32px;width:32px;display:grid;place-items:center;background:#eef2ef;color:#18212a}.delivery-qr-video{width:100%;max-height:250px;object-fit:cover;border-radius:14px;background:#111;margin-top:16px}.delivery-qr-dialog label{display:block;margin-top:16px;font-size:12px;font-weight:800;color:#45535b}.delivery-qr-dialog input{width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #d8e0dc;border-radius:10px;font-size:12px}.delivery-qr-dialog .active-order-button{width:100%;margin-top:14px}.hidden{display:none}
+
+/* Order detail shown to the rider as soon as an offer is assigned. */
+.active-shift-shell .active-bottom-sheet.has-live-order{padding:24px 0 18px;overflow-y:auto;max-height:min(88dvh,780px)}
+.active-shift-shell .has-live-order>.active-eyebrow,.active-shift-shell .has-live-order>.active-route-title,.active-shift-shell .has-live-order>.active-order-button,.active-shift-shell .has-live-order>.active-cash-note,.active-shift-shell .has-live-order>.active-sheet-actions,.active-shift-shell .has-live-order>.active-safety-note{margin-left:24px;margin-right:24px}
+.active-route-title{margin:2px 24px 12px!important;font-size:24px!important}
+.active-order-detail{background:#fff;color:#171c22;border-top:1px solid #edf0f1;border-bottom:1px solid #d9dfe1;margin:0 0 14px}
+.active-order-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px 4px}
+.active-order-header h2{margin:0;font:800 25px/1.12 'DM Sans',sans-serif;letter-spacing:-.6px}
+.active-order-header p{margin:5px 0 0;font-size:17px;color:#313a40}
+.active-call-button{display:grid;place-items:center;flex:none;width:58px;height:58px;border:2px solid #aeead9;border-radius:50%;color:#008e78;text-decoration:none}
+.active-order-address{margin:17px 24px 14px;font-size:17px;line-height:1.45;color:#161c20}
+.active-order-context{margin:14px 24px -8px;color:#258a70!important;font-size:11px!important;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.active-items-toggle{width:100%;display:flex;align-items:center;justify-content:flex-end;gap:8px;border:0;border-top:1px solid #e3e7e8;background:#fff;color:#258a70;padding:12px 24px;font:800 20px 'DM Sans',sans-serif;cursor:pointer}
+.active-items-list{border-top:1px solid #e8ebec;padding:11px 24px 8px}
+.active-item{display:grid;grid-template-columns:28px 1fr;gap:12px;padding:10px 0}
+.active-item-quantity{font-size:18px;text-align:center;color:#343c41}
+.active-item-content{min-width:0}
+.active-item-title{display:flex;justify-content:space-between;gap:10px;font-size:17px;line-height:1.25}
+.active-item-title strong{font-weight:800}
+.active-item-title span,.active-item-modifier span{white-space:nowrap;color:#30383c}
+.active-item-modifier{display:flex;justify-content:space-between;gap:10px;font-size:16px;line-height:1.42;color:#454d51}
+.active-payment{display:grid;grid-template-columns:1fr auto;gap:4px 12px;border-top:1px solid #e0e4e5;padding:15px 24px 18px;font-size:15px}
+.active-payment span{color:#4d575c}.active-payment strong{font-size:16px;font-weight:500}.active-payment b{grid-column:2;grid-row:1/3;font-size:18px;align-self:center}
+.active-empty-items{margin:8px 0 12px;color:#647075;font-size:14px}
+.active-pickup-pending{margin:0 24px 18px;padding:12px 14px;border-radius:11px;background:#fff4cf;color:#6a5000;font-size:14px!important;font-weight:700;line-height:1.4}
+@media(max-width:580px){.active-shift-shell .active-bottom-sheet.has-live-order{padding-top:20px}.active-order-header{padding-left:24px;padding-right:24px}.active-call-button{width:54px;height:54px}.active-order-detail{margin-bottom:12px}.active-item-title{font-size:16px}.active-item-modifier{font-size:15px}}
+
+.active-order-button:disabled{background:#dfe5e1;color:#78827d;cursor:not-allowed;box-shadow:none;opacity:.8}
+.active-gps-button{background:#14213d;color:#fff}
+
+/* The delivery card can be collapsed to keep the live map usable. */
+.active-sheet-handle{width:100%;height:27px;margin:-14px 0 3px;padding:0;border:0;background:transparent;display:grid;place-items:center;cursor:grab;touch-action:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.active-sheet-handle:active{cursor:grabbing}
+.active-sheet-handle span{display:block;width:43px;height:5px;border-radius:99px;background:#b9c3c7}
+.active-order-summary{display:none;color:#171c22;padding:6px 24px 10px}
+.active-order-summary strong{display:block;font:800 20px/1.15 'DM Sans',sans-serif;letter-spacing:-.3px}
+.active-order-summary p{margin:5px 0 0;color:#354047;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.active-shift-shell .active-bottom-sheet.is-collapsed{min-height:0;max-height:min(27dvh,205px);overflow:hidden;padding:9px 0 13px}
+.active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-expanded-content{display:none}
+.active-shift-shell .active-bottom-sheet.is-collapsed .active-order-summary{display:block}
+.active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-handle{margin:0 0 2px}
+@media(max-width:580px){.active-order-summary{padding:5px 22px 7px}.active-order-summary strong{font-size:18px}.active-order-summary p{font-size:14px}}
+
 
 /* PIKI Rider 2.0 — mapa primero, una acción clara, lectura a distancia */
 .active-shift-shell {

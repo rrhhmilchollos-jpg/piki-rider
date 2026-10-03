@@ -10,7 +10,8 @@ export type Shift = {
 export type CurrentShift = {
   eligible: boolean;
   selfStartAllowed?: boolean;
-  now?: { date: string; time: string };
+  now?: { date: string; time: string; iso?: string; timeZone?: string };
+  serverClock?: { date: string; time: string; iso?: string; timeZone?: string };
   shift?: Shift | null;
 };
 

@@ -5,7 +5,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Bell,
-  Bike,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -14,6 +13,7 @@ import {
   Clock3,
   CreditCard,
   FileText,
+  Gift,
   Headphones,
   LayoutDashboard,
   LifeBuoy,
@@ -28,10 +28,12 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
-import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
+import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
+import RiderNavigation from "./components/RiderNavigation";
+import RiderTopbar from "./components/RiderTopbar";
 import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
 import {
@@ -121,6 +123,7 @@ const nav = [
   ["Mapa", MapPinned],
   ["Horarios", CalendarDays],
   ["Cartera", WalletCards],
+  ["Incentivos", Gift],
   ["Estadísticas", Activity],
   ["Soporte", LifeBuoy],
   ["Cuenta", Settings],
@@ -252,6 +255,24 @@ const whatsappNumber = String(
 const manychatWhatsAppUrl = String(
   import.meta.env.VITE_MANYCHAT_WHATSAPP_URL ?? "",
 );
+function madridParts(timestamp: number) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).formatToParts(new Date(timestamp));
+  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+}
+function shiftCountdown(now: { date: string; time: string }, shift?: Shift | null) {
+  if (!shift?.date || !shift.start) return null;
+  const [year, month, day] = now.date.split("-").map(Number);
+  const [targetYear, targetMonth, targetDay] = shift.date.split("-").map(Number);
+  const [nowHour, nowMinute] = now.time.split(":").map(Number);
+  const [startHour, startMinute] = shift.start.split(":").map(Number);
+  const dayDelta = (Date.UTC(targetYear, targetMonth - 1, targetDay) - Date.UTC(year, month - 1, day)) / 86_400_000;
+  const minutes = dayDelta * 1440 + startHour * 60 + startMinute - (nowHour * 60 + nowMinute);
+  if (minutes <= 0) return "Empieza ahora";
+  if (minutes < 60) return `Empezará en menos de ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return `Empezará en ${hours} h${remaining ? ` ${remaining} min` : ""}`;
+}
 
 function App() {
   const [section, setSection] = useState(getInitialRiderSection);
@@ -264,12 +285,15 @@ function App() {
   const [error, setError] = useState("");
   const [shiftActive, setShiftActive] = useState(false);
   const [shiftBusy, setShiftBusy] = useState(false);
+  const [startConsentOpen, setStartConsentOpen] = useState(false);
   const [showOperations, setShowOperations] = useState(false);
   const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
   const [currentShift, setCurrentShift] = useState<CurrentShift>({
     eligible: false,
   });
+  const [serverClockAnchor, setServerClockAnchor] = useState<{ serverMs: number; clientMs: number } | null>(null);
+  const [clockTick, setClockTick] = useState(0);
   const [toast, setToast] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({
@@ -358,6 +382,8 @@ function App() {
       if (shiftResponse.ok) {
         const data = (await shiftResponse.json()) as CurrentShift;
         setCurrentShift(data);
+        const serverIso = data.serverClock?.iso || data.now?.iso;
+        if (serverIso) setServerClockAnchor({ serverMs: Date.parse(serverIso), clientMs: Date.now() });
         setShiftActive(data.shift?.status === "active");
       }
       if (statsResponse.ok) {
@@ -376,6 +402,17 @@ function App() {
       riderRefreshInFlightRef.current = false;
     }
   }, [apiToken]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const authoritativeNow = useMemo(() => {
+    void clockTick;
+    const timestamp = serverClockAnchor ? serverClockAnchor.serverMs + (Date.now() - serverClockAnchor.clientMs) : Date.now();
+    const parts = madridParts(timestamp);
+    return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+  }, [clockTick, serverClockAnchor]);
+  const reservedShiftCountdown = shiftCountdown(authoritativeNow, currentShift.shift);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -714,6 +751,11 @@ function App() {
       );
       return;
     }
+    if (!shiftActive && !startConsentOpen) {
+      setStartConsentOpen(true);
+      return;
+    }
+    setStartConsentOpen(false);
     const endpoint = shiftActive ? "stop" : "start";
     setShiftBusy(true);
     try {
@@ -841,9 +883,10 @@ function App() {
         await loadRiderData();
         return;
       }
+      setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, assignmentState: "assigned", assignmentExpiresAt: null, status: action } : offer));
       setToast(
         action === "picked_up"
-          ? "Recogida confirmada. Ya puedes iniciar la ruta."
+          ? "Recogida confirmada. Ahora se muestra la tarjeta del cliente."
           : "Ruta iniciada. Confirma la entrega al llegar al cliente.",
       );
       await loadRiderData();
@@ -1023,18 +1066,6 @@ function App() {
     );
   }
   const [profileOpen, setProfileOpen] = useState(false);
-  const logout = async () => {
-    try {
-      await fetch(`${apiOrigin}/api/v1/auth/employee/logout`, {
-        method: "POST",
-        headers: authHeaders(apiToken),
-      });
-    } catch {}
-    clearStoredToken();
-    setApiToken("");
-    setProfileOpen(false);
-    setAuthRequired(false);
-  };
   const handleApiError = useCallback((message: string) => {
     if (
       message.includes("API 401") ||
@@ -1098,43 +1129,13 @@ function App() {
   return (
     <LocationPermissionGate appLabel="Rider">
     <div className="app-shell">
-      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
-        <div className="brand-block">
-          <img className="brand-mark brand-logo" src="/piki-mascot.png" alt="PIKI" />
-          <div>
-            <strong>piki</strong>
-            <span>Riders</span>
-          </div>
-          <button
-            className="close-menu"
-            onClick={() => setOpen(false)}
-            aria-label="Cerrar menú"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <nav className="nav-list">
-          <p className="nav-label">TU JORNADA</p>
-          {nav.map(([label, Icon]) => (
-            <button
-              key={label}
-              className={`nav-item ${section === label ? "nav-item-active" : ""}`}
-              onClick={() => showSection(label)}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <div className="support-dot" />
-          <div>
-            <strong>Red PIKI</strong>
-            <span>{status === "ready" ? "Conectada" : "Comprobando"}</span>
-          </div>
-          <ChevronRight size={16} />
-        </div>
-      </aside>
+      <RiderNavigation
+        section={section}
+        open={open}
+        status={status}
+        onNavigate={showSection}
+        onClose={() => setOpen(false)}
+      />
       {open && (
         <button
           className="backdrop"
@@ -1143,55 +1144,15 @@ function App() {
         />
       )}
       <main className="main-content">
-        <header className="topbar">
-          <button
-            className="menu-button"
-            onClick={() => setOpen(true)}
-            aria-label="Abrir menú"
-          >
-            <Menu size={21} />
-          </button>
-          <div className="location-pill">
-            <Bike size={16} />
-            <span>Operativa de reparto</span>
-            <span className="status-dot" />
-          </div>
-          <div className="topbar-actions">
-            <NotificationCenter apiOrigin={apiOrigin} token={apiToken} surface="rider" />
-            <button
-              className="icon-button"
-              onClick={() => showSection("Soporte")}
-              aria-label="Abrir soporte"
-            >
-              <Headphones size={19} />
-            </button>
-            <div className="profile-wrap">
-              <button
-                className="profile-trigger"
-                onClick={() => setProfileOpen((value) => !value)}
-                aria-expanded={profileOpen}
-                aria-label="Abrir perfil"
-              >
-                <span className="user-avatar">R</span>
-              </button>
-              {profileOpen && (
-                <div className="profile-menu">
-                  <strong>Cuenta Rider</strong>
-                  <span>rrhh.milchollos@gmail.com</span>
-                  <button onClick={() => showSection("Cuenta")}>
-                    Ver mi cuenta
-                  </button>
-                  <button
-                    className="profile-logout"
-                    onClick={() => void logout()}
-                  >
-                    Cerrar sesión
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
+        <RiderTopbar
+          apiOrigin={apiOrigin}
+          token={apiToken}
+          profileOpen={profileOpen}
+          onOpenMenu={() => setOpen(true)}
+          onOpenSupport={() => showSection("Soporte")}
+          onToggleProfile={() => setProfileOpen((value) => !value)}
+          onOpenAccount={() => showSection("Cuenta")}
+        />
         <section className="page-content">
           {toast && (
             <div className="toast" role="status">
@@ -1422,6 +1383,7 @@ function App() {
             </section>
           ) : (
             <>
+              {section === "Incentivos" && <RiderIncentivesPanel token={apiToken} riderId={riderId} />}
               {section === "Ofertas" && (
                 <section className="feature-section">
                   <FeatureHeading
@@ -1598,7 +1560,7 @@ function App() {
                   <div className="shift-toolbar">
                     <div>
                       <strong>Calendario de jornada</strong>
-                      <span>Asignaciones recibidas desde Fleet</span>
+                      <span>Asignaciones de Fleet · sincronización automática cada 30 segundos y al volver a abrir la app</span>
                     </div>
                     <span className="zone-chip">Zona Xàtiva</span>
                   </div>
@@ -2002,6 +1964,7 @@ function App() {
                 "Entregas",
                 "Horarios",
                 "Cartera",
+                "Incentivos",
                 "Estadísticas",
                 "Mapa",
                 "Soporte",
@@ -2035,60 +1998,40 @@ function App() {
                       Actualizar
                     </button>
                   </div>
-                  <section className="empty-state-grid">
-                    <article className="empty-card primary-empty">
-                      <div className="empty-card-top">
-                        <span>JORNADA</span>
-                        <Power size={18} />
-                      </div>
-                      <h2>
-                        {shiftActive
-                          ? "Estás conectado a tu zona."
-                          : "Tu jornada empieza aquí."}
-                      </h2>
-                      <p>
-                        {shiftActive
-                          ? "El Fleet puede enviarte ofertas mientras mantengas la jornada activa."
-                          : currentShift.eligible
-                            ? "Estás listo para conectarte. Mantén la ubicación activa para recibir repartos."
-                            : "No hay un turno disponible ahora. Consulta Horarios o contacta con Fleet."}
-                      </p>
-                      <button
-                        className="primary-button rider-shift-hero-button"
-                        disabled={shiftBusy}
-                        onClick={() => void toggleShift()}
-                      >
-                        <Power size={20} />
-                        {shiftBusy
-                          ? "Iniciando jornada…"
-                          : shiftActive
-                            ? "FINALIZAR JORNADA"
-                            : "INICIAR JORNADA"}
-                      </button>
-                    </article>
-                    <article className="empty-card">
-                      <div className="empty-card-top">
-                        <span>RUTA</span>
-                        <MapPinned size={18} />
-                      </div>
-                      <h2>Mapa operativo preparado</h2>
-                      <p>
-                        La ruta y las zonas de calor se activarán con ubicación
-                        consentida, pedidos y cobertura real.
-                      </p>
-                      <button
-                        className="secondary-button"
-                        onClick={() => showSection("Mapa")}
-                      >
-                        Abrir mapa
-                      </button>
-                    </article>
+                  <section className="rider-session-preview" aria-label="Inicio de jornada Rider">
+                    <div className="rider-session-map">
+                      <div className="rider-map-road road-one" />
+                      <div className="rider-map-road road-two" />
+                      <div className="rider-map-road road-three" />
+                      <span className="rider-map-town town-one">Xàtiva</span>
+                      <span className="rider-map-town town-two">Canals</span>
+                      <span className="rider-map-town town-three">Sellent</span>
+                      <span className="rider-location-dot" aria-label="Ubicación actual" />
+                      <div className="rider-session-status"><span>Estado</span><strong>{shiftActive ? "En línea" : "Fuera de línea"}</strong><i /></div>
+                      <button className="rider-session-menu" type="button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={25} /></button>
+                      <button className="rider-session-help" type="button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={24} /></button>
+                    </div>
+                    <div className="rider-session-sheet">
+                      <div className="rider-session-heading"><div><span>SESIÓN RESERVADA</span><h2>{reservedShiftCountdown || "Consulta tu próximo turno"}</h2></div><button type="button" onClick={() => showSection("Horarios")}>Ver todo</button></div>
+                      {currentShift.shift ? <div className="rider-reserved-card">
+                        <strong>{currentShift.shift.start} – {currentShift.shift.end}</strong>
+                        <span><MapPinned size={18} /> {currentShift.shift.zone || "Zona asignada"}</span>
+                        <div><b>1.00 x</b><button type="button" onClick={() => showSection("Horarios")}><CalendarDays size={19} /> Calendario</button></div>
+                      </div> : <div className="rider-reserved-empty">No tienes una sesión reservada para este momento. Fleet debe asignarte fecha, horario y zona.</div>}
+                      <button className="rider-session-start" type="button" disabled={shiftBusy || !currentShift.eligible || !currentShift.shift} onClick={() => void toggleShift()}>{shiftBusy ? "Comprobando…" : currentShift.eligible ? "Empezar sesión" : "Fuera del horario asignado"}</button>
+                      <small className="rider-server-clock">Hora oficial PIKI · {authoritativeNow.date} {authoritativeNow.time} · Europe/Madrid</small>
+                    </div>
                   </section>
                 </>
               )}
             </>
           )}
         </section>
+        {startConsentOpen && <section className="rider-start-consent" role="dialog" aria-modal="true" aria-label="Antes de empezar">
+          <button type="button" className="rider-consent-close" onClick={() => setStartConsentOpen(false)} aria-label="Cerrar"><X size={30} /></button>
+          <div className="rider-consent-content"><h1>Antes de empezar</h1><p>Recopilaremos y procesaremos tus datos de ubicación en tiempo real para ofrecerte entregas disponibles.</p><p>Revisa y acepta las políticas y los requisitos gubernamentales que se detallan a continuación.</p><ul><li><strong>He leído y entendido la declaración de privacidad</strong><button type="button" onClick={() => { setStartConsentOpen(false); showSection("Soporte"); }}>Más información ↗</button></li><li><strong>Al hacer clic en ACEPTAR Y EMPEZAR, confirmo que estoy usando y usaré el Equipo de Protección Individual (EPI) requerido durante mi trabajo.</strong></li></ul></div>
+          <button type="button" className="rider-consent-accept" onClick={() => void toggleShift()}>Aceptar y empezar</button>
+        </section>}
       </main>
     </div>
     </LocationPermissionGate>
