@@ -24,3 +24,37 @@
 .delivery-qr-dialog { border:1px solid #e5e7df; border-radius:24px; background:#f6f3ec; color:#0b1220; }
 .delivery-qr-dialog .active-order-button { box-shadow:none; }
 @media(max-width:580px) { .active-shift-shell .real-map-status{top:16px;max-width:calc(100% - 32px)} .active-shift-shell .active-bottom-sheet{border-radius:24px 24px 0 0} }
+
+
+/* Home operativa basada en la referencia: mapa completo + estado + bottom sheet */
+.active-shift-shell { min-height:100dvh; background:#dfe8df; color:#111820; }
+.active-shift-shell .active-map { min-height:100dvh; height:100dvh; background:#dfe8df; }
+.active-shift-shell .active-map .rider-map-card { position:absolute; inset:0; z-index:0; display:block; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.active-shift-shell .active-map .rider-map-status { position:absolute; top:calc(18px + env(safe-area-inset-top)); left:50%; z-index:4; transform:translateX(-50%); width:max-content; max-width:calc(100% - 150px); padding:0; color:#52616a; font-size:0; }
+.active-shift-shell .active-map .rider-map-status::before { content:"GPS activo"; display:block; padding:7px 12px; border-radius:999px; background:rgba(255,255,255,.92); box-shadow:0 5px 16px rgba(25,48,54,.13); font-size:11px; font-weight:800; }
+.active-shift-shell .active-map .rider-google-map-frame { display:block; width:100%; height:100%; min-height:100%; border:0; border-radius:0; background:#e6ece7; }
+.active-shift-shell .active-map .rider-map-open { display:none; }
+.active-shift-shell .active-menu-button, .active-shift-shell .active-help-button { top:calc(20px + env(safe-area-inset-top)); width:58px; height:58px; z-index:8; border:1px solid rgba(18,28,34,.1); border-radius:50%; background:rgba(255,255,255,.94); color:#111820; box-shadow:0 6px 18px rgba(28,46,53,.16); }
+.active-shift-shell .active-menu-button { left:26px; }
+.active-shift-shell .active-help-button { right:26px; }
+.active-shift-shell .online-pill { top:calc(22px + env(safe-area-inset-top)); z-index:8; min-width:166px; padding:9px 28px 11px; border:1px solid rgba(18,28,34,.08); border-radius:28px; background:rgba(255,255,255,.95); color:#111820; box-shadow:0 7px 18px rgba(28,46,53,.15); }
+.active-shift-shell .online-pill span:not(.online-dot) { color:#7e878c; font-size:15px; }
+.active-shift-shell .online-pill strong { color:#111820; font-size:25px; }
+.active-shift-shell .online-dot { right:12px; top:14px; width:15px; height:15px; background:#0c9b1e; box-shadow:0 0 0 4px rgba(12,155,30,.12); }
+.active-shift-shell .active-bottom-sheet { left:0; right:0; bottom:0; z-index:9; min-height:188px; padding:27px 24px calc(24px + env(safe-area-inset-bottom)); border-radius:28px 28px 0 0; background:rgba(255,255,255,.98); color:#111820; box-shadow:0 -12px 35px rgba(26,45,54,.16); }
+.active-shift-shell .active-bottom-sheet h1 { margin:0 0 11px; color:#111820; font-family:'DM Sans',sans-serif; font-size:26px; font-weight:800; letter-spacing:-.04em; }
+.active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow) { max-width:560px; margin:0; color:#20292e; font-size:18px; line-height:1.42; }
+.active-shift-shell .active-eyebrow { margin-bottom:9px; color:#111820; font-size:11px; letter-spacing:.14em; }
+.active-shift-shell .active-sheet-handle { background:transparent; }
+.active-shift-shell .active-sheet-handle span { background:#b5bec0; }
+.active-shift-shell .active-retry-button { margin-top:18px; border:0; border-radius:13px; background:#e9ff62; color:#111820; padding:12px 15px; font-weight:800; }
+@media (max-width:580px) {
+  .active-shift-shell .active-menu-button, .active-shift-shell .active-help-button { top:calc(22px + env(safe-area-inset-top)); width:52px; height:52px; }
+  .active-shift-shell .active-menu-button { left:18px; }
+  .active-shift-shell .active-help-button { right:18px; }
+  .active-shift-shell .online-pill { top:calc(24px + env(safe-area-inset-top)); min-width:156px; padding:8px 25px 10px; }
+  .active-shift-shell .online-pill strong { font-size:22px; }
+  .active-shift-shell .active-bottom-sheet { min-height:190px; padding:23px 24px calc(20px + env(safe-area-inset-bottom)); }
+  .active-shift-shell .active-bottom-sheet h1 { font-size:25px; }
+  .active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow) { font-size:17px; }
+}
