@@ -1,4 +1,4 @@
-import { Camera, ChevronDown, ChevronUp, Menu, Navigation, Phone, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, Headphones, Menu, Navigation, Phone, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import SlideToConfirm from "./SlideToConfirm";
@@ -26,6 +26,7 @@ type Props = {
   nativeTracking?: boolean;
   onDismissStartNotice: () => void;
   onOpenOperations: () => void;
+  onOpenSupport: () => void;
   onRefreshOffers: () => void;
   onOfferAction: (orderId: string, action: "on_the_way") => void;
   onAcceptOffer: (orderId: string) => void;
@@ -95,7 +96,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
   </section>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onRefreshOffers, onOfferAction, onAcceptOffer, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, onRefreshOffers, onOfferAction, onAcceptOffer, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<"pickup" | "delivery">("delivery");
   const [scannerReady, setScannerReady] = useState(false);
@@ -183,6 +184,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
     <section className="active-map real-google-map-section">
       <LiveGoogleMap token={token} riderId={riderId} active nativeTracking={nativeTracking} onError={onError}/>
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
+      <button type="button" className="active-help-button" onClick={onOpenSupport} aria-label="Abrir soporte"><Headphones size={24}/></button>
       <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : "En línea"}</strong><i className="online-dot"/></div>
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>{nativeTracking ? "El GPS nativo seguirá activo durante tu jornada, incluso al cerrar la app desde recientes." : "Mantén la app visible para recibir asignaciones y avisos en tiempo real."}</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
