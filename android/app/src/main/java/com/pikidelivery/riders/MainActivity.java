@@ -1,4 +1,4 @@
-package com.pikidelivery.rider;
+package com.pikidelivery.riders;
 
 import com.getcapacitor.BridgeActivity;
 
