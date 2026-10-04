@@ -5,6 +5,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Bell,
+  Bike,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -14,9 +15,11 @@ import {
   CreditCard,
   FileText,
   Gift,
+  Headphones,
   LayoutDashboard,
   LifeBuoy,
   MapPinned,
+  Menu,
   MessageCircle,
   Power,
   Settings,
@@ -26,12 +29,11 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
+import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
-import RiderNavigation from "./components/RiderNavigation";
-import RiderTopbar from "./components/RiderTopbar";
 import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
 import {
@@ -55,7 +57,11 @@ import {
   markStoredTokenValidated,
 } from "./authStorage";
 import { requiresRiderAuthentication } from "./apiAuthPolicy";
-
+import {
+  startNativeBackgroundTracking,
+  stopNativeBackgroundTracking,
+  supportsNativeBackgroundTracking,
+} from "./native/backgroundLocation";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -545,7 +551,7 @@ function App() {
         setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
       },
       onEvent: (event) => {
-        if (event.type !== "order.rider_offer") return;
+        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
         })
@@ -553,12 +559,12 @@ function App() {
             if (!response.ok) return;
             const data = (await response.json()) as { offers?: RiderOffer[] };
             setOffers(Array.isArray(data.offers) ? data.offers : []);
-            lastOfferAtRef.current = Date.now();
             setOffersError("");
-            playAssignmentAlert();
-            setToast(
-              "Nueva oferta de reparto. Revísala en la pantalla de jornada.",
-            );
+            if (event.type === "order.rider_offer") {
+              lastOfferAtRef.current = Date.now();
+              playAssignmentAlert();
+              setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
+            }
           })
           .catch(() => undefined);
       },
@@ -851,7 +857,7 @@ function App() {
   }
   async function offerAction(
     orderId: string,
-    action: "picked_up" | "on_the_way",
+    action: "on_the_way",
   ) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
@@ -860,10 +866,7 @@ function App() {
       const body = {
         status: action,
         actorRole: "rider",
-        reason:
-          action === "picked_up"
-            ? "Pedido recogido en el establecimiento"
-            : "Ruta iniciada hacia el cliente",
+        reason: "Ruta iniciada hacia el cliente",
       };
       const response = await fetch(`${apiOrigin}${endpoint}`, {
         method: "POST",
@@ -882,11 +885,7 @@ function App() {
         return;
       }
       setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, assignmentState: "assigned", assignmentExpiresAt: null, status: action } : offer));
-      setToast(
-        action === "picked_up"
-          ? "Recogida confirmada. Ahora se muestra la tarjeta del cliente."
-          : "Ruta iniciada. Confirma la entrega al llegar al cliente.",
-      );
+      setToast("Ruta iniciada. El Customer ya ve el seguimiento en tiempo real.");
       await loadRiderData();
     } catch {
       setToast(
@@ -897,8 +896,29 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function pickupOrder(orderId: string) {
-    await offerAction(orderId, "picked_up");
+  async function acceptOffer(orderId: string) {
+    if (orderActionBusy) return;
+    setOrderActionBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/accept-offer`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setToast(data.message || data.error || "No se pudo aceptar el pedido."); await loadRiderData(); return; }
+      setToast(data.message || "Pedido aceptado. Navega al Partner.");
+      await loadRiderData();
+    } catch { setToast("No se pudo aceptar por red. Se actualizará el estado antes de reintentar."); await loadRiderData(); }
+    finally { setOrderActionBusy(false); }
+  }
+  async function confirmPartnerArrival(orderId: string) {
+    if (orderActionBusy) return;
+    setOrderActionBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-arrival`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setToast(data.message || data.error || "No se pudo verificar la llegada al Partner."); await loadRiderData(); return; }
+      setToast(data.message || "Llegada al Partner verificada.");
+      await loadRiderData();
+    } catch { setToast("No se pudo verificar la llegada. Comprueba GPS y conexión."); await loadRiderData(); }
+    finally { setOrderActionBusy(false); }
   }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
     if (orderActionBusy) return;
@@ -1078,6 +1098,27 @@ function App() {
     setToast(message);
   }, []);
 
+  const nativeTracking = supportsNativeBackgroundTracking();
+  useEffect(() => {
+    if (!nativeTracking || !shiftActive || !apiToken || !riderId) {
+      void stopNativeBackgroundTracking();
+      return;
+    }
+    let disposed = false;
+    void startNativeBackgroundTracking({
+      apiOrigin,
+      token: apiToken,
+      riderId,
+      onError: (message) => {
+        if (!disposed) setToast(message);
+      },
+    });
+    return () => {
+      disposed = true;
+      void stopNativeBackgroundTracking();
+    };
+  }, [apiOrigin, apiToken, nativeTracking, riderId, shiftActive]);
+
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
@@ -1105,6 +1146,7 @@ function App() {
         offersError={offersError}
         startedShiftNotice={startedShiftNotice}
         toast={toast}
+        nativeTracking={nativeTracking}
         onDismissStartNotice={() => setStartedShiftNotice(false)}
         onOpenOperations={() => setShowOperations(true)}
         onOpenSupport={() => showSection("Soporte")}
@@ -1112,7 +1154,8 @@ function App() {
           setOffersError("");
           void loadRiderData();
         }}
-        onPickupOrder={(orderId) => void pickupOrder(orderId)}
+        onAcceptOffer={(orderId) => void acceptOffer(orderId)}
+        onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
         onConfirmPickup={(orderId, verificationCode) =>
@@ -1128,13 +1171,43 @@ function App() {
   return (
     <LocationPermissionGate appLabel="Rider">
     <div className="app-shell">
-      <RiderNavigation
-        section={section}
-        open={open}
-        status={status}
-        onNavigate={showSection}
-        onClose={() => setOpen(false)}
-      />
+      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
+        <div className="brand-block">
+          <img className="brand-mark brand-logo" src="/piki-mascot.png" alt="PIKI" />
+          <div>
+            <strong>piki</strong>
+            <span>Riders</span>
+          </div>
+          <button
+            className="close-menu"
+            onClick={() => setOpen(false)}
+            aria-label="Cerrar menú"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <nav className="nav-list">
+          <p className="nav-label">TU JORNADA</p>
+          {nav.map(([label, Icon]) => (
+            <button
+              key={label}
+              className={`nav-item ${section === label ? "nav-item-active" : ""}`}
+              onClick={() => showSection(label)}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <div className="support-dot" />
+          <div>
+            <strong>Red PIKI</strong>
+            <span>{status === "ready" ? "Conectada" : "Comprobando"}</span>
+          </div>
+          <ChevronRight size={16} />
+        </div>
+      </aside>
       {open && (
         <button
           className="backdrop"
@@ -1143,15 +1216,49 @@ function App() {
         />
       )}
       <main className="main-content">
-        <RiderTopbar
-          apiOrigin={apiOrigin}
-          token={apiToken}
-          profileOpen={profileOpen}
-          onOpenMenu={() => setOpen(true)}
-          onOpenSupport={() => showSection("Soporte")}
-          onToggleProfile={() => setProfileOpen((value) => !value)}
-          onOpenAccount={() => showSection("Cuenta")}
-        />
+        <header className="topbar">
+          <button
+            className="menu-button"
+            onClick={() => setOpen(true)}
+            aria-label="Abrir menú"
+          >
+            <Menu size={21} />
+          </button>
+          <div className="location-pill">
+            <Bike size={16} />
+            <span>Operativa de reparto</span>
+            <span className="status-dot" />
+          </div>
+          <div className="topbar-actions">
+            <NotificationCenter apiOrigin={apiOrigin} token={apiToken} surface="rider" />
+            <button
+              className="icon-button"
+              onClick={() => showSection("Soporte")}
+              aria-label="Abrir soporte"
+            >
+              <Headphones size={19} />
+            </button>
+            <div className="profile-wrap">
+              <button
+                className="profile-trigger"
+                onClick={() => setProfileOpen((value) => !value)}
+                aria-expanded={profileOpen}
+                aria-label="Abrir perfil"
+              >
+                <span className="user-avatar">R</span>
+              </button>
+              {profileOpen && (
+                <div className="profile-menu">
+                  <strong>Cuenta Rider</strong>
+                  <span>rrhh.milchollos@gmail.com</span>
+                  <button onClick={() => showSection("Cuenta")}>
+                    Ver mi cuenta
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
         <section className="page-content">
           {toast && (
             <div className="toast" role="status">
@@ -1387,7 +1494,7 @@ function App() {
                 <section className="feature-section">
                   <FeatureHeading
                     eyebrow="PIKI · OFERTAS"
-                    title="Tu ruta, sin ruido."
+                    title="Repartos asignados a tu jornada."
                     lead="Los pedidos se asignan automáticamente. Si existe una incidencia, utiliza Soporte PIKI; no se rechazan desde la app."
                     icon={<Bell />}
                   />
@@ -1430,8 +1537,8 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void pickupOrder(offer._id)}>
-                              Confirmar recogida
+                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void acceptOffer(offer._id)}>
+                              Aceptar pedido
                             </button>
                           </div>
                         </article>
@@ -1496,18 +1603,15 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) && (
-                              <>
-                                <button
-                                  className="primary-button"
-                                  disabled={orderActionBusy}
-                                  onClick={() =>
-                                    void offerAction(offer._id, "picked_up")
-                                  }
-                                >
-                                  Confirmar recogida
-                                </button>
-                              </>
+                            {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) && !offer.riderArrivedAt && (
+                              <button className="primary-button" disabled={orderActionBusy} onClick={() => void confirmPartnerArrival(offer._id)}>
+                                Confirmar llegada al Partner
+                              </button>
+                            )}
+                            {offer.status === "ready_for_pickup" && offer.riderArrivedAt && (
+                              <button className="primary-button" disabled={orderActionBusy} onClick={() => void confirmPickup(offer._id)}>
+                                Confirmar recogida
+                              </button>
                             )}
                             {offer.status === "picked_up" && (
                               <button
@@ -1999,7 +2103,16 @@ function App() {
                   </div>
                   <section className="rider-session-preview" aria-label="Inicio de jornada Rider">
                     <div className="rider-session-map">
-                      <LiveGoogleMap token={apiToken} riderId={riderId} active={shiftActive} onError={handleApiError} />
+                      <div className="rider-map-road road-one" />
+                      <div className="rider-map-road road-two" />
+                      <div className="rider-map-road road-three" />
+                      <span className="rider-map-town town-one">Xàtiva</span>
+                      <span className="rider-map-town town-two">Canals</span>
+                      <span className="rider-map-town town-three">Sellent</span>
+                      <span className="rider-location-dot" aria-label="Ubicación actual" />
+                      <div className="rider-session-status"><span>Estado</span><strong>{shiftActive ? "En línea" : "Fuera de línea"}</strong><i /></div>
+                      <button className="rider-session-menu" type="button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={25} /></button>
+                      <button className="rider-session-help" type="button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={24} /></button>
                     </div>
                     <div className="rider-session-sheet">
                       <div className="rider-session-heading"><div><span>SESIÓN RESERVADA</span><h2>{reservedShiftCountdown || "Consulta tu próximo turno"}</h2></div><button type="button" onClick={() => showSection("Horarios")}>Ver todo</button></div>

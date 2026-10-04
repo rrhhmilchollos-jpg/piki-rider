@@ -331,3 +331,12 @@ html, body, #root { max-width:100%; overflow-x:hidden; }
   .rider-session-heading h2 { font-size:30px; overflow-wrap:anywhere; }
   .bottom-nav { left:12px; right:12px; width:auto; }
 }
+
+
+/* Flujo único tipo Glovo: Offline → Empezar sesión → En línea. */
+.rider-session-map{position:relative}
+.rider-offline-pill{position:absolute;z-index:8;top:22px;left:50%;transform:translateX(-50%);min-width:168px;padding:10px 24px 12px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 7px 18px rgba(36,56,63,.16);pointer-events:none}
+.rider-offline-pill span{display:block;color:#8b9496;font-size:13px}
+.rider-offline-pill strong{display:block;color:#202628;font:700 24px/1.1 'Space Grotesk'}
+.rider-offline-pill i{position:absolute;right:13px;top:13px;width:13px;height:13px;border-radius:50%;background:#34393a}
+@media(max-width:580px){.rider-offline-pill{top:16px;min-width:155px;padding-left:18px;padding-right:18px}.rider-offline-pill strong{font-size:22px}}
