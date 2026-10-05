@@ -14,6 +14,9 @@ importers:
       '@capacitor/core':
         specifier: ^8.5.2
         version: 8.5.2
+      '@capacitor/ios':
+        specifier: ^8.5.2
+        version: 8.5.2(@capacitor/core@8.5.2)
       '@capgo/background-geolocation':
         specifier: ^8.4.7
         version: 8.4.7(@capacitor/core@8.5.2)
@@ -72,6 +75,11 @@ packages:
 
   '@capacitor/core@8.5.2':
     resolution: {integrity: sha512-agnQbGdhGw/KZFuLf7H9SY2o+oE7upkr/WPQsYaokXP6f9chaE8iVmbKkfN6SVl4w3pmz7oZ3Ur1hbkmy1hx+w==}
+
+  '@capacitor/ios@8.5.2':
+    resolution: {integrity: sha512-eOT2S67AfTFG7KN0T3oxwAajrJz4rSye+ODfvChiwrk0F/+kWufFM1qU6cDjGJUOfwdAoeuEpZyWHSwZlu4GFg==}
+    peerDependencies:
+      '@capacitor/core': ^8.5.0
 
   '@capgo/background-geolocation@8.4.7':
     resolution: {integrity: sha512-x67umv63AFdtRY061ECmBrKSvfTw7pT+mnRspScJ4wGgyykZ6Krg8I8BCttr//csKrHG52iaU35C5jzwzD1tnQ==}
@@ -1040,6 +1048,10 @@ snapshots:
   '@capacitor/core@8.5.2':
     dependencies:
       tslib: 2.8.1
+
+  '@capacitor/ios@8.5.2(@capacitor/core@8.5.2)':
+    dependencies:
+      '@capacitor/core': 8.5.2
 
   '@capgo/background-geolocation@8.4.7(@capacitor/core@8.5.2)':
     dependencies:

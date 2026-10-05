@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Capacitor } from "@capacitor/core";
 import {
   Activity,
   ArrowDownLeft,
@@ -46,6 +47,8 @@ import {
   loadMobilityAdvice,
   loadRiderOrderMessages,
   sendRiderOrderMessage,
+  startTrackingSession,
+  stopTrackingSession,
   type RiderOrderMessage,
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
@@ -1099,25 +1102,32 @@ function App() {
   }, []);
 
   const nativeTracking = supportsNativeBackgroundTracking();
+  const appVersion = String(import.meta.env.VITE_APP_VERSION || "0.4.0");
+  const trackingSessionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!nativeTracking || !shiftActive || !apiToken || !riderId) {
       void stopNativeBackgroundTracking();
       return;
     }
     let disposed = false;
-    void startNativeBackgroundTracking({
-      apiOrigin,
-      token: apiToken,
-      riderId,
-      onError: (message) => {
-        if (!disposed) setToast(message);
-      },
-    });
+    void (async () => {
+      try {
+        const session = await startTrackingSession(apiToken, riderId, Capacitor.getPlatform() === "ios" ? "ios" : "android", appVersion, "location-v1");
+        if (disposed) return;
+        trackingSessionRef.current = session._id;
+        await startNativeBackgroundTracking({ apiOrigin, token: apiToken, riderId, sessionId: session._id, onError: (message) => { if (!disposed) setToast(message); } });
+      } catch (error) {
+        if (!disposed) setToast(error instanceof Error ? error.message : "No se pudo iniciar la sesión de tracking.");
+      }
+    })();
     return () => {
       disposed = true;
       void stopNativeBackgroundTracking();
+      const sessionId = trackingSessionRef.current;
+      trackingSessionRef.current = null;
+      if (sessionId) void stopTrackingSession(apiToken, riderId, sessionId);
     };
-  }, [apiOrigin, apiToken, nativeTracking, riderId, shiftActive]);
+  }, [apiOrigin, apiToken, appVersion, nativeTracking, riderId, shiftActive]);
 
   if (!apiToken || authRequired)
     return (

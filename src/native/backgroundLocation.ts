@@ -11,6 +11,7 @@ type TrackingInput = {
   apiOrigin: string;
   token: string;
   riderId: string;
+  sessionId?: string;
   onLocation?: (point: NativeLocationPoint) => void;
   onError?: (message: string) => void;
 };
@@ -18,14 +19,13 @@ type TrackingInput = {
 let activeTrackingKey = "";
 
 export function supportsNativeBackgroundTracking() {
-  return Capacitor.getPlatform() === "android";
+  return ["android", "ios"].includes(Capacitor.getPlatform());
 }
 
 /**
- * Arranca el servicio nativo Android únicamente durante una jornada activa.
- * El plugin mantiene un servicio foreground con notificación visible y publica
- * cada posición al endpoint directamente desde Android, incluso si el WebView
- * está suspendido o se cierra desde recientes.
+ * Arranca el servicio nativo durante una jornada activa. Android mantiene un
+ * foreground service con notificación visible; iOS usa Core Location mediante
+ * el plugin y las capabilities del target generado por Capacitor.
  */
 export async function startNativeBackgroundTracking(input: TrackingInput) {
   if (!supportsNativeBackgroundTracking()) return false;
@@ -36,6 +36,7 @@ export async function startNativeBackgroundTracking(input: TrackingInput) {
     Authorization: `Bearer ${input.token}`,
     "Content-Type": "application/json",
     "X-PIKI-Surface": "rider",
+    ...(input.sessionId ? { "X-PIKI-Tracking-Session": input.sessionId } : {}),
   };
 
   try {
@@ -48,11 +49,12 @@ export async function startNativeBackgroundTracking(input: TrackingInput) {
     const permission = await BackgroundGeolocation.checkPermissions();
     const missingPermissions = [
       permission.location !== "granted" ? "location" : null,
+      Capacitor.getPlatform() === "ios" && permission.backgroundLocation !== "always" && permission.backgroundLocation !== "granted" ? "backgroundLocation" : null,
       permission.notification !== "granted" ? "notification" : null,
-    ].filter(Boolean) as Array<"location" | "notification">;
+    ].filter(Boolean) as Array<"location" | "backgroundLocation" | "notification">;
     if (missingPermissions.length) {
       const requested = await BackgroundGeolocation.requestPermissions({ permissions: missingPermissions });
-      if (requested.location !== "granted") {
+      if (requested.location !== "granted" || (Capacitor.getPlatform() === "ios" && requested.backgroundLocation !== "always" && requested.backgroundLocation !== "granted")) {
         input.onError?.("Para iniciar la jornada debes permitir la ubicación precisa de PIKI.");
         return false;
       }
