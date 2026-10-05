@@ -1,23 +1,27 @@
 
-
-/* PIKI Rider live home: acabado claro inspirado en la referencia móvil */
-.active-shift-shell .active-map { background:#e7ece7; }
-.active-shift-shell .active-map .rider-map-card { position:absolute; inset:0; height:100%; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
-.active-shift-shell .active-map .rider-google-map-frame { width:100%; height:100%; min-height:100%; border:0; border-radius:0; filter:none; }
-.active-shift-shell .active-map .rider-map-status { display:none; }
-.active-shift-shell .active-menu-button, .active-shift-shell .active-help-button { top:calc(22px + env(safe-area-inset-top)); width:56px; height:56px; border:1px solid rgba(17,24,32,.1); border-radius:50%; background:rgba(255,255,255,.96); color:#111820; box-shadow:0 7px 18px rgba(28,46,53,.16); }
-.active-shift-shell .active-menu-button { left:20px; }
-.active-shift-shell .active-help-button { right:20px; }
-.active-shift-shell .online-pill { left:50%; right:auto; top:calc(24px + env(safe-area-inset-top)); transform:translateX(-50%); display:block; min-width:166px; padding:9px 28px 11px; border:1px solid rgba(17,24,32,.08); border-radius:28px; background:rgba(255,255,255,.96); color:#111820; text-align:center; box-shadow:0 7px 18px rgba(28,46,53,.15); }
-.active-shift-shell .online-pill span { display:block; color:#7e878c; font-size:15px; }
-.active-shift-shell .online-pill strong { display:block; color:#111820; font-size:24px; }
-.active-shift-shell .online-dot { position:absolute; right:12px; top:13px; width:15px; height:15px; background:#0b9f20; box-shadow:0 0 0 4px rgba(11,159,32,.13); }
-.active-shift-shell .active-bottom-sheet { background:rgba(255,255,255,.98); color:#111820; box-shadow:0 -12px 35px rgba(26,45,54,.16); }
-.active-shift-shell .active-bottom-sheet h1 { color:#111820; font-family:DM Sans,ui-sans-serif,sans-serif; font-size:clamp(25px,7vw,31px); letter-spacing:-.04em; }
-.active-shift-shell .active-bottom-sheet>p:not(.active-eyebrow) { color:#20292e; font-size:17px; }
-.active-shift-shell .active-eyebrow { color:#111820; }
+/* Rider order cards — jerarquía operativa, lectura rápida y estados visibles */
+.active-shift-shell .active-order-stack-item { position:relative; margin:14px -4px 0; padding:16px; border:1px solid #e4e9df; border-radius:24px; background:linear-gradient(145deg,#fff 0%,#fbfdf8 100%); box-shadow:0 12px 30px rgba(25,53,42,.09); overflow:hidden; }
+.active-shift-shell .active-order-stack-item::before { content:""; position:absolute; inset:0 auto 0 0; width:5px; background:linear-gradient(180deg,#d4ff61,#9bd744); }
+.active-shift-shell .rider-order-meta-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 12px 4px; }
+.active-shift-shell .rider-order-status { display:inline-flex; align-items:center; gap:7px; padding:7px 10px; border-radius:999px; background:#eef8e5; color:#2e6b38; font-size:11px; font-weight:850; letter-spacing:.02em; text-transform:uppercase; }
+.active-shift-shell .rider-order-status.is-offer { background:#fff4d9; color:#915d00; }
+.active-shift-shell .rider-order-status i { width:7px; height:7px; border-radius:50%; background:#52a83d; box-shadow:0 0 0 4px rgba(82,168,61,.12); }
+.active-shift-shell .rider-order-status.is-offer i { background:#f0a400; box-shadow:0 0 0 4px rgba(240,164,0,.14); }
+.active-shift-shell .rider-order-code { color:#7c8884; font-size:12px; font-weight:800; letter-spacing:.04em; }
+.active-shift-shell .active-order-detail { margin:0; padding:0; border:0; box-shadow:none; background:transparent; }
+.active-shift-shell .active-order-header { align-items:flex-start; margin-bottom:8px; }
+.active-shift-shell .active-order-header h2 { margin:0; color:#152d25; font-size:23px; letter-spacing:-.045em; }
+.active-shift-shell .rider-order-subtitle { display:flex; align-items:center; gap:6px; margin:6px 0 0; color:#77837e; font-size:13px; font-weight:650; }
+.active-shift-shell .rider-order-subtitle svg { color:#5e8d3a; }
+.active-shift-shell .active-order-context { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0 8px; color:#6c7973; font-size:11px; font-weight:850; letter-spacing:.08em; }
+.active-shift-shell .active-order-context strong { display:inline-flex; align-items:center; gap:5px; color:#326e3e; font-size:13px; letter-spacing:0; }
+.active-shift-shell .active-order-address { display:flex; align-items:flex-start; gap:8px; min-height:42px; margin:0 0 13px; padding:12px 13px; border-radius:14px; background:#f1f6ef; color:#263d34; font-size:14px; font-weight:650; line-height:1.35; }
+.active-shift-shell .active-order-address svg { flex:0 0 auto; color:#e16f5e; margin-top:1px; }
+.active-shift-shell .active-items-toggle { border-top:1px solid #e7ede4; border-bottom:1px solid #e7ede4; }
+.active-shift-shell .active-payment { margin-top:13px; padding:11px 13px; border:1px solid #e9eee7; border-radius:13px; background:#fff; }
+.active-shift-shell .active-order-button, .active-shift-shell .active-gps-button { border-radius:14px; font-weight:800; }
 @media(max-width:580px) {
-  .active-shift-shell .active-menu-button, .active-shift-shell .active-help-button { top:calc(22px + env(safe-area-inset-top)); width:52px; height:52px; }
-  .active-shift-shell .online-pill { top:calc(24px + env(safe-area-inset-top)); min-width:156px; }
-  .active-shift-shell .active-bottom-sheet { border-radius:28px 28px 0 0; }
+  .active-shift-shell .active-order-stack-item { margin:12px -2px 0; padding:14px; border-radius:21px; }
+  .active-shift-shell .active-order-header h2 { font-size:21px; }
+  .active-shift-shell .rider-order-status { font-size:10px; }
 }

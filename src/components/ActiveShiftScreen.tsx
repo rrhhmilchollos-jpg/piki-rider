@@ -1,4 +1,4 @@
-import { Camera, ChevronDown, ChevronUp, Headphones, Menu, Navigation, Phone, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, Clock3, Headphones, MapPin, Menu, Navigation, Phone, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import SlideToConfirm from "./SlideToConfirm";
@@ -62,6 +62,20 @@ function productCount(order: RiderOffer) {
   return (order.items || []).reduce((total, item) => total + (item.quantity || 1), 0);
 }
 
+function orderStatusLabel(order: RiderOffer) {
+  if (order.assignmentState === "offered") return "Nueva asignación";
+  if (order.status === "ready_for_pickup") return "Listo para recoger";
+  if (order.status === "picked_up") return "Recogido · listo para salir";
+  if (order.status === "on_the_way") return "En ruta al cliente";
+  if (order.riderArrivedAt) return "Llegada confirmada";
+  return "Asignado a ti";
+}
+
+function etaLabel(order: RiderOffer) {
+  const minutes = order.etaMinutes ?? order.restaurant?.etaMinutes?.[0];
+  return minutes ? `${minutes} min` : "Ahora";
+}
+
 function OrderDetail({ order }: { order: RiderOffer }) {
   const [expanded, setExpanded] = useState(true);
   const items = order.items || [];
@@ -70,15 +84,16 @@ function OrderDetail({ order }: { order: RiderOffer }) {
   const paymentInstruction = getRiderPaymentInstruction(order);
 
   return <section className="active-order-detail" aria-label="Detalle del pedido">
+    <div className="rider-order-meta-row"><span className={`rider-order-status ${order.assignmentState === "offered" ? "is-offer" : ""}`}><i aria-hidden="true"/> {orderStatusLabel(order)}</span><span className="rider-order-code">#{order.displayCode || order.publicCode || order._id.slice(-4)}</span></div>
     <header className="active-order-header">
       <div>
         <h2>{deliveryPhase ? order.customerName || "Cliente final" : order.restaurant?.name || "Establecimiento PIKI"}</h2>
-        <p>{productCount(order)} {productCount(order) === 1 ? "producto" : "productos"}</p>
+        <p className="rider-order-subtitle"><ShoppingBag size={15}/> {productCount(order)} {productCount(order) === 1 ? "producto" : "productos"} <span aria-hidden="true">·</span> {order.restaurant?.cuisine || "Entrega PIKI"}</p>
       </div>
       {deliveryPhase ? order.customerPhone && <a className="active-call-button" href={`tel:${order.customerPhone}`} aria-label={`Llamar a ${order.customerName || "el cliente"}`}><Phone size={22}/></a> : order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
     </header>
-    <p className="active-order-context">{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</p>
-    <p className="active-order-address">{address}</p>
+    <p className="active-order-context"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</span><strong><Clock3 size={15}/> {etaLabel(order)}</strong></p>
+    <p className="active-order-address"><MapPin size={17}/><span>{address}</span></p>
     <button type="button" className="active-items-toggle" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
       <strong>{productCount(order)} {productCount(order) === 1 ? "producto" : "productos"}</strong>
       {expanded ? <ChevronUp size={23}/> : <ChevronDown size={23}/>}
