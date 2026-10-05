@@ -456,9 +456,10 @@ function App() {
   useEffect(() => {
     if (!apiToken) return;
     // The API is authoritative for Europe/Madrid date/time and slot eligibility.
-    // Refresh while the app stays open so a shift starts/ends without relying
-    // on the rider's device clock or a manual refresh.
-    const timer = window.setInterval(() => { void loadRiderData(); }, 10_000);
+    // The schedule is refreshed by the directed realtime event. This slower
+    // fallback only re-evaluates the server clock when a reserved shift starts
+    // or ends, without relying on the rider's device clock.
+    const timer = window.setInterval(() => { void loadRiderData(); }, 60_000);
     return () => window.clearInterval(timer);
   }, [apiToken, loadRiderData]);
   useEffect(() => {
@@ -552,7 +553,7 @@ function App() {
     };
   }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
   useEffect(() => {
-    if (!apiToken || !riderId || !shiftActive) return;
+    if (!apiToken || !riderId) return;
     return connectPikiRealtime({
       apiOrigin,
       token: apiToken,
@@ -569,6 +570,12 @@ function App() {
         setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
       },
       onEvent: (event) => {
+        if (event.type === "rider.schedule_updated") {
+          void loadRiderData();
+          setToast("Tus horarios se han actualizado.");
+          return;
+        }
+        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
@@ -587,7 +594,7 @@ function App() {
           .catch(() => undefined);
       },
     });
-  }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
+  }, [apiOrigin, apiToken, riderId, loadRiderData, playAssignmentAlert]);
   useEffect(() => {
     const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     if (!apiToken || !riderId || !activeOrder) {
