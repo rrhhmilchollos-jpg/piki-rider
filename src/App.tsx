@@ -280,6 +280,21 @@ function shiftCountdown(now: { date: string; time: string }, shift?: Shift | nul
   const remaining = minutes % 60;
   return `Empezará en ${hours} h${remaining ? ` ${remaining} min` : ""}`;
 }
+function normalizeRiderShift(raw: Record<string, unknown>): Shift {
+  const date = String(raw.date || "");
+  const weekday = date
+    ? new Intl.DateTimeFormat("es-ES", { weekday: "long", timeZone: "Europe/Madrid" }).format(new Date(`${date}T12:00:00Z`))
+    : "";
+  const rawDay = String(raw.day || weekday);
+  return {
+    day: rawDay ? `${rawDay.slice(0, 1).toUpperCase()}${rawDay.slice(1)}` : "",
+    date,
+    start: String(raw.start || raw.startTime || ""),
+    end: String(raw.end || raw.endTime || ""),
+    zone: String(raw.zone || raw.zoneSlug || ""),
+    status: String(raw.status || "planned") as Shift["status"],
+  };
+}
 
 function App() {
   const [section, setSection] = useState(getInitialRiderSection);
@@ -377,18 +392,18 @@ function App() {
       setRiderId(id);
       const [slotResponse, statsResponse, shiftResponse, cashResponse] =
         await Promise.all([
-          fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers }),
+          fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers, cache: "no-store" }),
           fetch(`${apiOrigin}/api/v1/riders/statistics`, { headers }),
-          fetch(`${apiOrigin}/api/v1/riders/${id}/shift`, { headers }),
+          fetch(`${apiOrigin}/api/v1/riders/${id}/shift`, { headers, cache: "no-store" }),
           fetch(`${apiOrigin}/api/v1/riders/${id}/cash-wallet`, { headers }),
         ]);
       if (slotResponse.ok) {
-        const data = (await slotResponse.json()) as { slots?: Shift[] };
-        setShifts(Array.isArray(data.slots) ? data.slots : []);
+        const data = (await slotResponse.json()) as { slots?: Array<Record<string, unknown>> };
+        setShifts(Array.isArray(data.slots) ? data.slots.map(normalizeRiderShift) : []);
       }
       if (shiftResponse.ok) {
-        const data = (await shiftResponse.json()) as CurrentShift;
-        setCurrentShift(data);
+        const data = (await shiftResponse.json()) as CurrentShift & { shift?: Record<string, unknown> | null };
+        setCurrentShift({ ...data, shift: data.shift ? normalizeRiderShift(data.shift) : null });
         const serverIso = data.serverClock?.iso || data.now?.iso;
         if (serverIso) setServerClockAnchor({ serverMs: Date.parse(serverIso), clientMs: Date.now() });
         setShiftActive(data.shift?.status === "active");
@@ -443,7 +458,7 @@ function App() {
     // The API is authoritative for Europe/Madrid date/time and slot eligibility.
     // Refresh while the app stays open so a shift starts/ends without relying
     // on the rider's device clock or a manual refresh.
-    const timer = window.setInterval(() => { void loadRiderData(); }, 30_000);
+    const timer = window.setInterval(() => { void loadRiderData(); }, 10_000);
     return () => window.clearInterval(timer);
   }, [apiToken, loadRiderData]);
   useEffect(() => {
