@@ -2,6 +2,6 @@ export const PIKI_RELEASE = {
   "surface": "rider",
   "version": "0.4.1",
   "minimumVersion": "0.4.1",
-  "buildId": "e3b6d388401b",
+  "buildId": "2b277053f765",
   "forceUpdate": true
 } as const;
