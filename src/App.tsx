@@ -350,7 +350,7 @@ function App() {
       if (shiftResponse.ok) {
         const data = (await shiftResponse.json()) as CurrentShift;
         setCurrentShift(data);
-        setShiftActive(data.shift?.status === "active");
+        setShiftActive(data.shift?.status === "active" && Boolean(data.shift.start && data.shift.end && data.shift.zone));
       }
       if (statsResponse.ok) {
         const data = (await statsResponse.json()) as {
@@ -489,6 +489,13 @@ function App() {
         setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
       },
       onEvent: (event) => {
+        if (event.type === "order.message_created") {
+          const eventOrderId = String(event.payload.orderId || "");
+          if (eventOrderId && eventOrderId === String(activeOrder?._id)) {
+            void loadRiderOrderMessages(apiToken, riderId, eventOrderId).then(setOrderMessages).catch(() => undefined);
+          }
+          return;
+        }
         if (event.type !== "order.rider_offer") return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
@@ -507,7 +514,23 @@ function App() {
           .catch(() => undefined);
       },
     });
-  }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
+  }, [apiToken, riderId, shiftActive, playAssignmentAlert, activeOrder?._id]);
+  useEffect(() => {
+    if (!apiToken || !riderId || !shiftActive || !navigator.geolocation) return;
+    let lastSentAt = 0;
+    let disposed = false;
+    const sendLocation = (position: GeolocationPosition) => {
+      if (disposed || Date.now() - lastSentAt < 2500) return;
+      lastSentAt = Date.now();
+      void fetch(`${apiOrigin}/api/v1/riders/${riderId}/location`, {
+        method: "POST",
+        headers: { ...authHeaders(apiToken), "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy }),
+      }).catch(() => undefined);
+    };
+    const watchId = navigator.geolocation.watchPosition(sendLocation, () => undefined, { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 });
+    return () => { disposed = true; navigator.geolocation.clearWatch(watchId); };
+  }, [apiToken, riderId, shiftActive]);
   useEffect(() => {
     const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     if (!apiToken || !riderId || !activeOrder) {
@@ -660,6 +683,22 @@ function App() {
     }
   }
 
+  const hasAssignedSlotNow = useMemo(() => {
+    const now = new Date();
+    const dayName = weekdayNames[(now.getDay() + 6) % 7];
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    return shifts.some((shift) => {
+      if (!['assigned', 'planned', 'active'].includes(shift.status)) return false;
+      if (shift.date && shift.date !== now.toISOString().slice(0, 10)) return false;
+      if (shift.day && shift.day !== dayName) return false;
+      if (!shift.start || !shift.end) return false;
+      const [startHour, startMinute] = shift.start.split(':').map(Number);
+      const [endHour, endMinute] = shift.end.split(':').map(Number);
+      const start = startHour * 60 + startMinute;
+      const end = endHour * 60 + endMinute;
+      return Number.isFinite(start) && Number.isFinite(end) && minutes >= start && minutes <= end;
+    });
+  }, [shifts]);
   const activeShifts = useMemo(
     () =>
       weekdayNames.map(
@@ -687,7 +726,7 @@ function App() {
         setToast("No hay una cuenta Rider vinculada a esta sesión.");
       return;
     }
-    if (!shiftActive && !currentShift.eligible) {
+    if (!shiftActive && (!currentShift.eligible || !hasAssignedSlotNow)) {
       setToast(
         "No hay un turno disponible ahora. Revisa Horarios o contacta con Fleet.",
       );
@@ -1599,7 +1638,7 @@ function App() {
                       <span>
                         {shiftActive
                           ? "Puedes recibir ofertas en tu zona."
-                          : currentShift.eligible
+                          : (currentShift.eligible && hasAssignedSlotNow)
                             ? currentShift.selfStartAllowed
                               ? "Puedes abrir tu jornada diaria ahora en una zona operativa activa."
                               : "Tu turno está abierto: puedes iniciar ahora."
@@ -1608,7 +1647,7 @@ function App() {
                     </div>
                     <button
                       className="primary-button rider-shift-start-button"
-                      disabled={shiftBusy}
+                      disabled={shiftBusy || (!shiftActive && !hasAssignedSlotNow)}
                       onClick={() => void toggleShift()}
                     >
                       <Power size={18} />
@@ -1988,7 +2027,7 @@ function App() {
                       </p>
                       <button
                         className="primary-button rider-shift-hero-button"
-                        disabled={shiftBusy}
+                        disabled={shiftBusy || (!shiftActive && !hasAssignedSlotNow)}
                         onClick={() => void toggleShift()}
                       >
                         <Power size={20} />
