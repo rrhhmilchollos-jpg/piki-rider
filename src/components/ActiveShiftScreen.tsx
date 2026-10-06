@@ -125,6 +125,8 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
   const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [newOrderNoticeOpen, setNewOrderNoticeOpen] = useState(false);
+  const lastSeenOrderIdRef = useRef<string | null>(null);
   const [sheetCollapsed, setSheetCollapsed] = useState(() => {
     try {
       return localStorage.getItem(`piki-${location.hostname}-rider-sheet-collapsed`) === "true";
@@ -164,6 +166,12 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       : liveOrder.restaurant?.name || "Establecimiento Partner"
     : "";
   const subtitle = currentShift.shift?.zone ? `Zona ${currentShift.shift.zone}` : "Xàtiva";
+
+  useEffect(() => {
+    if (!liveOrder || lastSeenOrderIdRef.current === liveOrder._id) return;
+    lastSeenOrderIdRef.current = liveOrder._id;
+    setNewOrderNoticeOpen(true);
+  }, [liveOrder]);
 
   useEffect(() => {
     try {
@@ -212,6 +220,9 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>{nativeTracking ? "El GPS nativo seguirá activo durante tu jornada, incluso al cerrar la app desde recientes." : "Mantén la app visible para recibir asignaciones y avisos en tiempo real."}</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
       </section>}
+      {newOrderNoticeOpen && liveOrder && <section className="active-new-order-dialog" role="dialog" aria-modal="true" aria-label="Nuevo pedido asignado">
+        <div className="active-new-order-icon"><ShoppingBag size={34}/></div><h1>{liveOrder.assignmentState === "assigned" ? "Nuevo pedido aceptado" : "Nueva asignación"}</h1><p>{liveOrder.restaurant?.name || "Establecimiento Partner"}</p><strong>{liveOrder.assignmentState === "assigned" ? "Dirígete al Partner para recogerlo" : "Revisa la dirección y acepta el pedido"}</strong><button type="button" onClick={() => { setNewOrderNoticeOpen(false); setSheetCollapsed(false); }}>Ver pedido</button>
+      </section>}
 
       <section className={`active-bottom-sheet ${liveOrder ? "has-live-order" : ""} ${sheetCollapsed && liveOrder ? "is-collapsed" : ""}`} aria-live="polite">
         {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}><span aria-hidden="true"/></button>}
@@ -223,14 +234,14 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
               {liveOrder.assignmentState === "offered" && <SlideToConfirm label="Aceptar pedido y navegar" detail="Al aceptar, debes llegar al Partner en un máximo de 10 minutos." disabled={actionBusy} busy={actionBusy} onConfirm={() => onAcceptOffer(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt && <SlideToConfirm label="Confirmar llegada al Partner" detail="PIKI verificará tu GPS cerca del establecimiento." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmArrival(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">Llegada verificada. El Partner tiene hasta 10 minutos para preparar el pedido.</p>}
-              {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <><button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("pickup", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del Partner</button><SlideToConfirm label="Confirmar recogida" detail="El pedido está listo y la llegada al Partner ya fue verificada." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmPickup(liveOrder._id, "")} /></>}
+              {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("pickup", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del Partner para recoger</button>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <SlideToConfirm label="Iniciar ruta al cliente" detail="Activa el seguimiento de entrega en tiempo real." disabled={actionBusy} busy={actionBusy} onConfirm={() => onOfferAction(liveOrder._id, "on_the_way")} />}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button" onClick={() => openScanner("delivery", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del cliente</button>}
               {liveOrders.length > 1 && <p className="active-pickup-pending">Hay {liveOrders.length - 1} pedido{liveOrders.length - 1 === 1 ? "" : "s"} más en cola. Se mostrará automáticamente cuando completes este.</p>}</section>
           </> : <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1 className="searching-orders-title">Buscando pedidos…</h1><p>Estás visible en {subtitle}. PIKI te avisará cuando haya una asignación; no necesitas refrescar.</p></>}
         </div>
       </section>
-      {scannerOpen && selectedOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label={scannerMode === "pickup" ? "Autorizar recogida" : "Confirmar entrega"}><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">{scannerMode === "pickup" ? "RECOGIDA SEGURA · PEDIDO" : "ENTREGA SEGURA"}</p><h2>{scannerMode === "pickup" ? "Escanea el QR del pedido" : "Escanea el QR o introduce el PIN del cliente"}</h2><p>{scannerMode === "pickup" ? "El partner puede mostrar el QR o el PIN, pero no es obligatorio para continuar con la prueba." : "El Customer debe mostrarte el QR o decirte el PIN. Sin ese código no se puede confirmar ni cerrar la entrega."}</p><video ref={videoRef} muted playsInline className={scannerReady ? "delivery-qr-video" : "hidden"}/>{!scannerReady && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara para escanear QR</button>}<label>{scannerMode === "pickup" ? "PIN alfanumérico del pedido (opcional)" : "PIN o código QR obligatorio del Customer"}<input value={qrValue} maxLength={scannerMode === "pickup" ? 4 : undefined} onChange={(event) => setQrValue(event.target.value.toUpperCase())} placeholder={scannerMode === "pickup" ? "Opcional · Ej. 7KQ2" : "PIN o enlace QR del Customer"} autoComplete="one-time-code" /></label><button type="button" disabled={actionBusy || (scannerMode === "delivery" && !qrValue.trim())} className="active-order-button" onClick={() => { if (scannerMode === "pickup") { onConfirmPickup(selectedOrder._id, qrValue.trim()); } else onConfirmDelivery(selectedOrder._id, qrValue.trim()); closeScanner(); }}><ShieldCheck size={17}/> {scannerMode === "pickup" ? (qrValue.trim() ? "Autorizar recogida con QR/PIN" : "Confirmar recogida") : "Confirmar entrega con QR/PIN"}</button></section>}
+      {scannerOpen && selectedOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label={scannerMode === "pickup" ? "Autorizar recogida" : "Confirmar entrega"}><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">{scannerMode === "pickup" ? "RECOGIDA SEGURA · PEDIDO" : "ENTREGA SEGURA"}</p><h2>{scannerMode === "pickup" ? "Escanea el QR del Partner" : "Escanea el QR o introduce el PIN del cliente"}</h2><p>{scannerMode === "pickup" ? "El Partner debe mostrar el QR o facilitar el PIN. Es obligatorio para confirmar la recogida." : "El Customer debe mostrarte el QR o decirte el PIN. Es obligatorio para cerrar la entrega."}</p><video ref={videoRef} muted playsInline className={scannerReady ? "delivery-qr-video" : "hidden"}/>{!scannerReady && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara para escanear QR</button>}<label>{scannerMode === "pickup" ? "PIN o enlace QR obligatorio del Partner" : "PIN o enlace QR obligatorio del Customer"}<input value={qrValue} onChange={(event) => setQrValue(event.target.value.toUpperCase())} placeholder={scannerMode === "pickup" ? "PIN o enlace QR del Partner" : "PIN o enlace QR del Customer"} autoComplete="one-time-code" /></label><button type="button" disabled={actionBusy || !qrValue.trim()} className="active-order-button" onClick={() => { if (scannerMode === "pickup") { onConfirmPickup(selectedOrder._id, qrValue.trim()); } else onConfirmDelivery(selectedOrder._id, qrValue.trim()); closeScanner(); }}><ShieldCheck size={17}/> {scannerMode === "pickup" ? "Autorizar recogida con QR/PIN" : "Confirmar entrega con QR/PIN"}</button></section>}
       {toast && <div className="toast active-toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
     </section>
   </main>;
