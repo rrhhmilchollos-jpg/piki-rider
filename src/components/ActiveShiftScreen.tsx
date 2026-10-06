@@ -37,16 +37,6 @@ type Props = {
   onError: (message: string) => void;
 };
 
-function routeLabel(order: RiderOffer) {
-  if (order.assignmentState === "offered") return "Nueva oferta";
-  if (!order.riderArrivedAt && ["pending", "accepted", "preparing", "ready_for_pickup"].includes(order.status)) return "Llega al establecimiento";
-  if (order.riderArrivedAt && order.status !== "ready_for_pickup") return "Esperando preparación";
-  if (order.status === "ready_for_pickup") return "Pedido listo para recoger";
-  if (order.status === "picked_up") return "Confirma el inicio de ruta";
-  if (order.status === "on_the_way") return "Entrega en curso";
-  return "Pedido asignado";
-}
-
 function formatPrice(cents?: number | null) {
   if (cents == null) return "";
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -82,7 +72,7 @@ function etaLabel(order: RiderOffer) {
 }
 
 function OrderDetail({ order }: { order: RiderOffer }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const items = order.items || [];
   const deliveryPhase = isCustomerDeliveryPhase(order.status);
   const address = deliveryPhase ? order.deliveryAddress || "Dirección del cliente protegida" : order.restaurant?.address || "Dirección del establecimiento protegida";
@@ -115,7 +105,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
         </div>
       </article>) : <p className="active-empty-items">El detalle de productos estará disponible al sincronizar el pedido.</p>}
     </div>}
-    <div className="active-payment"><span>Pago</span><strong>{paymentInstruction.detail}</strong>{paymentInstruction.amountToCollectCents != null && <b>{formatPrice(paymentInstruction.amountToCollectCents)}</b>}</div>
+    {(paymentInstruction.amountToCollectCents != null || !deliveryPhase) && <div className="active-payment"><span>Pago</span><strong>{paymentInstruction.detail}</strong>{paymentInstruction.amountToCollectCents != null && <b>{formatPrice(paymentInstruction.amountToCollectCents)}</b>}</div>}
     {(order.subtotalCents != null || order.totalCents != null) && <div className="active-order-totals"><span>Subtotal <b>{formatPrice(order.subtotalCents ?? order.totalCents)}</b></span>{order.deliveryFeeCents != null && <span>Envío <b>{formatPrice(order.deliveryFeeCents)}</b></span>}{order.serviceFeeCents != null && <span>Servicio <b>{formatPrice(order.serviceFeeCents)}</b></span>}<strong>Total del pedido <b>{formatPrice(order.totalCents)}</b></strong></div>}
   </section>;
 }
@@ -227,17 +217,17 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
 
       <section className={`active-bottom-sheet ${liveOrder ? "has-live-order" : ""} ${sheetCollapsed && liveOrder ? "is-collapsed" : ""}`} aria-live="polite">
         {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}><span aria-hidden="true"/></button>}
-        {liveOrder && navigation && <div className="active-order-summary" aria-hidden={!sheetCollapsed}><strong>{summaryName}</strong><p>{navigation.address}</p></div>}
+        {liveOrder && navigation && <div className="active-order-summary"><strong>{summaryName}</strong><p>{navigation.address}</p></div>}
         <div className="active-sheet-expanded-content" aria-hidden={Boolean(sheetCollapsed && liveOrder)}>
           {offersLoading && !liveOrder ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Conectando con pedidos…</h1><p>Sincronizando tus ofertas de reparto en {subtitle}.</p></> : offersError ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Sin conexión temporal</h1><p>{offersError}. Tu jornada sigue activa; vuelve a sincronizar para recibir las ofertas pendientes.</p><button type="button" className="active-retry-button" onClick={onRefreshOffers}><RefreshCw size={16}/> Reintentar</button></> : liveOrder ? <>
-            <p className="active-eyebrow">PIKI · {liveOrders.length > 1 ? `${liveOrders.length} PEDIDOS ACTIVOS` : liveOrder.assignmentState === "assigned" ? "NUEVO PEDIDO ACEPTADO" : "NUEVO PEDIDO"}</p>
-            <section className="active-order-stack-item" key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}><h1 className="active-route-title">{routeLabel(liveOrder)} · #{liveOrder.displayCode || liveOrder.publicCode || liveOrder._id.slice(-3)}</h1><OrderDetail order={liveOrder}/><button type="button" className="active-order-button active-gps-button" aria-label={`Abrir GPS hacia ${navigation?.phase === "partner" ? "el Partner" : "el cliente"}`} onClick={() => window.open(buildDirectionsUrl(navigation?.address || ""), "_blank", "noopener,noreferrer")}><Navigation size={17}/> {navigation?.label}</button>
+            <p className="active-eyebrow">PIKI · {liveOrders.length === 1 ? "1 PEDIDO ACTIVO" : `${liveOrders.length} PEDIDOS ACTIVOS`}</p>
+            <section className="active-order-stack-item" key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}><OrderDetail order={liveOrder}/><button type="button" className="active-order-button active-gps-button" aria-label={`Abrir GPS hacia ${navigation?.phase === "partner" ? "el Partner" : "el cliente"}`} onClick={() => window.open(buildDirectionsUrl(navigation?.address || ""), "_blank", "noopener,noreferrer")}><Navigation size={17}/> {navigation?.label}</button>
               {liveOrder.assignmentState === "offered" && <SlideToConfirm label="Aceptar pedido y navegar" detail="Al aceptar, debes llegar al Partner en un máximo de 10 minutos." disabled={actionBusy} busy={actionBusy} onConfirm={() => onAcceptOffer(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt && <SlideToConfirm label="Confirmar llegada al Partner" detail="PIKI verificará tu GPS cerca del establecimiento." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmArrival(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">Llegada verificada. El Partner tiene hasta 10 minutos para preparar el pedido.</p>}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("pickup", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del Partner para recoger</button>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <SlideToConfirm label="Iniciar ruta al cliente" detail="Activa el seguimiento de entrega en tiempo real." disabled={actionBusy} busy={actionBusy} onConfirm={() => onOfferAction(liveOrder._id, "on_the_way")} />}
-              {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button" onClick={() => openScanner("delivery", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del cliente</button>}
+              {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <><SlideToConfirm compact label="Desliza para confirmar llegada" detail="Desliza cuando estés en la dirección del cliente." disabled={actionBusy} busy={actionBusy} onConfirm={() => openScanner("delivery", liveOrder._id)} /><button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("delivery", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del cliente</button></>}
               {liveOrders.length > 1 && <p className="active-pickup-pending">Hay {liveOrders.length - 1} pedido{liveOrders.length - 1 === 1 ? "" : "s"} más en cola. Se mostrará automáticamente cuando completes este.</p>}</section>
           </> : <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1 className="searching-orders-title">Buscando pedidos…</h1><p>Estás visible en {subtitle}. PIKI te avisará cuando haya una asignación; no necesitas refrescar.</p></>}
         </div>

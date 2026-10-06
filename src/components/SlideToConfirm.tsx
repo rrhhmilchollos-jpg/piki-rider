@@ -6,12 +6,13 @@ type Props = {
   disabled?: boolean;
   busy?: boolean;
   onConfirm: () => void;
+  compact?: boolean;
 };
 
 const COMPLETION_VALUE = 96;
 
 /** A keyboard-accessible slider that requires an intentional full swipe. */
-export default function SlideToConfirm({ label, detail, disabled = false, busy = false, onConfirm }: Props) {
+export default function SlideToConfirm({ label, detail, disabled = false, busy = false, onConfirm, compact = false }: Props) {
   const [value, setValue] = useState(0);
   const confirmedRef = useRef(false);
 
@@ -32,7 +33,7 @@ export default function SlideToConfirm({ label, detail, disabled = false, busy =
     }, 450);
   };
 
-  return <div className={`slide-confirm ${disabled ? "is-disabled" : ""} ${busy ? "is-busy" : ""}`}>
+  return <div className={`slide-confirm ${compact ? "is-compact" : ""} ${disabled ? "is-disabled" : ""} ${busy ? "is-busy" : ""}`}>
     <div className="slide-confirm-copy">
       <strong>{busy ? "Confirmando…" : label}</strong>
       {detail && <small>{detail}</small>}
