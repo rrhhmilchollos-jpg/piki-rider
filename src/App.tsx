@@ -128,7 +128,6 @@ const nav = [
   ["Inicio", LayoutDashboard],
   ["Ofertas", Bell],
   ["Entregas", ClipboardList],
-  ["Mapa", MapPinned],
   ["Horarios", CalendarDays],
   ["Cartera", WalletCards],
   ["Incentivos", Gift],
@@ -1901,23 +1900,6 @@ function App() {
                       )}
                     </div>
                   </div>
-                </section>
-              )}
-              {section === "Mapa" && (
-                <section className="feature-section">
-                  <FeatureHeading
-                    eyebrow="PIKI · GOOGLE MAPS EN VIVO"
-                    title="Tu zona, tu posición, en tiempo real."
-                    lead="Google Maps muestra tu ubicación GPS, las zonas operativas asignadas y sus delimitaciones reales. Debes conceder permiso de ubicación para publicar tu posición durante la jornada."
-                    icon={<MapPinned />}
-                  />
-                  {apiToken && (
-                    <LiveGoogleMap
-                      token={apiToken}
-                      riderId={riderId}
-                      onError={handleApiError}
-                    />
-                  )}
                 </section>
               )}
               {section === "Soporte" && (

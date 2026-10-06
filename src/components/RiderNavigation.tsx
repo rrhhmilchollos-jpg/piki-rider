@@ -1,4 +1,4 @@
-import { Activity, Bell, CalendarDays, ClipboardList, Gift, LayoutDashboard, LifeBuoy, MapPinned, Settings, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, Bell, CalendarDays, ClipboardList, Gift, LayoutDashboard, LifeBuoy, Settings, WalletCards, type LucideIcon } from "lucide-react";
 
 type Props = {
   section: string;
@@ -11,7 +11,7 @@ type Props = {
 type Group = { label: string; items: Array<[string, LucideIcon]> };
 
 const groups: Group[] = [
-  { label: "EN RUTA", items: [["Inicio", LayoutDashboard], ["Ofertas", Bell], ["Entregas", ClipboardList], ["Mapa", MapPinned]] },
+  { label: "EN RUTA", items: [["Inicio", LayoutDashboard], ["Ofertas", Bell], ["Entregas", ClipboardList]] },
   { label: "ORGANIZA TU SEMANA", items: [["Horarios", CalendarDays], ["Incentivos", Gift]] },
   { label: "TU PROGRESO", items: [["Cartera", WalletCards], ["Estadísticas", Activity]] },
   { label: "AYUDA", items: [["Soporte", LifeBuoy], ["Cuenta", Settings]] },
@@ -36,7 +36,7 @@ export default function RiderNavigation({ section, open, status, onNavigate, onC
       <div className="sidebar-footer"><div className="support-dot" /><div><strong>Red PIKI</strong><span>{status === "ready" ? "Todo sincronizado" : status === "checking" ? "Actualizando datos" : "Revisar conexión"}</span></div></div>
     </aside>
     <nav className="bottom-nav" aria-label="Navegación rápida">
-      {([["Inicio", LayoutDashboard], ["Ofertas", Bell], ["Entregas", ClipboardList], ["Mapa", MapPinned], ["Cartera", WalletCards]] as const).map(([label, Icon]) => <button key={label} className={section === label ? "active" : ""} onClick={() => onNavigate(label)} aria-current={section === label ? "page" : undefined}><Icon size={19} /><span>{label}</span></button>)}
+      {([["Inicio", LayoutDashboard], ["Ofertas", Bell], ["Entregas", ClipboardList], ["Cartera", WalletCards]] as const).map(([label, Icon]) => <button key={label} className={section === label ? "active" : ""} onClick={() => onNavigate(label)} aria-current={section === label ? "page" : undefined}><Icon size={19} /><span>{label}</span></button>)}
     </nav>
   </>;
 }
