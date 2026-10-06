@@ -63,8 +63,8 @@ function itemLineTotal(item: RiderOrderItem) {
   return formatPrice(item.totalCents ?? ((item.unitPriceCents ?? item.priceCents ?? 0) * quantity));
 }
 
-function productCount(order: RiderOffer) {
-  return (order.items || []).reduce((total, item) => total + (item.quantity || 1), 0);
+function productLineCount(order: RiderOffer) {
+  return (order.items || []).length;
 }
 
 function orderStatusLabel(order: RiderOffer) {
@@ -93,14 +93,15 @@ function OrderDetail({ order }: { order: RiderOffer }) {
     <header className="active-order-header">
       <div>
         <h2>{deliveryPhase ? order.customerName || "Cliente final" : order.restaurant?.name || "Establecimiento PIKI"}</h2>
-        <p className="rider-order-subtitle"><ShoppingBag size={15}/> {productCount(order)} {productCount(order) === 1 ? "producto" : "productos"} <span aria-hidden="true">·</span> {order.restaurant?.cuisine || "Entrega PIKI"}</p>
+        <p className="rider-order-subtitle"><ShoppingBag size={15}/> 1 pedido</p>
       </div>
       {deliveryPhase ? order.customerPhone && <a className="active-call-button" href={`tel:${order.customerPhone}`} aria-label={`Llamar a ${order.customerName || "el cliente"}`}><Phone size={22}/></a> : order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
     </header>
     <p className="active-order-context"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</span><strong><Clock3 size={15}/> {etaLabel(order)}</strong></p>
     <p className="active-order-address"><MapPin size={17}/><span>{address}</span></p>
+    {!deliveryPhase && <><p className="rider-order-company">Empresa: {order.restaurant?.name || "Establecimiento PIKI"}</p><div className="rider-order-instruction"><strong>Recoger en {order.restaurant?.name || "el establecimiento"}.</strong><span>Referencia de pedido: <b>{order.displayCode || order.publicCode || order._id.slice(-6).toUpperCase()}</b></span></div></>}
     <button type="button" className="active-items-toggle" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
-      <strong>{productCount(order)} {productCount(order) === 1 ? "producto" : "productos"}</strong>
+      <strong>{productLineCount(order)} {productLineCount(order) === 1 ? "producto" : "productos"}</strong>
       {expanded ? <ChevronUp size={23}/> : <ChevronDown size={23}/>}
     </button>
     {expanded && <div className="active-items-list">

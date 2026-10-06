@@ -25,3 +25,18 @@
   .active-shift-shell .active-order-header h2 { font-size:21px; }
   .active-shift-shell .rider-order-status { font-size:10px; }
 }
+
+/* Detalle económico y flujo Partner → Cliente. */
+.active-shift-shell .active-item-title span{color:#24372f;font-weight:800;white-space:nowrap}
+.active-shift-shell .active-item-unit-price{display:block;color:#78847e;font-size:11px}
+.active-shift-shell .active-order-totals{display:grid;gap:6px;border-top:1px solid #e7ede4;padding:12px 13px;background:#fbfdf8;color:#718078;font-size:11px}
+.active-shift-shell .active-order-totals span,.active-shift-shell .active-order-totals strong{display:flex;justify-content:space-between;gap:12px}
+.active-shift-shell .active-order-totals b{color:#31483d;font-weight:800}
+.active-shift-shell .active-order-totals strong{padding-top:5px;color:#24372f;font-size:13px}
+.active-shift-shell .active-order-totals strong b{color:#2e8b68;font-size:15px}
+.active-shift-shell .active-qr-button{background:#e7f8e3;color:#246237;box-shadow:0 6px 0 #a8d99e}
+.active-shift-shell .rider-order-company{margin:0 0 12px;color:#52635b;font-size:14px;line-height:1.35}
+.active-shift-shell .rider-order-instruction{display:grid;gap:5px;margin:0 0 14px;padding:10px 12px;border-left:3px solid #5e8d3a;border-radius:0 12px 12px 0;background:#f7faf4;color:#31483d;font-size:13px;line-height:1.35}
+.active-shift-shell .rider-order-instruction strong{font-weight:800}
+.active-shift-shell .rider-order-instruction span{color:#718078;font-size:12px}
+.active-shift-shell .rider-order-instruction b{color:#2e6b38;letter-spacing:.05em}
