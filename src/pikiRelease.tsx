@@ -97,6 +97,17 @@ function base64UrlToUint8Array(value: string): Uint8Array {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
+function uint8ArrayToBase64Url(value: Uint8Array): string {
+  let binary = "";
+  value.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function subscriptionUsesVapidKey(subscription: PushSubscription, vapidPublicKey: string): boolean | null {
+  const applicationServerKey = subscription.options.applicationServerKey;
+  if (!applicationServerKey) return null;
+  const bytes = applicationServerKey instanceof ArrayBuffer ? new Uint8Array(applicationServerKey) : new Uint8Array(applicationServerKey);
+  return uint8ArrayToBase64Url(bytes) === vapidPublicKey;
+}
 
 function storedEmployeeToken(): string | null {
   const key = `piki-${location.hostname}-api-token`;
@@ -118,8 +129,14 @@ async function syncPushSubscription(showNotification: boolean): Promise<string> 
   const permission = showNotification ? await Notification.requestPermission() : Notification.permission;
   if (permission !== "granted") throw new Error("No se concedió permiso para mostrar avisos.");
   const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.getSubscription()
-    ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToUint8Array(config.vapidPublicKey).buffer as ArrayBuffer });
+  let subscription = await registration.pushManager.getSubscription();
+  // A VAPID key rotation invalidates old browser subscriptions and causes provider 403s.
+  // Renew the subscription before saving it so the Rider can receive new offers again.
+  if (subscription && subscriptionUsesVapidKey(subscription, config.vapidPublicKey) === false) {
+    await subscription.unsubscribe();
+    subscription = null;
+  }
+  subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToUint8Array(config.vapidPublicKey).buffer as ArrayBuffer });
   const token = storedEmployeeToken();
   const headers: Record<string, string> = { "Content-Type": "application/json", "X-PIKI-Surface": PIKI_RELEASE.surface };
   if (token) headers.Authorization = `Bearer ${token}`;
