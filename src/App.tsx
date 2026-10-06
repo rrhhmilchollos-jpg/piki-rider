@@ -2042,6 +2042,7 @@ function App() {
                             <span>tiempo estimado</span>
                           </div>
                         </article>
+                        <button className="support-order-report-button" type="button" onClick={() => { showSection("Soporte"); setSupportChatOpen(true); setSupportFormMessage(""); }}><MessageCircle size={16} /> Reportar una incidencia de este pedido a Soporte</button>
                         <section className="order-chat-card">
                           <div>
                             <span className="eyebrow">CHAT DEL PEDIDO</span>
