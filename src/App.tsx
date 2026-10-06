@@ -263,6 +263,13 @@ const supportQuickReplies = [
   "He tenido un problema con el vehículo y no puedo continuar.",
   "Ya he resuelto la incidencia; continúo con el reparto.",
 ] as const;
+const orderQuickReplies = [
+  "Estoy en camino.",
+  "Estoy aquí, en la puerta.",
+  "He llegado a tu dirección.",
+  "Tu pedido está listo; voy hacia tu dirección.",
+  "¿Puedes confirmarme que estás disponible para recibirlo?",
+] as const;
 const whatsappNumber = String(
   import.meta.env.VITE_WHATSAPP_HELP_NUMBER ?? "",
 ).replace(/\D/g, "");
@@ -2079,6 +2086,13 @@ function App() {
                                 Aún no hay mensajes en este pedido.
                               </p>
                             )}
+                          </div>
+                          <div className="order-quick-replies" aria-label="Mensajes rápidos al cliente">
+                            {orderQuickReplies.map((reply) => (
+                              <button key={reply} type="button" onClick={() => setMessageDraft(reply)}>
+                                {reply}
+                              </button>
+                            ))}
                           </div>
                           <form
                             className="order-chat-form"
