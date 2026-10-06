@@ -53,6 +53,7 @@ import {
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 import { orderRiderQueue } from "./orderQueue";
+import { playPikiUiSound } from "./uiSounds";
 import {
   clearStoredToken,
   getStoredToken,
@@ -377,7 +378,9 @@ function App() {
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
 
   const playAssignmentAlert = useCallback(() => {
-    playRiderOrderAlert(audioContextRef);
+    playPikiUiSound("/sounds/order-assigned.mp3", () => {
+      playRiderOrderAlert(audioContextRef);
+    });
   }, []);
 
   const loadRiderData = useCallback(async () => {
