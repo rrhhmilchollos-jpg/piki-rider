@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:55,120
+Bienvenida y cultura preventiva — Curso PRL para Riders PIKI
+
+2
+00:00:55,120 --> 00:02:00,440
+Marco legal y responsabilidades — Curso PRL para Riders PIKI
+
+3
+00:02:00,440 --> 00:03:02,520
+Seguridad vial — Curso PRL para Riders PIKI
+
+4
+00:03:02,520 --> 00:04:01,480
+Manipulación de pedidos — Curso PRL para Riders PIKI
+
+5
+00:04:01,480 --> 00:05:00,560
+Ergonomía, fatiga y clima — Curso PRL para Riders PIKI
+
+6
+00:05:00,560 --> 00:05:57,480
+EPI y mantenimiento — Curso PRL para Riders PIKI
+
+7
+00:05:57,480 --> 00:07:00,520
+Emergencias y soporte — Curso PRL para Riders PIKI
+
+8
+00:07:00,520 --> 00:08:11,680
+Operación responsable y evaluación — Curso PRL para Riders PIKI

@@ -133,6 +133,7 @@ const nav = [
   ["Horarios", CalendarDays],
   ["Cartera", WalletCards],
   ["Incentivos", Gift],
+  ["PRL", ShieldCheck],
   ["Estadísticas", Activity],
   ["Soporte", LifeBuoy],
   ["Cuenta", Settings],
@@ -1539,6 +1540,24 @@ function App() {
           ) : (
             <>
               {section === "Incentivos" && <RiderIncentivesPanel token={apiToken} riderId={riderId} />}
+              {section === "PRL" && (
+                <section className="feature-section">
+                  <FeatureHeading
+                    eyebrow="PIKI · PREVENCIÓN"
+                    title="Curso PRL para Riders"
+                    lead="Videoclip tutorial completo con voces en español, ocho módulos y subtítulos. Revísalo antes de iniciar tu actividad y consulta cualquier duda con Fleet."
+                    icon={<ShieldCheck />}
+                  />
+                  <div className="support-detail-panel">
+                    <div className="support-detail-heading"><div><span>FORMACIÓN OBLIGATORIA</span><h2>Prevención de riesgos laborales</h2><p>Seguridad vial, cargas, fatiga, EPI, emergencias y operación responsable.</p></div></div>
+                    <div style={{display: "flex", gap: 10, flexWrap: "wrap"}}>
+                      <a className="primary-button" href="/prl/PIKI-PRL-Riders-curso-completo.mp4" target="_blank" rel="noreferrer">Ver videoclip tutorial</a>
+                      <a className="secondary-button" href="/prl/PIKI-PRL-Riders-subtitulos.srt" download>Descargar subtítulos</a>
+                    </div>
+                    <p className="form-hint">Material formativo general: debe complementarse con la evaluación de riesgos y los protocolos preventivos vigentes de PIKI.</p>
+                  </div>
+                </section>
+              )}
               {section === "Ofertas" && (
                 <section className="feature-section">
                   <FeatureHeading
