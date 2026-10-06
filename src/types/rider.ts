@@ -39,8 +39,11 @@ export type RiderOffer = {
 	customerName?: string | null;
 	customerPhone?: string | null;
 	deliveryAddress?: string | null;
-  paymentMethod?: "stripe" | "bizum" | "cash";
-  totalCents?: number;
+	paymentMethod?: "stripe" | "bizum" | "cash";
+	totalCents?: number;
+	subtotalCents?: number;
+	deliveryFeeCents?: number;
+	serviceFeeCents?: number;
 	items?: Array<{
 		name?: string;
 		quantity?: number;

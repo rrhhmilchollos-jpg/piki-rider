@@ -7,6 +7,7 @@ const fallbackPoint = { lat: 38.9908, lng: -0.5185 };
 /** Visible map with GPS publishing independent from Google Maps credentials. */
 export default function LiveGoogleMap({ token, riderId, active = false, nativeTracking = false, onError }: Props) {
   const [point, setPoint] = useState<Point | null>(null);
+  const [mapCenter, setMapCenter] = useState(fallbackPoint);
   const [locationMessage, setLocationMessage] = useState("Mapa centrado en Xàtiva · activa la jornada para compartir tu posición");
   const onErrorRef = useRef(onError);
   const lastPublishedRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
@@ -16,6 +17,7 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
     let heartbeat: number | undefined;
     const publish = async (next: Point) => {
       setPoint(next);
+      setMapCenter((previous) => previous === fallbackPoint ? { lat: next.lat, lng: next.lng } : previous);
       setLocationMessage(`GPS actualizado · precisión aproximada ${Math.round(next.accuracy)} m`);
       if (!active || !riderId || nativeTracking) return;
       const previous = lastPublishedRef.current;
@@ -42,6 +44,6 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
     return () => { if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); if (heartbeat !== undefined) window.clearInterval(heartbeat); };
   }, [active, nativeTracking, riderId, token]);
   const center = point ?? fallbackPoint;
-  const mapUrl = useMemo(() => `https://www.google.com/maps?q=${encodeURIComponent(`${center.lat},${center.lng}`)}&z=15&output=embed`, [center.lat, center.lng]);
+  const mapUrl = useMemo(() => `https://www.google.com/maps?q=${encodeURIComponent(`${mapCenter.lat},${mapCenter.lng}`)}&z=15&output=embed`, [mapCenter.lat, mapCenter.lng]);
   return <div className="rider-map-card"><div className="rider-map-status">{locationMessage}</div><iframe title="Mapa operativo de Google Maps" className="rider-google-map-frame" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`} target="_blank" rel="noreferrer">Abrir en Google Maps</a></div>;
 }

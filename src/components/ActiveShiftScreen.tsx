@@ -58,6 +58,11 @@ function itemPrice(item: RiderOrderItem) {
   return formatPrice(item.priceCents ?? item.totalCents ?? item.unitPriceCents);
 }
 
+function itemLineTotal(item: RiderOrderItem) {
+  const quantity = item.quantity || 1;
+  return formatPrice(item.totalCents ?? ((item.unitPriceCents ?? item.priceCents ?? 0) * quantity));
+}
+
 function productCount(order: RiderOffer) {
   return (order.items || []).reduce((total, item) => total + (item.quantity || 1), 0);
 }
@@ -102,12 +107,14 @@ function OrderDetail({ order }: { order: RiderOffer }) {
       {items.length ? items.map((item, index) => <article className="active-item" key={`${item.name || "producto"}-${index}`}>
         <span className="active-item-quantity">{item.quantity || 1}</span>
         <div className="active-item-content">
-          <div className="active-item-title"><strong>{item.name || "Producto"}</strong>{itemPrice(item) && <span>{itemPrice(item)}</span>}</div>
+          <div className="active-item-title"><strong>{item.name || "Producto"}</strong><span>{itemLineTotal(item)}</span></div>
+          {(item.quantity || 1) > 1 && <small className="active-item-unit-price">{item.quantity} × {itemPrice(item)} unidad</small>}
           {(item.modifiers || []).map((modifier, modifierIndex) => <div className="active-item-modifier" key={`${modifier.name}-${modifierIndex}`}>+ {modifier.quantity || 1} {modifier.name}{modifier.priceCents != null && <span>{formatPrice(modifier.priceCents)}</span>}</div>)}
         </div>
       </article>) : <p className="active-empty-items">El detalle de productos estará disponible al sincronizar el pedido.</p>}
     </div>}
     <div className="active-payment"><span>Pago</span><strong>{paymentInstruction.detail}</strong>{paymentInstruction.amountToCollectCents != null && <b>{formatPrice(paymentInstruction.amountToCollectCents)}</b>}</div>
+    {(order.subtotalCents != null || order.totalCents != null) && <div className="active-order-totals"><span>Subtotal <b>{formatPrice(order.subtotalCents ?? order.totalCents)}</b></span>{order.deliveryFeeCents != null && <span>Envío <b>{formatPrice(order.deliveryFeeCents)}</b></span>}{order.serviceFeeCents != null && <span>Servicio <b>{formatPrice(order.serviceFeeCents)}</b></span>}<strong>Total del pedido <b>{formatPrice(order.totalCents)}</b></strong></div>}
   </section>;
 }
 
@@ -215,7 +222,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
               {liveOrder.assignmentState === "offered" && <SlideToConfirm label="Aceptar pedido y navegar" detail="Al aceptar, debes llegar al Partner en un máximo de 10 minutos." disabled={actionBusy} busy={actionBusy} onConfirm={() => onAcceptOffer(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt && <SlideToConfirm label="Confirmar llegada al Partner" detail="PIKI verificará tu GPS cerca del establecimiento." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmArrival(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">Llegada verificada. El Partner tiene hasta 10 minutos para preparar el pedido.</p>}
-              {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <SlideToConfirm label="Confirmar recogida" detail="El pedido está listo y la llegada al Partner ya fue verificada." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmPickup(liveOrder._id, "")} />}
+              {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <><button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("pickup", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del Partner</button><SlideToConfirm label="Confirmar recogida" detail="El pedido está listo y la llegada al Partner ya fue verificada." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmPickup(liveOrder._id, "")} /></>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <SlideToConfirm label="Iniciar ruta al cliente" detail="Activa el seguimiento de entrega en tiempo real." disabled={actionBusy} busy={actionBusy} onConfirm={() => onOfferAction(liveOrder._id, "on_the_way")} />}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button" onClick={() => openScanner("delivery", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del cliente</button>}
               {liveOrders.length > 1 && <p className="active-pickup-pending">Hay {liveOrders.length - 1} pedido{liveOrders.length - 1 === 1 ? "" : "s"} más en cola. Se mostrará automáticamente cuando completes este.</p>}</section>
