@@ -39,6 +39,7 @@ import LocationPermissionGate from "./components/LocationPermissionGate";
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
+  playRiderShiftStart,
   primeRiderOrderAudio,
   type RiderAlertAudioContext,
 } from "./orderAlert";
@@ -880,17 +881,9 @@ function App() {
       }));
       setShowOperations(false);
       if (!shiftActive) {
-        const audio = primeRiderOrderAudio(audioContextRef);
-        if (audio) {
-          const oscillator = audio.createOscillator();
-          const gain = audio.createGain();
-          oscillator.frequency.value = 880;
-          gain.gain.value = 0.12;
-          oscillator.connect(gain);
-          gain.connect(audio.destination);
-          oscillator.start();
-          oscillator.stop(audio.currentTime + 0.45);
-        }
+        // El gesto de iniciar jornada desbloquea el audio móvil y reproduce el aviso original de PIKI.
+        primeRiderOrderAudio(audioContextRef);
+        playRiderShiftStart();
       }
       setToast(
         nowActive
