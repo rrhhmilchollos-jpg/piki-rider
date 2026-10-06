@@ -357,6 +357,8 @@ function App() {
   const audioContextRef = useRef<RiderAlertAudioContext | null>(null);
   const assignedOrderRef = useRef(false);
   const riderRefreshInFlightRef = useRef(false);
+  const riderRefreshQueuedRef = useRef(false);
+  const loadRiderDataRef = useRef<() => void>(() => undefined);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
 
   const playAssignmentAlert = useCallback(() => {
@@ -364,7 +366,11 @@ function App() {
   }, []);
 
   const loadRiderData = useCallback(async () => {
-    if (!apiToken || riderRefreshInFlightRef.current) return;
+    if (!apiToken) return;
+    if (riderRefreshInFlightRef.current) {
+      riderRefreshQueuedRef.current = true;
+      return;
+    }
     riderRefreshInFlightRef.current = true;
     const headers = authHeaders(apiToken);
     try {
@@ -422,8 +428,15 @@ function App() {
       /* Panels remain usable while the API is unavailable. */
     } finally {
       riderRefreshInFlightRef.current = false;
+      if (riderRefreshQueuedRef.current) {
+        riderRefreshQueuedRef.current = false;
+        window.setTimeout(() => loadRiderDataRef.current(), 0);
+      }
     }
   }, [apiToken]);
+  useEffect(() => {
+    loadRiderDataRef.current = () => { void loadRiderData(); };
+  }, [loadRiderData]);
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
