@@ -353,3 +353,5 @@ html, body, #root { max-width:100%; overflow-x:hidden; }
 .support-quick-replies{display:flex;gap:6px;overflow-x:auto;padding:8px 10px 2px;background:#f0f2f5}.support-quick-replies button{flex:0 0 auto;border:1px solid #c9d8c6;border-radius:999px;padding:7px 10px;background:#fafff7;color:#416445;font:600 11px 'DM Sans';cursor:pointer;white-space:nowrap}.support-quick-replies button:hover{background:#e3f5d9;border-color:#9fca8e}
 .order-quick-replies{display:flex;gap:6px;overflow-x:auto;padding:8px 4px 2px}.order-quick-replies button{flex:0 0 auto;border:1px solid #c9d8c6;border-radius:999px;padding:7px 10px;background:#fafff7;color:#416445;font:600 11px 'DM Sans';cursor:pointer;white-space:nowrap}.order-quick-replies button:hover{background:#e3f5d9;border-color:#9fca8e}
 @media(max-width:580px){.order-quick-replies{margin-right:-4px;padding-right:0}.order-chat-form{align-items:center}.order-chat-form button{padding:10px}}
+
+.rider-preparation-notice { display:block; margin-top:8px; color:#8a6500; line-height:1.4; }

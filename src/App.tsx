@@ -594,8 +594,8 @@ function App() {
           setToast("Tus horarios se han actualizado.");
           return;
         }
-        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
-        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
+        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner", "order.preparation_updated"].includes(event.type)) return;
+        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner", "order.preparation_updated"].includes(event.type)) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
         })
@@ -608,6 +608,8 @@ function App() {
               lastOfferAtRef.current = Date.now();
               playAssignmentAlert();
               setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
+            } else if (event.type === "order.preparation_updated") {
+              setToast(String(event.payload.message || "Actualización de preparación del Partner."));
             }
           })
           .catch(() => undefined);
@@ -1575,8 +1577,8 @@ function App() {
                                 )
                                 .join(" · ")}
                             </p>
-                            <small>
-                              Pulsa «Confirmar recogida» cuando tengas físicamente el pedido.
+                            <small className="rider-preparation-notice">
+                              {offer.status === "ready_for_pickup" ? "✅ El Partner ha marcado el pedido como listo para recoger." : `⏱️ Preparación comunicada: máximo ${offer.preparationMinutes ?? 10} minutos. Dirígete al establecimiento.`}
                             </small>
                           </div>
                           <div className="delivery-actions">
@@ -1644,6 +1646,7 @@ function App() {
                                 )
                                 .join(" · ")}
                             </p>
+                            {offer.status !== "picked_up" && offer.status !== "on_the_way" && <small className="rider-preparation-notice">{offer.status === "ready_for_pickup" ? "✅ Listo para recoger" : `⏱️ Preparación: máximo ${offer.preparationMinutes ?? 10} minutos`}</small>}
                           </div>
                           <div className="delivery-actions">
                             <a

@@ -27,6 +27,8 @@ export type RiderOffer = {
   assignmentState: "offered" | "assigned";
   assignmentExpiresAt?: string | null;
   pickupDeadlineAt?: string | null;
+  partnerPrepDeadlineAt?: string | null;
+  preparationMinutes?: number;
   riderArrivedAt?: string | null;
   riderArrivalDistanceMeters?: number | null;
   status: "pending" | "ready_for_pickup" | "picked_up" | "on_the_way" | "accepted" | "preparing";
