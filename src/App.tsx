@@ -43,6 +43,7 @@ import {
   type RiderAlertAudioContext,
 } from "./orderAlert";
 import {
+  acceptRiderOffer,
   createRiderSupportTicket,
   loadMobilityAdvice,
   loadRiderOrderMessages,
@@ -931,6 +932,20 @@ function App() {
       setOrderActionBusy(false);
     }
   }
+  async function acceptRiderOfferAction(orderId: string) {
+    if (orderActionBusy || !apiToken || !riderId) return;
+    setOrderActionBusy(true);
+    try {
+      const result = await acceptRiderOffer(apiToken, riderId, orderId);
+      setToast(result.message || "Reparto aceptado. Dirígete al Partner.");
+      await loadRiderData();
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "No se pudo aceptar el reparto.");
+      await loadRiderData();
+    } finally {
+      setOrderActionBusy(false);
+    }
+  }
   async function confirmPartnerArrival(orderId: string) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
@@ -1215,6 +1230,7 @@ function App() {
           setOffersError("");
           void loadRiderData();
         }}
+        onAcceptOffer={(orderId) => void acceptRiderOfferAction(orderId)}
         onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
@@ -1555,7 +1571,7 @@ function App() {
                   <FeatureHeading
                     eyebrow="PIKI · OFERTAS"
                     title="Repartos asignados a tu jornada."
-                    lead="Los pedidos se asignan automáticamente. Si existe una incidencia, utiliza Soporte PIKI; no se rechazan desde la app."
+                    lead="Las ofertas se asignan automáticamente. Pulsa Aceptar reparto para asumirla; si hay una incidencia, contacta con Soporte PIKI."
                     icon={<Bell />}
                   />
                   <div className="delivery-list">
@@ -1585,7 +1601,7 @@ function App() {
                                 .join(" · ")}
                             </p>
                             <small>
-                              Pulsa «Confirmar recogida» cuando tengas físicamente el pedido.
+                              Acepta para reservar el reparto; después confirma la llegada por GPS y la recogida con QR/PIN cuando el Partner entregue el pedido.
                             </small>
                           </div>
                           <div className="delivery-actions">
@@ -1597,7 +1613,9 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            <span className="delivery-auto-note">Asignado automáticamente</span>
+                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void acceptRiderOfferAction(offer._id)}>
+                              Aceptar reparto
+                            </button>
                           </div>
                         </article>
                       ))}

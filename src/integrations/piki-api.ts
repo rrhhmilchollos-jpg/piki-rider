@@ -93,6 +93,44 @@ export async function sendRiderOrderMessage(token: string, riderId: string, orde
   return result.message;
 }
 
+export type RiderOfferAcceptance = { message?: string; pickupDeadlineAt?: string };
+
+export class RiderOfferAcceptanceError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status: number, code: string) {
+    super(message);
+    this.name = "RiderOfferAcceptanceError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const riderOfferAcceptanceErrors: Record<string, string> = {
+  RIDER_OFFER_EXPIRED: "La oferta ha caducado. PIKI está buscando otro rider.",
+  RIDER_OFFER_NOT_FOUND: "La oferta ya no está disponible. Se actualizarán tus pedidos.",
+  ORDER_CHANGED_RETRY: "La asignación ha cambiado. Se actualizarán tus pedidos.",
+  RIDER_ACCESS_DENIED: "Esta oferta no corresponde a tu cuenta de Rider.",
+};
+
+export async function acceptRiderOffer(token: string, riderId: string, orderId: string): Promise<RiderOfferAcceptance> {
+  const response = await fetch(apiUrl(`/api/v1/riders/${encodeURIComponent(riderId)}/orders/${encodeURIComponent(orderId)}/accept-offer`), {
+    method: "POST",
+    headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
+  });
+  const body = await response.json().catch(() => ({})) as { message?: string; error?: string; pickupDeadlineAt?: string };
+  if (!response.ok) {
+    const code = body.error || "RIDER_OFFER_ACCEPT_FAILED";
+    throw new RiderOfferAcceptanceError(
+      body.message || riderOfferAcceptanceErrors[code] || "No se pudo aceptar el reparto. Se actualizarán tus pedidos.",
+      response.status,
+      code,
+    );
+  }
+  return body;
+}
+
 export type RiderSupportTicket = { id: string; ticketNumber: string; status: string };
 export async function createRiderSupportTicket(input: { token: string; riderId: string; subject: string; description: string; priority?: "low" | "normal" | "high" | "urgent"; orderId?: string }): Promise<RiderSupportTicket> {
   const result = await apiJson<{ ticket: RiderSupportTicket }>(`/api/v1/riders/${encodeURIComponent(input.riderId)}/support/tickets`, input.token, {

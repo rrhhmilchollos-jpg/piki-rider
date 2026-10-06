@@ -1,0 +1,63 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  acceptRiderOffer,
+  RiderOfferAcceptanceError,
+} from "./integrations/piki-api";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("acceptRiderOffer", () => {
+  it("posts the authenticated acceptance to the rider-specific API route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      message: "Pedido aceptado. Llegar al Partner en un máximo de 10 minutos.",
+      pickupDeadlineAt: "2026-10-06T20:00:00.000Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await acceptRiderOffer("rider-token", "rider-1", "order-1");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/v1/riders/rider-1/orders/order-1/accept-offer");
+    expect(request.method).toBe("POST");
+    expect(request.headers).toEqual({
+      Authorization: "Bearer rider-token",
+      "Content-Type": "application/json",
+    });
+    expect(result.message).toContain("Pedido aceptado");
+    expect(result.pickupDeadlineAt).toBe("2026-10-06T20:00:00.000Z");
+  });
+
+  it("preserves the API message and status when an offer has expired", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "RIDER_OFFER_EXPIRED",
+      message: "La oferta ha caducado y PIKI ya busca otro rider.",
+    }), { status: 409, headers: { "Content-Type": "application/json" } })));
+
+    await expect(acceptRiderOffer("rider-token", "rider-1", "order-1"))
+      .rejects.toMatchObject({
+        name: "RiderOfferAcceptanceError",
+        status: 409,
+        code: "RIDER_OFFER_EXPIRED",
+        message: "La oferta ha caducado y PIKI ya busca otro rider.",
+      });
+  });
+
+  it("shows a useful fallback when the offer is no longer available", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "RIDER_OFFER_NOT_FOUND",
+    }), { status: 404, headers: { "Content-Type": "application/json" } })));
+
+    const error = await acceptRiderOffer("rider-token", "rider-1", "order-1")
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(RiderOfferAcceptanceError);
+    expect(error).toMatchObject({
+      status: 404,
+      code: "RIDER_OFFER_NOT_FOUND",
+      message: "La oferta ya no está disponible. Se actualizarán tus pedidos.",
+    });
+  });
+});

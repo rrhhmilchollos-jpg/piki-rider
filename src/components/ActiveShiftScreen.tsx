@@ -28,6 +28,7 @@ type Props = {
   onOpenOperations: () => void;
   onOpenSupport: () => void;
   onRefreshOffers: () => void;
+  onAcceptOffer: (orderId: string) => void;
   onOfferAction: (orderId: string, action: "on_the_way") => void;
   onConfirmArrival: (orderId: string) => void;
   actionBusy?: boolean;
@@ -109,7 +110,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
   </section>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, onRefreshOffers, onOfferAction, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<"pickup" | "delivery">("delivery");
   const [scannerReady, setScannerReady] = useState(false);
@@ -221,7 +222,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
           {offersLoading && !liveOrder ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Conectando con pedidos…</h1><p>Sincronizando tus ofertas de reparto en {subtitle}.</p></> : offersError ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Sin conexión temporal</h1><p>{offersError}. Tu jornada sigue activa; vuelve a sincronizar para recibir las ofertas pendientes.</p><button type="button" className="active-retry-button" onClick={onRefreshOffers}><RefreshCw size={16}/> Reintentar</button></> : liveOrder ? <>
             <p className="active-eyebrow">PIKI · {liveOrders.length === 1 ? "1 PEDIDO ACTIVO" : `${liveOrders.length} PEDIDOS ACTIVOS`}</p>
             <section className="active-order-stack-item" key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}><OrderDetail order={liveOrder}/><button type="button" className="active-order-button active-gps-button" aria-label={`Abrir GPS hacia ${navigation?.phase === "partner" ? "el Partner" : "el cliente"}`} onClick={() => window.open(buildDirectionsUrl(navigation?.address || ""), "_blank", "noopener,noreferrer")}><Navigation size={17}/> {navigation?.label}</button>
-              {liveOrder.assignmentState === "offered" && <p className="active-assignment-note">Pedido asignado automáticamente. Dirígete al Partner.</p>}
+              {liveOrder.assignmentState === "offered" && <><p className="active-assignment-note">Revisa la dirección y acepta el reparto. Después PIKI verificará tu llegada al Partner.</p><button type="button" className="active-order-button" disabled={actionBusy} onClick={() => onAcceptOffer(liveOrder._id)}>Aceptar reparto</button></>}
               {liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt && <SlideToConfirm label="Confirmar llegada al Partner" detail="PIKI verificará tu GPS cerca del establecimiento." disabled={actionBusy} busy={actionBusy} onConfirm={() => onConfirmArrival(liveOrder._id)} />}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">Llegada verificada. El Partner tiene hasta 10 minutos para preparar el pedido.</p>}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("pickup", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del Partner para recoger</button>}
