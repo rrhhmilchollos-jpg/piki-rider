@@ -467,15 +467,6 @@ function App() {
     };
   }, [loadRiderData]);
   useEffect(() => {
-    if (!apiToken) return;
-    // The API is authoritative for Europe/Madrid date/time and slot eligibility.
-    // The schedule is refreshed by the directed realtime event. This slower
-    // fallback only re-evaluates the server clock when a reserved shift starts
-    // or ends, without relying on the rider's device clock.
-    const timer = window.setInterval(() => { void loadRiderData(); }, 60_000);
-    return () => window.clearInterval(timer);
-  }, [apiToken, loadRiderData]);
-  useEffect(() => {
     try {
       localStorage.setItem(riderSectionStorageKey, section);
     } catch {
