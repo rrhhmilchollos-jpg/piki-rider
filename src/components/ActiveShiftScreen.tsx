@@ -95,10 +95,11 @@ function OrderDetail({ order }: { order: RiderOffer }) {
         <h2>{deliveryPhase ? order.customerName || "Cliente final" : order.restaurant?.name || "Establecimiento PIKI"}</h2>
         <p className="rider-order-subtitle"><ShoppingBag size={15}/> 1 pedido</p>
       </div>
-      {deliveryPhase ? order.customerPhone && <a className="active-call-button" href={`tel:${order.customerPhone}`} aria-label={`Llamar a ${order.customerName || "el cliente"}`}><Phone size={22}/></a> : order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
+      {!deliveryPhase && order.restaurant?.phone && <a className="active-call-button" href={`tel:${order.restaurant.phone}`} aria-label={`Llamar a ${order.restaurant.name || "el establecimiento"}`}><Phone size={22}/></a>}
     </header>
     <p className="active-order-context"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</span><strong><Clock3 size={15}/> {etaLabel(order)}</strong></p>
     <p className="active-order-address"><MapPin size={17}/><span>{address}</span></p>
+    {deliveryPhase && order.deliveryNote?.trim() && <div className="rider-order-customer-note"><strong>Nota del cliente</strong><span>{order.deliveryNote.trim()}</span></div>}
     {!deliveryPhase && <><p className="rider-order-company">Empresa: {order.restaurant?.name || "Establecimiento PIKI"}</p><div className="rider-order-instruction"><strong>Recoger en {order.restaurant?.name || "el establecimiento"}.</strong><span>Referencia de pedido: <b>{order.displayCode || order.publicCode || order._id.slice(-6).toUpperCase()}</b></span></div></>}
     <button type="button" className="active-items-toggle" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
       <strong>{productLineCount(order)} {productLineCount(order) === 1 ? "producto" : "productos"}</strong>

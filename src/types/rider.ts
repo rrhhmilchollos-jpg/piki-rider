@@ -39,6 +39,7 @@ export type RiderOffer = {
 	customerName?: string | null;
 	customerPhone?: string | null;
 	deliveryAddress?: string | null;
+	deliveryNote?: string | null;
 	paymentMethod?: "stripe" | "bizum" | "cash";
 	totalCents?: number;
 	subtotalCents?: number;
