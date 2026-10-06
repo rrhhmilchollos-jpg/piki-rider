@@ -931,18 +931,6 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function acceptOffer(orderId: string) {
-    if (orderActionBusy) return;
-    setOrderActionBusy(true);
-    try {
-      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/accept-offer`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) { setToast(data.message || data.error || "No se pudo aceptar el pedido."); await loadRiderData(); return; }
-      setToast(data.message || "Pedido aceptado. Navega al Partner.");
-      await loadRiderData();
-    } catch { setToast("No se pudo aceptar por red. Se actualizará el estado antes de reintentar."); await loadRiderData(); }
-    finally { setOrderActionBusy(false); }
-  }
   async function confirmPartnerArrival(orderId: string) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
@@ -1227,7 +1215,6 @@ function App() {
           setOffersError("");
           void loadRiderData();
         }}
-        onAcceptOffer={(orderId) => void acceptOffer(orderId)}
         onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
@@ -1610,9 +1597,7 @@ function App() {
                             >
                               <MapPinned size={16} /> Maps
                             </a>
-                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void acceptOffer(offer._id)}>
-                              Aceptar pedido
-                            </button>
+                            <span className="delivery-auto-note">Asignado automáticamente</span>
                           </div>
                         </article>
                       ))}

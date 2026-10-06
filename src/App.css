@@ -391,3 +391,14 @@ html, body, #root { max-width:100%; overflow-x:hidden; }
 @media(max-width:600px){.support-ticket-resume{align-items:flex-start;flex-wrap:wrap}.support-ticket-resume-copy{min-width:calc(100% - 60px)}.support-ticket-resume-actions{width:100%;justify-content:flex-end}.support-chat-backdrop{padding:0}.support-chat-window{width:100%;height:100dvh;max-height:100dvh;border:0;border-radius:0;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.support-chat-window-header{padding-left:14px;padding-right:12px}.support-chat-status{font-size:9px}.support-chat-thread{padding-left:12px;padding-right:12px}}
 
 @media(max-width:600px){.support-chat-window{padding-top:0;padding-bottom:0}.support-chat-window-header{padding-top:max(14px,env(safe-area-inset-top))}}
+
+/* Tarjetas de Ofertas/Entregas: misma superficie negra y acento verde que la tarjeta Glovo. */
+.delivery-card{align-items:stretch;background:linear-gradient(145deg,#101713,#17231c);border:1px solid #2d4936;border-left:5px solid var(--rider-lime,#d4ff57);color:#fff;box-shadow:0 14px 32px rgba(8,20,12,.18)}
+.delivery-card h2{color:#fff}
+.delivery-card p{color:#c5d5c9}
+.delivery-card .eyebrow{color:var(--rider-lime,#d4ff57)}
+.delivery-card small{color:#a7b9aa}
+.delivery-card .secondary-button{background:#fff;color:#16231b;border-color:#fff}
+.delivery-card .primary-button{background:var(--rider-lime,#d4ff57);color:#142019}
+.delivery-auto-note{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 14px;border:1px solid rgba(212,255,87,.42);border-radius:13px;color:var(--rider-lime,#d4ff57);font-size:12px;font-weight:800;text-align:center}
+@media(max-width:760px){.delivery-card{align-items:stretch}.delivery-auto-note{width:100%}}

@@ -114,3 +114,5 @@
 .active-shift-shell .slide-confirm.is-compact .slide-confirm-hint{display:none}
 .active-shift-shell .slide-confirm.is-compact .slide-confirm-range::-webkit-slider-thumb{width:24px;height:24px}
 .active-shift-shell .slide-confirm.is-compact .slide-confirm-range::-moz-range-thumb{width:24px;height:24px}
+
+.active-shift-shell .active-assignment-note{margin:18px 0 0;padding:12px 14px;border-left:4px solid var(--rider-lime,#d4ff57);border-radius:0 12px 12px 0;background:#18231d;color:#e5f5d7;font-size:13px;font-weight:700;line-height:1.35}
