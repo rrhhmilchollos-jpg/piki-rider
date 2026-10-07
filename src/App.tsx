@@ -40,6 +40,7 @@ import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./componen
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
+  playRiderShiftStart,
   primeRiderOrderAudio,
   type RiderAlertAudioContext,
 } from "./orderAlert";
@@ -803,17 +804,8 @@ function App() {
       }));
       setShowOperations(false);
       if (!shiftActive) {
-        const audio = primeRiderOrderAudio(audioContextRef);
-        if (audio) {
-          const oscillator = audio.createOscillator();
-          const gain = audio.createGain();
-          oscillator.frequency.value = 880;
-          gain.gain.value = 0.12;
-          oscillator.connect(gain);
-          gain.connect(audio.destination);
-          oscillator.start();
-          oscillator.stop(audio.currentTime + 0.45);
-        }
+        primeRiderOrderAudio(audioContextRef);
+        playRiderShiftStart();
       }
       setToast("Jornada iniciada. Se cerrará automáticamente al finalizar el slot.");
       await loadRiderData();

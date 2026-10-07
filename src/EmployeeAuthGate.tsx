@@ -27,14 +27,14 @@ export default function EmployeeAuthGate({ apiOrigin, onAuthenticated }: Props) 
         if (!response.ok) throw new Error(data.message || data.error || "No se pudo iniciar sesión");
         storeEmail(normalizedEmail); setToken(data.accessToken);
         if (data.requiresPasswordChange) setMode("change"); else {
-          playPikiUiSound("/sounds/rider-login.mp3");
+          playPikiUiSound("/sounds/piki-alert-15s.mp3");
           onAuthenticated(data.accessToken);
         }
       } else {
         const response = await fetch(`${apiOrigin}/api/v1/auth/employee/change-password`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-PIKI-Surface": "rider" }, body: JSON.stringify({ currentPassword, newPassword: password }) });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || data.error || "No se pudo cambiar la contraseña");
-        playPikiUiSound("/sounds/rider-login.mp3");
+        playPikiUiSound("/sounds/piki-alert-15s.mp3");
         onAuthenticated(token);
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No se pudo completar el acceso"); }

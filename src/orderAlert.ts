@@ -59,7 +59,7 @@ export function primeRiderOrderAudio(
 }
 
 export function playRiderShiftStart(): boolean {
-  return playAsset("ui-shift-start.mp3");
+  return playAsset("piki-alert-15s.mp3");
 }
 
 export function playRiderOrderCancelled(): boolean {
@@ -71,7 +71,7 @@ export function playRiderOrderAlert(
   audioContextRef: { current: RiderAlertAudioContext | null },
   environment: RiderAlertEnvironment = browserEnvironment(),
 ): { soundScheduled: boolean; vibrationRequested: boolean } {
-  const assetPlayed = playAsset("ui-order-assigned.mp3");
+  const assetPlayed = playAsset("piki-alert-15s.mp3");
   let soundScheduled = assetPlayed;
   const audio = assetPlayed ? null : primeRiderOrderAudio(audioContextRef, environment);
 
