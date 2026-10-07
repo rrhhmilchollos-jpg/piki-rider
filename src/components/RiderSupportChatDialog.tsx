@@ -22,6 +22,7 @@ type Props = {
   draft: string;
   onDraftChange: (value: string) => void;
   onSend: (event: FormEvent<HTMLFormElement>) => void;
+  canSend: boolean;
   busy: boolean;
   error: string;
 };
@@ -46,6 +47,7 @@ export default function RiderSupportChatDialog({
   draft,
   onDraftChange,
   onSend,
+  canSend,
   busy,
   error,
 }: Props) {
@@ -128,7 +130,7 @@ export default function RiderSupportChatDialog({
         {error && <p className="support-chat-window-error" role="alert">{error}</p>}
         {closed ? (
           <div className="support-chat-closed-note">Este caso está cerrado. Puedes consultar aquí el historial de la conversación.</div>
-        ) : (
+        ) : canSend ? (
           <form className="support-chat-window-compose" onSubmit={onSend}>
             <input
               aria-label="Escribe un mensaje a Soporte PIKI"
@@ -142,6 +144,8 @@ export default function RiderSupportChatDialog({
               {busy ? <span className="support-chat-send-spinner" aria-hidden="true" /> : <ArrowUpRight size={21} />}
             </button>
           </form>
+        ) : (
+          <div className="support-chat-closed-note" role="status">El chat de este caso solo admite mensajes mientras su pedido siga activo y asignado a tu cuenta. Puedes consultar aquí el historial.</div>
         )}
       </section>
     </div>

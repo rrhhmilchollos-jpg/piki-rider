@@ -346,6 +346,7 @@ function App() {
   const [supportFormBusy, setSupportFormBusy] = useState(false);
   const [supportFormMessage, setSupportFormMessage] = useState("");
   const [supportTicketId, setSupportTicketId] = useState("");
+  const [supportTicketOrderId, setSupportTicketOrderId] = useState("");
   const [supportTicketNumber, setSupportTicketNumber] = useState("");
   const [supportTicketStatus, setSupportTicketStatus] = useState("");
   const [supportAgentName, setSupportAgentName] = useState("");
@@ -365,7 +366,8 @@ function App() {
   const riderRefreshInFlightRef = useRef(false);
   const riderRefreshQueuedRef = useRef(false);
   const loadRiderDataRef = useRef<() => void>(() => undefined);
-  const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+  const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned" && !["delivered", "cancelled"].includes(offer.status)))[0];
+  const supportChatCanSend = Boolean(activeOrder && supportTicketOrderId && String(activeOrder._id) === supportTicketOrderId);
 
   const playAssignmentAlert = useCallback(() => {
     playRiderOrderAlert(audioContextRef);
@@ -1045,15 +1047,17 @@ function App() {
   async function submitSupportTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!apiToken || !riderId || !supportForm.subject.trim() || !supportForm.description.trim()) return;
+    if (!activeOrder) { setSupportFormMessage("Solo puedes abrir una incidencia mientras estés online y tengas un pedido activo asignado."); return; }
     setSupportFormBusy(true); setSupportFormMessage(""); setSupportChatError("");
     try {
-      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ subject: supportForm.subject.trim(), description: supportForm.description.trim(), priority: supportForm.priority, orderId: activeOrder?._id }) });
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ subject: supportForm.subject.trim(), description: supportForm.description.trim(), priority: supportForm.priority, orderId: activeOrder._id }) });
       const data = await response.json().catch(() => ({})) as { message?: string; error?: string; ticket?: { id?: string; ticketNumber?: string; status?: string; messages?: RiderSupportChatMessage[] } };
       if (!response.ok) throw new Error(data.message || data.error || "No se pudo enviar la incidencia.");
       const ticketId = String(data.ticket?.id || "");
       if (!ticketId) throw new Error("Soporte no devolvió el identificador del caso.");
       setSupportForm({ subject: "", description: "", priority: "high" });
       setSupportTicketId(ticketId);
+      setSupportTicketOrderId(activeOrder._id);
       setSupportTicketNumber(data.ticket?.ticketNumber || "");
       setSupportTicketStatus(data.ticket?.status || "open");
       setSupportAgentName("");
@@ -1071,6 +1075,7 @@ function App() {
       const data = await response.json() as { tickets?: Array<{ _id: string; ticketNumber?: string; status?: string; orderId?: string | null; assignedTo?: { name?: string } | null; messages?: RiderSupportChatMessage[]; agentTypingAt?: string | null }> };
       const ticket = (data.tickets || []).find((item) => String(item._id) === supportTicketId);
       if (ticket) {
+        setSupportTicketOrderId(String(ticket.orderId || ""));
         setSupportTicketNumber(ticket.ticketNumber || "");
         setSupportTicketStatus(ticket.status || "open");
         setSupportAgentName(ticket.assignedTo?.name || ticket.messages?.find((message) => message.senderRole === "support")?.senderName || "");
@@ -1082,17 +1087,17 @@ function App() {
   }, [apiToken, riderId, supportTicketId]);
   useEffect(() => {
     if (!apiToken || !riderId || supportTicketId) return;
-    void (async () => { try { const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { headers: { ...authHeaders(apiToken), "X-PIKI-Surface": "rider" } }); if (!response.ok) return; const data = await response.json() as { tickets?: Array<{ _id: string; ticketNumber?: string; status?: string; orderId?: string | null }> }; const openTicket = (data.tickets || []).find((item) => !["closed", "resolved"].includes(item.status || "")); if (openTicket) { setSupportTicketId(String(openTicket._id)); setSupportTicketNumber(openTicket.ticketNumber || ""); setSupportTicketStatus(openTicket.status || "open"); setSupportChatOrderLabel(openTicket.orderId ? "Incidencia vinculada a un pedido" : "Consulta de soporte"); } } catch { /* sin conexión, se reintentará al abrir o enviar una incidencia */ } })();
+    void (async () => { try { const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { headers: { ...authHeaders(apiToken), "X-PIKI-Surface": "rider" } }); if (!response.ok) return; const data = await response.json() as { tickets?: Array<{ _id: string; ticketNumber?: string; status?: string; orderId?: string | null }> }; const openTicket = (data.tickets || []).find((item) => !["closed", "resolved"].includes(item.status || "")); if (openTicket) { setSupportTicketId(String(openTicket._id)); setSupportTicketOrderId(String(openTicket.orderId || "")); setSupportTicketNumber(openTicket.ticketNumber || ""); setSupportTicketStatus(openTicket.status || "open"); setSupportChatOrderLabel(openTicket.orderId ? "Incidencia vinculada a un pedido" : "Consulta de soporte"); } } catch { /* sin conexión, se reintentará al abrir o enviar una incidencia */ } })();
   }, [apiToken, riderId, supportTicketId]);
   useEffect(() => { if (!supportTicketId || !supportChatOpen) return; void refreshSupportChat(); const timer = window.setInterval(() => void refreshSupportChat(), 2000); return () => window.clearInterval(timer); }, [supportTicketId, supportChatOpen, refreshSupportChat]);
   useEffect(() => {
-    if (!supportChatOpen || !apiToken || !riderId || !supportTicketId || !supportChatDraft.trim() || ["closed", "resolved"].includes(supportTicketStatus)) return;
+    if (!supportChatOpen || !apiToken || !riderId || !supportTicketId || !supportChatCanSend || !supportChatDraft.trim() || ["closed", "resolved"].includes(supportTicketStatus)) return;
     const ping = () => void fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets/${supportTicketId}/typing`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ active: true }) }).catch(() => undefined);
     ping(); const timer = window.setInterval(ping, 1500);
     return () => { window.clearInterval(timer); void fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets/${supportTicketId}/typing`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ active: false }) }).catch(() => undefined); };
-  }, [supportChatOpen, apiToken, riderId, supportTicketId, supportChatDraft, supportTicketStatus]);
+  }, [supportChatOpen, apiToken, riderId, supportTicketId, supportTicketOrderId, supportChatCanSend, supportChatDraft, supportTicketStatus]);
   async function sendSupportChatMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const body = supportChatDraft.trim(); if (!body || !apiToken || !riderId || !supportTicketId || supportChatBusy) return; setSupportChatBusy(true); setSupportChatError("");
+    event.preventDefault(); const body = supportChatDraft.trim(); if (!body || !apiToken || !riderId || !supportTicketId || supportChatBusy) return; if (!supportChatCanSend) { setSupportChatError("Solo puedes enviar mensajes de asistencia si el pedido vinculado sigue asignado y activo."); return; } setSupportChatBusy(true); setSupportChatError("");
     try { const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets/${supportTicketId}/messages`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ body }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.message || data.error || "El chat está cerrado."); setSupportChatDraft(""); if (data.ticket?.messages) setSupportChatMessages(data.ticket.messages); } catch (error) { setSupportChatError(error instanceof Error ? error.message : "No se pudo enviar el mensaje."); } finally { setSupportChatBusy(false); }
   }
   function supportAction(label: string) {
@@ -1104,11 +1109,9 @@ function App() {
       setToast("Inicia sesión como Rider para enviar una incidencia a Soporte PIKI.");
       return;
     }
-    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+    if (!activeOrder) { setToast("Para solicitar asistencia sobre un pedido debes estar online y tener un pedido activo asignado."); return; }
     const priority = topic === "safety" ? "urgent" : topic === "order" ? "high" : "normal";
-    const orderContext = activeOrder
-      ? `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`
-      : "No hay un pedido activo vinculado en este momento.";
+    const orderContext = `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`;
     try {
       const ticket = await createRiderSupportTicket({
         token: apiToken,
@@ -1116,9 +1119,10 @@ function App() {
         subject: `${topic === "order" ? "Pedido" : "Soporte Rider"}: ${option}`,
         description: `Incidencia seleccionada desde la app Rider: ${option}.\n\nContexto automático: ${orderContext}`,
         priority,
-        orderId: activeOrder?._id,
+        orderId: activeOrder._id,
       });
       setSupportTicketId(ticket.id);
+      setSupportTicketOrderId(activeOrder._id);
       setSupportTicketNumber(ticket.ticketNumber || "");
       setSupportTicketStatus(ticket.status || "open");
       setSupportAgentName("");
@@ -1975,18 +1979,20 @@ function App() {
                         <button type="button" className="primary-button" onClick={() => { setSupportChatError(""); setSupportChatOpen(true); }}>
                           {supportTicketStatus === "closed" || supportTicketStatus === "resolved" ? "Ver conversación" : "Abrir chat"}
                         </button>
-                        {(supportTicketStatus === "closed" || supportTicketStatus === "resolved") && (
-                          <button type="button" className="secondary-button" onClick={() => { setSupportTicketId(""); setSupportTicketNumber(""); setSupportTicketStatus(""); setSupportAgentName(""); setSupportChatMessages([]); setSupportChatDraft(""); setSupportChatOrderLabel(""); setSupportChatError(""); setSupportFormMessage(""); }}>
+                        {activeOrder && ((supportTicketStatus === "closed" || supportTicketStatus === "resolved") || !supportChatCanSend) && (
+                          <button type="button" className="secondary-button" onClick={() => { setSupportTicketId(""); setSupportTicketOrderId(""); setSupportTicketNumber(""); setSupportTicketStatus(""); setSupportAgentName(""); setSupportChatMessages([]); setSupportChatDraft(""); setSupportChatOrderLabel(""); setSupportChatError(""); setSupportFormMessage(""); }}>
                             Nueva incidencia
                           </button>
                         )}
                       </div>
                     </section>
-                  ) : (
+                  ) : activeOrder ? (
                     <form className="support-ticket-form" onSubmit={submitSupportTicket}>
-                      <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general o seleccionar un pedido activo para adjuntar todo su contexto."}</p></div>
+                      <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>Se adjuntará el pedido activo asignado: {activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}.</p></div>
                       <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div><button className="primary-button" disabled={supportFormBusy}>{supportFormBusy ? "Enviando…" : "Enviar incidencia vinculada al pedido"}</button>{supportFormMessage && <p className="support-form-message" role="alert">{supportFormMessage}</p>}
                     </form>
+                  ) : (
+                    <div className="support-ticket-form support-order-required" role="status"><div><span>ASISTENCIA DE PEDIDOS</span><h2>Solo con un pedido en curso</h2><p>Para abrir una incidencia debes estar online y tener un pedido activo asignado. Puedes consultar las preguntas frecuentes mientras tanto.</p></div></div>
                   )}
                   <RiderSupportChatDialog
                     open={supportChatOpen && Boolean(supportTicketId)}
@@ -2000,6 +2006,7 @@ function App() {
                     draft={supportChatDraft}
                     onDraftChange={setSupportChatDraft}
                     onSend={sendSupportChatMessage}
+                    canSend={supportChatCanSend}
                     busy={supportChatBusy}
                     error={supportChatError}
                   />
