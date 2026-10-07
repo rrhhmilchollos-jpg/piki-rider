@@ -1968,18 +1968,11 @@ function App() {
                       nativeTracking={nativeTracking}
                       onError={handleApiError}
                     />
-                    <div className={`rider-home-status ${shiftActive ? "is-online" : "is-offline"}`} aria-live="polite">
-                      <span>Estado del Rider</span>
-                      <strong>{shiftActive ? "En línea" : "Offline"}</strong>
-                      <i aria-hidden="true" />
-                    </div>
-                    <button className="rider-home-menu" type="button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={22} /></button>
-                    <button className="rider-home-help" type="button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={21} /></button>
                   </div>
                   <div className="rider-home-control">
                     <div>
                       <p className="rider-home-eyebrow">JORNADA DE REPARTO</p>
-                      <h1>{shiftActive ? "Estás en línea" : "Estás offline"}</h1>
+                      <h1>{shiftActive ? "Estás en línea" : "No estás disponible"}</h1>
                       <p>{shiftActive ? "Tu ubicación está activa y recibirás ofertas en tu zona." : "Activa tu jornada para aparecer disponible y recibir repartos."}</p>
                     </div>
                     {!shiftActive && <button
@@ -1988,7 +1981,7 @@ function App() {
                       disabled={shiftBusy || !currentShift.eligible}
                       onClick={() => void toggleShift()}
                     >
-                      {shiftBusy ? "Comprobando…" : currentShift.eligible ? "Ponerse en línea" : "Fuera de horario"}
+                      {shiftBusy ? "Comprobando…" : currentShift.eligible ? "Iniciar jornada" : "Fuera de horario"}
                     </button>}
                     <div className="rider-home-meta"><span><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "Disponible hasta el fin del slot" : "No disponible para asignaciones"}</span><button type="button" onClick={() => showSection("Horarios")}>Ver horarios</button></div>
                   </div>
