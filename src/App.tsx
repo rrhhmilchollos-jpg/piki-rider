@@ -1357,10 +1357,10 @@ function App() {
             <section className="application-layout">
               <div className="page-heading">
                 <div>
-                  <p className="eyebrow">PIKI · FLEET</p>
-                  <h1>Únete a la red de riders.</h1>
+                  <p className="eyebrow">PIKI · RIDER</p>
+                  <h1>Solicita tu alta como Rider.</h1>
                   <p className="lead">
-                    Solicita tu alta en PIKI. El equipo Fleet revisará tus
+                    Solicita tu alta en PIKI. El equipo de Operaciones revisará tus
                     datos, vehículo y disponibilidad antes de activar tu cuenta.
                   </p>
                 </div>
@@ -1375,7 +1375,7 @@ function App() {
                   </p>
                   <div className="process-line" />
                   <span className="step-number muted-step">02</span>
-                  <h2>Revisión Fleet</h2>
+                  <h2>Revisión de Operaciones</h2>
                   <p>
                     Un responsable de zona revisa tu solicitud y agenda la
                     activación.
@@ -1547,7 +1547,7 @@ function App() {
                   )}
                   {applicationStatus === "sent" && (
                     <p className="form-success">
-                      Solicitud recibida. El equipo Fleet se pondrá en contacto
+                      Solicitud recibida. El equipo de Operaciones se pondrá en contacto
                       contigo.
                     </p>
                   )}
