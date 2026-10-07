@@ -35,6 +35,7 @@ import EmployeeAuthGate from "./EmployeeAuthGate";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
 import LocationPermissionGate from "./components/LocationPermissionGate";
+import LiveGoogleMap from "./components/LiveGoogleMap";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
 import { connectPikiRealtime } from "./realtime";
 import {
@@ -46,11 +47,8 @@ import {
   acceptRiderOffer,
   createRiderSupportTicket,
   loadMobilityAdvice,
-  loadRiderOrderMessages,
-  sendRiderOrderMessage,
   startTrackingSession,
   stopTrackingSession,
-  type RiderOrderMessage,
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 import { orderRiderQueue } from "./orderQueue";
@@ -262,24 +260,6 @@ const whatsappNumber = String(
 const manychatWhatsAppUrl = String(
   import.meta.env.VITE_MANYCHAT_WHATSAPP_URL ?? "",
 );
-function madridParts(timestamp: number) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).formatToParts(new Date(timestamp));
-  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-}
-function shiftCountdown(now: { date: string; time: string }, shift?: Shift | null) {
-  if (!shift?.date || !shift.start) return null;
-  const [year, month, day] = now.date.split("-").map(Number);
-  const [targetYear, targetMonth, targetDay] = shift.date.split("-").map(Number);
-  const [nowHour, nowMinute] = now.time.split(":").map(Number);
-  const [startHour, startMinute] = shift.start.split(":").map(Number);
-  const dayDelta = (Date.UTC(targetYear, targetMonth - 1, targetDay) - Date.UTC(year, month - 1, day)) / 86_400_000;
-  const minutes = dayDelta * 1440 + startHour * 60 + startMinute - (nowHour * 60 + nowMinute);
-  if (minutes <= 0) return "Empieza ahora";
-  if (minutes < 60) return `Empezará en menos de ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remaining = minutes % 60;
-  return `Empezará en ${hours} h${remaining ? ` ${remaining} min` : ""}`;
-}
 function normalizeRiderShift(raw: Record<string, unknown>): Shift {
   const date = String(raw.date || "");
   const weekday = date
@@ -314,8 +294,6 @@ function App() {
   const [currentShift, setCurrentShift] = useState<CurrentShift>({
     eligible: false,
   });
-  const [serverClockAnchor, setServerClockAnchor] = useState<{ serverMs: number; clientMs: number } | null>(null);
-  const [clockTick, setClockTick] = useState(0);
   const [toast, setToast] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({
@@ -336,9 +314,6 @@ function App() {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [orderActionBusy, setOrderActionBusy] = useState(false);
-  const [orderMessages, setOrderMessages] = useState<RiderOrderMessage[]>([]);
-  const [messageDraft, setMessageDraft] = useState("");
-  const [messageBusy, setMessageBusy] = useState(false);
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const [supportForm, setSupportForm] = useState({ subject: "", description: "", priority: "high" });
@@ -415,8 +390,6 @@ function App() {
       if (shiftResponse.ok) {
         const data = (await shiftResponse.json()) as CurrentShift & { shift?: Record<string, unknown> | null };
         setCurrentShift({ ...data, shift: data.shift ? normalizeRiderShift(data.shift) : null });
-        const serverIso = data.serverClock?.iso || data.now?.iso;
-        if (serverIso) setServerClockAnchor({ serverMs: Date.parse(serverIso), clientMs: Date.now() });
         setShiftActive(data.shift?.status === "active");
       }
       if (statsResponse.ok) {
@@ -444,18 +417,6 @@ function App() {
   useEffect(() => {
     loadRiderDataRef.current = () => { void loadRiderData(); };
   }, [loadRiderData]);
-  useEffect(() => {
-    const timer = window.setInterval(() => setClockTick((value) => value + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const authoritativeNow = useMemo(() => {
-    void clockTick;
-    const timestamp = serverClockAnchor ? serverClockAnchor.serverMs + (Date.now() - serverClockAnchor.clientMs) : Date.now();
-    const parts = madridParts(timestamp);
-    return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
-  }, [clockTick, serverClockAnchor]);
-  const reservedShiftCountdown = shiftCountdown(authoritativeNow, currentShift.shift);
-
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadRiderData();
@@ -606,54 +567,6 @@ function App() {
       },
     });
   }, [apiOrigin, apiToken, riderId, loadRiderData, playAssignmentAlert]);
-  useEffect(() => {
-    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
-    if (!apiToken || !riderId || !activeOrder) {
-      // oxlint-disable-next-line react/set-state-in-effect
-      setOrderMessages([]);
-      return;
-    }
-    let disposed = false;
-    const pollMessages = async () => {
-      try {
-        const messages = await loadRiderOrderMessages(
-          apiToken,
-          riderId,
-          activeOrder._id,
-        );
-        if (!disposed) setOrderMessages(messages);
-      } catch {
-        /* el pedido puede cerrarse mientras se actualiza */
-      }
-    };
-    void pollMessages();
-    const timer = window.setInterval(pollMessages, 4000);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, [apiToken, riderId, offers]);
-  async function submitOrderMessage(event: FormEvent) {
-    event.preventDefault();
-    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
-    const body = messageDraft.trim();
-    if (!apiToken || !riderId || !activeOrder || !body || messageBusy) return;
-    setMessageBusy(true);
-    try {
-      const message = await sendRiderOrderMessage(
-        apiToken,
-        riderId,
-        activeOrder._id,
-        body,
-      );
-      setOrderMessages((previous) => [...previous, message]);
-      setMessageDraft("");
-    } catch {
-      setToast("No se pudo enviar el mensaje. Revisa la conexión.");
-    } finally {
-      setMessageBusy(false);
-    }
-  }
   useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
@@ -2017,147 +1930,6 @@ function App() {
                   </div>
                 </section>
               )}
-              {section === "Inicio" && (
-                <section className="feature-section current-order-panel">
-                  <FeatureHeading
-                    eyebrow="PIKI · PEDIDO ACTIVO"
-                    title={
-                      offers.some(
-                        (offer) => offer.assignmentState === "assigned",
-                      )
-                        ? "Tu pedido en curso"
-                        : "No tienes ningún pedido en curso"
-                    }
-                    lead="La información del reparto actual aparece siempre aquí arriba."
-                    icon={<ClipboardList />}
-                  />
-                  {(() => {
-                    const order = offers.find(
-                      (offer) => offer.assignmentState === "assigned",
-                    );
-                    if (!order)
-                      return (
-                        <div className="empty-card">
-                          <p className="empty-copy">
-                            Activa tu jornada para recibir repartos asignados.
-                          </p>
-                        </div>
-                      );
-                    const phaseLabels: Record<string, string> = {
-                      going_to_restaurant: "Yendo al restaurante",
-                      waiting_for_food: "Esperando comida",
-                      going_to_customer: "Yendo al cliente",
-                      assigned: "Pedido aceptado",
-                    };
-                    const vehicleLabels: Record<string, string> = {
-                      bike: "Bicicleta",
-                      electric_bike: "Bicicleta eléctrica",
-                      electric_scooter: "Patinete eléctrico",
-                      motorcycle: "Moto",
-                      scooter: "Moto",
-                      car: "Coche",
-                    };
-                    return (
-                      <>
-                        <article className="current-order-card">
-                          <div className="current-order-code">
-                            #
-                            {order.displayCode ||
-                              order.publicCode ||
-                              order._id.slice(-3)}
-                          </div>
-                          <div className="current-order-main">
-                            <strong>
-                              {phaseLabels[order.phase || "assigned"] ||
-                                "Pedido aceptado"}
-                            </strong>
-                            <span>
-                              {vehicleLabels[order.vehicle || ""] ||
-                                "Vehículo asignado"}
-                            </span>
-                            <p>
-                              {order.status === "ready_for_pickup" ||
-                              order.status === "preparing"
-                                ? order.restaurant?.name ||
-                                  "Establecimiento PIKI"
-                                : order.customerName || "Cliente"}
-                            </p>
-                            <p>
-                              {order.status === "ready_for_pickup" ||
-                              order.status === "preparing"
-                                ? order.restaurant?.address ||
-                                  "Dirección del establecimiento protegida"
-                                : order.deliveryAddress ||
-                                  "Dirección del cliente"}
-                            </p>
-                          </div>
-                          <div className="current-order-eta">
-                            <Clock3 size={17} />
-                            <strong>
-                              {order.etaMinutes == null
-                                ? "—"
-                                : `${order.etaMinutes} min`}
-                            </strong>
-                            <span>tiempo estimado</span>
-                          </div>
-                        </article>
-                        <section className="order-chat-card">
-                          <div>
-                            <span className="eyebrow">CHAT DEL PEDIDO</span>
-                            <h2>Comunicación con el cliente</h2>
-                            <p>
-                              Usa este canal para coordinar la entrega. No
-                              muestra el teléfono del cliente.
-                            </p>
-                          </div>
-                          <div className="order-chat-messages">
-                            {orderMessages.length ? (
-                              orderMessages.map((message) => (
-                                <div
-                                  className={`order-chat-message ${message.senderRole === "rider" ? "from-rider" : "from-customer"}`}
-                                  key={message._id}
-                                >
-                                  <span>
-                                    {message.senderRole === "rider"
-                                      ? "Tú"
-                                      : "Cliente"}
-                                  </span>
-                                  <p>{message.body}</p>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="empty-copy">
-                                Aún no hay mensajes en este pedido.
-                              </p>
-                            )}
-                          </div>
-                          <form
-                            className="order-chat-form"
-                            onSubmit={submitOrderMessage}
-                          >
-                            <input
-                              value={messageDraft}
-                              onChange={(event) =>
-                                setMessageDraft(event.target.value)
-                              }
-                              maxLength={500}
-                              placeholder="Escribe un mensaje al cliente…"
-                              aria-label="Mensaje al cliente"
-                            />
-                            <button
-                              className="primary-button"
-                              disabled={messageBusy || !messageDraft.trim()}
-                            >
-                              {messageBusy ? "Enviando…" : "Enviar"}
-                              <MessageCircle size={16} />
-                            </button>
-                          </form>
-                        </section>
-                      </>
-                    );
-                  })()}
-                </section>
-              )}
               {![
                 "Ofertas",
                 "Entregas",
@@ -2168,48 +1940,40 @@ function App() {
                 "Mapa",
                 "Soporte",
               ].includes(section) && (
-                <>
-                  <div className="page-heading">
+                <section className="rider-home-map" aria-label="Mapa y estado de jornada">
+                  <div className="rider-home-map-canvas">
+                    <LiveGoogleMap
+                      token={apiToken}
+                      riderId={riderId}
+                      active={shiftActive}
+                      nativeTracking={nativeTracking}
+                      onError={handleApiError}
+                    />
+                    <div className={`rider-home-status ${shiftActive ? "is-online" : "is-offline"}`} aria-live="polite">
+                      <span>Estado del Rider</span>
+                      <strong>{shiftActive ? "En línea" : "Offline"}</strong>
+                      <i aria-hidden="true" />
+                    </div>
+                    <button className="rider-home-menu" type="button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={22} /></button>
+                    <button className="rider-home-help" type="button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={21} /></button>
+                  </div>
+                  <div className="rider-home-control">
                     <div>
-                      <p className="eyebrow">PIKI · RIDERS</p>
-                      <p className="brand-vibe">Tu turno, tu ritmo, tu ciudad.</p>
-                      <h1>
-                        {section === "Inicio"
-                          ? "Cada entrega, clara desde el primer metro."
-                          : section}
-                      </h1>
-                      <p className="lead">
-                        Base operativa conectada a producción. Activa tu
-                        jornada, consulta horarios y recibe ofertas en tu zona.
-                      </p>
+                      <p className="rider-home-eyebrow">JORNADA DE REPARTO</p>
+                      <h1>{shiftActive ? "Estás en línea" : "Estás offline"}</h1>
+                      <p>{shiftActive ? "Tu ubicación está activa y recibirás ofertas en tu zona." : "Activa tu jornada para aparecer disponible y recibir repartos."}</p>
                     </div>
                     <button
-                      className="secondary-button"
-                      onClick={() => {
-                        setStatus("checking");
-                        void loadRiderData();
-                      }}
+                      className={`rider-home-toggle ${shiftActive ? "is-online" : ""}`}
+                      type="button"
+                      disabled={shiftBusy || (!shiftActive && !currentShift.eligible)}
+                      onClick={() => void toggleShift()}
                     >
-                      <Activity
-                        size={17}
-                        className={status === "checking" ? "spin" : ""}
-                      />
-                      Actualizar
+                      {shiftBusy ? "Comprobando…" : shiftActive ? "Pasar a offline" : currentShift.eligible ? "Ponerse en línea" : "Sin jornada asignada"}
                     </button>
+                    <div className="rider-home-meta"><span><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "Disponible para recibir pedidos" : "No disponible para asignaciones"}</span><button type="button" onClick={() => showSection("Horarios")}>Ver horarios</button></div>
                   </div>
-                  <section className="rider-session-preview rider-session-preview-no-map" aria-label="Inicio de jornada Rider">
-                    <div className="rider-session-sheet">
-                      <div className="rider-session-heading"><div><span>SESIÓN RESERVADA</span><h2>{reservedShiftCountdown || "Consulta tu próximo turno"}</h2></div><button type="button" onClick={() => showSection("Horarios")}>Ver todo</button></div>
-                      {currentShift.shift ? <div className="rider-reserved-card">
-                        <strong>{currentShift.shift.start} – {currentShift.shift.end}</strong>
-                        <span><MapPinned size={18} /> {currentShift.shift.zone || "Zona asignada"}</span>
-                        <div><b>1.00 x</b><button type="button" onClick={() => showSection("Horarios")}><CalendarDays size={19} /> Calendario</button></div>
-                      </div> : <div className="rider-reserved-empty">No tienes una sesión reservada para este momento. Fleet debe asignarte fecha, horario y zona.</div>}
-                      {currentShift.eligible && currentShift.shift && <button className="rider-session-start" type="button" disabled={shiftBusy} onClick={() => void toggleShift()}>{shiftBusy ? "Comprobando…" : "Empezar sesión"}</button>}
-                      <small className="rider-server-clock">Hora oficial PIKI · {authoritativeNow.date} {authoritativeNow.time} · Europe/Madrid</small>
-                    </div>
-                  </section>
-                </>
+                </section>
               )}
             </>
           )}

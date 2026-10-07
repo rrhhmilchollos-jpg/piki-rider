@@ -1,4 +1,4 @@
-const BUILD_ID = "2c8f8d2af4d4";
+const BUILD_ID = "98f0569d8164";
 const CACHE_PREFIX = "piki-rider-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const APP_SHELL = ["/","/manifest.json","/piki-mascot-192.png","/piki-mascot-512.png"];
