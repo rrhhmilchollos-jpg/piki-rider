@@ -2197,19 +2197,7 @@ function App() {
                       Actualizar
                     </button>
                   </div>
-                  <section className="rider-session-preview" aria-label="Inicio de jornada Rider">
-                    <div className="rider-session-map">
-                      <div className="rider-map-road road-one" />
-                      <div className="rider-map-road road-two" />
-                      <div className="rider-map-road road-three" />
-                      <span className="rider-map-town town-one">Xàtiva</span>
-                      <span className="rider-map-town town-two">Canals</span>
-                      <span className="rider-map-town town-three">Sellent</span>
-                      <span className="rider-location-dot" aria-label="Ubicación actual" />
-                      <div className="rider-session-status"><span>Estado</span><strong>{shiftActive ? "En línea" : "Fuera de línea"}</strong><i /></div>
-                      <button className="rider-session-menu" type="button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={25} /></button>
-                      <button className="rider-session-help" type="button" onClick={() => showSection("Soporte")} aria-label="Abrir soporte"><Headphones size={24} /></button>
-                    </div>
+                  <section className="rider-session-preview rider-session-preview-no-map" aria-label="Inicio de jornada Rider">
                     <div className="rider-session-sheet">
                       <div className="rider-session-heading"><div><span>SESIÓN RESERVADA</span><h2>{reservedShiftCountdown || "Consulta tu próximo turno"}</h2></div><button type="button" onClick={() => showSection("Horarios")}>Ver todo</button></div>
                       {currentShift.shift ? <div className="rider-reserved-card">
