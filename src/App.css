@@ -443,3 +443,96 @@ button, a, input, select, textarea { touch-action: manipulation; }
 .rider-home-control{display:flex;flex-direction:column;justify-content:center;gap:22px;padding:38px;background:#fff}.rider-home-eyebrow{margin:0;color:var(--piki-coral);font-size:10px;font-weight:900;letter-spacing:.16em}.rider-home-control h1{margin:8px 0 0;color:var(--piki-ink);font:700 34px/1.05 'Space Grotesk';letter-spacing:-.06em}.rider-home-control>div:first-child p:last-child{margin:12px 0 0;color:#687681;font-size:14px;line-height:1.55}.rider-home-toggle{width:100%;min-height:54px;border:0;border-radius:15px;background:var(--piki-lime);color:var(--piki-ink);box-shadow:0 6px 0 #c6df42;font-weight:900;cursor:pointer}.rider-home-toggle.is-online{background:#172c3b;color:#fff;box-shadow:0 6px 0 #0b1d2a}.rider-home-toggle:disabled{background:#e5e8df;color:#7b8492;box-shadow:none;cursor:not-allowed}.rider-home-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;color:#78858c;font-size:11px}.rider-home-meta span{display:flex;align-items:center;gap:7px}.rider-home-meta i{width:8px;height:8px;border-radius:50%;background:#8d9698}.rider-home-meta i.is-online{background:#53c990}.rider-home-meta button{border:0;background:none;color:#264e73;font-weight:800;cursor:pointer}
 @media(max-width:1000px){.rider-home-map{grid-template-columns:1fr}.rider-home-map-canvas{min-height:430px}.rider-home-map-canvas .rider-google-map-frame{min-height:430px}.rider-home-control{padding:28px}.rider-home-toggle{max-width:420px}}
 @media(max-width:580px){.rider-home-map{margin:0 -12px;border-radius:22px}.rider-home-map-canvas{min-height:390px}.rider-home-map-canvas .rider-google-map-frame{min-height:390px}.rider-home-status{top:16px;padding:9px 23px 10px}.rider-home-status strong{font-size:21px}.rider-home-menu,.rider-home-help{top:16px;width:46px;height:46px}.rider-home-menu{left:16px}.rider-home-help{right:16px}.rider-home-map-canvas .rider-map-status{left:14px;right:14px;bottom:14px}.rider-home-control{padding:24px 20px 28px}.rider-home-control h1{font-size:29px}.rider-home-meta{align-items:flex-start;flex-direction:column}}
+
+/* Inicio móvil: mapa a pantalla completa y acción principal en bottom sheet. */
+@media (max-width:580px) {
+  .home-page-content {
+    padding: 0 16px 0;
+  }
+  .home-page-content .rider-home-map {
+    position: relative;
+    display: block;
+    width: calc(100% + 32px);
+    min-height: calc(100dvh - 64px);
+    margin: 0 -16px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #e8eef3;
+  }
+  .home-page-content .rider-home-map-canvas {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+  }
+  .home-page-content .rider-home-map-canvas .rider-map-card {
+    position: absolute;
+    inset: 0;
+    display: block;
+    min-height: 0;
+    background: transparent;
+  }
+  .home-page-content .rider-home-map-canvas .rider-google-map-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border-radius: 0;
+  }
+  .home-page-content .rider-home-map-canvas .rider-map-status {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 218px;
+    z-index: 2;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: rgba(17, 24, 32, .88);
+    color: #fff;
+    font-size: 11px;
+    text-align: center;
+  }
+  .home-page-content .rider-home-map-canvas .rider-map-open {
+    position: absolute;
+    left: 16px;
+    bottom: 162px;
+    z-index: 3;
+    margin: 0;
+    border-radius: 13px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(11, 18, 32, .14);
+  }
+  .home-page-content .rider-home-control {
+    position: absolute;
+    z-index: 4;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    gap: 16px;
+    padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 26px 26px 0 0;
+    box-shadow: 0 -14px 35px rgba(11, 18, 32, .14);
+  }
+  .home-page-content .rider-home-control h1 {
+    margin-top: 6px;
+    font-size: 29px;
+    letter-spacing: -.05em;
+  }
+  .home-page-content .rider-home-control > div:first-child p:last-child {
+    margin-top: 9px;
+    font-size: 13px;
+  }
+  .home-page-content .rider-home-toggle {
+    max-width: none;
+    min-height: 56px;
+    border-radius: 16px;
+    font-size: 16px;
+  }
+  .home-page-content .rider-home-meta {
+    flex-direction: row;
+    align-items: center;
+    font-size: 11px;
+  }
+}

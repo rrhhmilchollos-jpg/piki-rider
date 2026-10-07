@@ -1267,7 +1267,7 @@ function App() {
             </div>
           </div>
         </header>
-        <section className="page-content">
+        <section className={`page-content ${section === "Inicio" ? "home-page-content" : ""}`}>
           {toast && (
             <div className="toast" role="status">
               <ShieldCheck size={17} />
@@ -1981,7 +1981,7 @@ function App() {
                       disabled={shiftBusy || !currentShift.eligible}
                       onClick={() => void toggleShift()}
                     >
-                      {shiftBusy ? "Comprobando…" : currentShift.eligible ? "Iniciar jornada" : "Fuera de horario"}
+                      {shiftBusy ? "Comprobando…" : currentShift.eligible ? "Empezar sesión" : "Fuera de horario"}
                     </button>}
                     <div className="rider-home-meta"><span><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "Disponible hasta el fin del slot" : "No disponible para asignaciones"}</span><button type="button" onClick={() => showSection("Horarios")}>Ver horarios</button></div>
                   </div>
