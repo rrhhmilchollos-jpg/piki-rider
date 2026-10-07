@@ -71,7 +71,7 @@ export function playRiderOrderAlert(
   audioContextRef: { current: RiderAlertAudioContext | null },
   environment: RiderAlertEnvironment = browserEnvironment(),
 ): { soundScheduled: boolean; vibrationRequested: boolean } {
-  const assetPlayed = playAsset("piki-alert-15s.mp3");
+  const assetPlayed = playAsset("piki-order-voice-15s.mp3");
   let soundScheduled = assetPlayed;
   const audio = assetPlayed ? null : primeRiderOrderAudio(audioContextRef, environment);
 
