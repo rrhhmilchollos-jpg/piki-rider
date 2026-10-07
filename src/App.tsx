@@ -568,6 +568,25 @@ function App() {
     });
   }, [apiOrigin, apiToken, riderId, loadRiderData, playAssignmentAlert]);
   useEffect(() => {
+    if (!apiToken || !riderId || !shiftActive) return;
+    let disposed = false;
+    const checkShift = async () => {
+      try {
+        const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift`, { headers: authHeaders(apiToken), cache: "no-store" });
+        if (!response.ok || disposed) return;
+        const data = await response.json() as CurrentShift & { shift?: Record<string, unknown> | null };
+        if (data.shift?.status === "active") return;
+        setCurrentShift({ ...data, shift: data.shift ? normalizeRiderShift(data.shift) : null });
+        setShiftActive(false);
+        setStartedShiftNotice(false);
+        setToast("Tu jornada ha finalizado automáticamente al terminar el slot.");
+      } catch { /* el siguiente ciclo vuelve a consultar el estado oficial */ }
+    };
+    void checkShift();
+    const timer = window.setInterval(() => void checkShift(), 15000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [apiOrigin, apiToken, riderId, shiftActive]);
+  useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
       return;
@@ -693,6 +712,10 @@ function App() {
     setOpen(false);
   }
   async function toggleShift() {
+    if (shiftActive) {
+      setToast("La jornada se cerrará automáticamente al finalizar tu slot.");
+      return;
+    }
     if (!riderId || shiftBusy) {
       if (!riderId)
         setToast("No hay una cuenta Rider vinculada a esta sesión.");
@@ -709,7 +732,7 @@ function App() {
       return;
     }
     setStartConsentOpen(false);
-    const endpoint = shiftActive ? "stop" : "start";
+    const endpoint = "start";
     setShiftBusy(true);
     try {
       if (!shiftActive) {
@@ -769,9 +792,9 @@ function App() {
         );
         return;
       }
-      const nowActive = endpoint === "start";
-      setShiftActive(nowActive);
-      setStartedShiftNotice(nowActive);
+      const nowActive = true;
+      setShiftActive(true);
+      setStartedShiftNotice(true);
       setCurrentShift((previous) => ({
         ...previous,
         eligible: !nowActive,
@@ -792,11 +815,7 @@ function App() {
           oscillator.stop(audio.currentTime + 0.45);
         }
       }
-      setToast(
-        nowActive
-          ? "Jornada iniciada. Aviso sonoro activado."
-          : "Jornada finalizada. Buen trabajo.",
-      );
+      setToast("Jornada iniciada. Se cerrará automáticamente al finalizar el slot.");
       await loadRiderData();
     } catch {
       setToast("No se pudo validar el turno con la API.");
@@ -1691,14 +1710,14 @@ function App() {
                             : "No hay un turno disponible en esta franja. Revisa los horarios o contacta con Fleet."}
                       </span>
                     </div>
-                    <button
+                    {!shiftActive && <button
                       className="primary-button rider-shift-start-button"
-                      disabled={shiftBusy}
+                      disabled={shiftBusy || !currentShift.eligible}
                       onClick={() => void toggleShift()}
                     >
                       <Power size={18} />
-                      {shiftActive ? "FINALIZAR JORNADA" : "INICIAR JORNADA"}
-                    </button>
+                      {shiftBusy ? "VALIDANDO…" : currentShift.eligible ? "INICIAR JORNADA" : "FUERA DE HORARIO"}
+                    </button>}
                   </div>
                 </section>
               )}
@@ -1963,15 +1982,15 @@ function App() {
                       <h1>{shiftActive ? "Estás en línea" : "Estás offline"}</h1>
                       <p>{shiftActive ? "Tu ubicación está activa y recibirás ofertas en tu zona." : "Activa tu jornada para aparecer disponible y recibir repartos."}</p>
                     </div>
-                    <button
-                      className={`rider-home-toggle ${shiftActive ? "is-online" : ""}`}
+                    {!shiftActive && <button
+                      className="rider-home-toggle"
                       type="button"
-                      disabled={shiftBusy || (!shiftActive && !currentShift.eligible)}
+                      disabled={shiftBusy || !currentShift.eligible}
                       onClick={() => void toggleShift()}
                     >
-                      {shiftBusy ? "Comprobando…" : shiftActive ? "Pasar a offline" : currentShift.eligible ? "Ponerse en línea" : "Sin jornada asignada"}
-                    </button>
-                    <div className="rider-home-meta"><span><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "Disponible para recibir pedidos" : "No disponible para asignaciones"}</span><button type="button" onClick={() => showSection("Horarios")}>Ver horarios</button></div>
+                      {shiftBusy ? "Comprobando…" : currentShift.eligible ? "Ponerse en línea" : "Fuera de horario"}
+                    </button>}
+                    <div className="rider-home-meta"><span><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "Disponible hasta el fin del slot" : "No disponible para asignaciones"}</span><button type="button" onClick={() => showSection("Horarios")}>Ver horarios</button></div>
                   </div>
                 </section>
               )}
