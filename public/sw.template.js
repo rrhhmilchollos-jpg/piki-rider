@@ -8,7 +8,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
-    await self.skipWaiting();
+    // Do not activate a new worker during an in-progress delivery or form. The
+    // app requests SKIP_WAITING only after the Rider explicitly chooses to apply it.
   })());
 });
 

@@ -30,6 +30,7 @@ import {
   Zap,
 } from "lucide-react";
 import "./App.css";
+import "./pwa-wallet-calendar.css";
 import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
@@ -65,6 +66,7 @@ import {
   stopNativeBackgroundTracking,
   supportsNativeBackgroundTracking,
 } from "./native/backgroundLocation";
+import { publishPwaOperationSafety } from "./pwaOperationSafety";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -285,6 +287,7 @@ function App() {
   const [apiToken, setApiToken] = useState(() => getStoredToken());
   const [applicationStatus, setApplicationStatus] =
     useState<ApplicationStatus>("idle");
+  const [formEditing, setFormEditing] = useState(false);
   const [error, setError] = useState("");
   const [shiftActive, setShiftActive] = useState(false);
   const [shiftBusy, setShiftBusy] = useState(false);
@@ -341,6 +344,36 @@ function App() {
   const riderRefreshQueuedRef = useRef(false);
   const loadRiderDataRef = useRef<() => void>(() => undefined);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+
+  useEffect(() => {
+    const updateFormEditing = () => {
+      const activeElement = document.activeElement;
+      setFormEditing(activeElement instanceof HTMLInputElement
+        || activeElement instanceof HTMLTextAreaElement
+        || activeElement instanceof HTMLSelectElement);
+    };
+    const deferFormEditingCheck = () => window.setTimeout(updateFormEditing, 0);
+    document.addEventListener("focusin", updateFormEditing);
+    document.addEventListener("focusout", deferFormEditingCheck);
+    return () => {
+      document.removeEventListener("focusin", updateFormEditing);
+      document.removeEventListener("focusout", deferFormEditingCheck);
+    };
+  }, []);
+
+  useEffect(() => {
+    publishPwaOperationSafety({
+      known: true,
+      active: Boolean(activeOrder)
+        || orderActionBusy
+        || shiftBusy
+        || supportFormBusy
+        || supportChatBusy
+        || applicationStatus === "sending"
+        || startConsentOpen
+        || formEditing,
+    });
+  }, [activeOrder, applicationStatus, formEditing, orderActionBusy, shiftBusy, startConsentOpen, supportChatBusy, supportFormBusy]);
 
   const playAssignmentAlert = useCallback(() => {
     playRiderOrderAlert(audioContextRef);
@@ -1718,9 +1751,16 @@ function App() {
                   <FeatureHeading
                     eyebrow="PIKI · CARTERA"
                     title="Tu dinero, siempre bajo control."
-                    lead="Consulta ingresos, incentivos, propinas y próximos pagos con trazabilidad."
+                    lead="Consulta los cobros en efectivo registrados y la información disponible de tu cartera."
                     icon={<WalletCards />}
                   />
+                  <aside className="wallet-payment-calendar" aria-label="Calendario planificado de pagos">
+                    <CalendarDays aria-hidden="true" />
+                    <div>
+                      <strong>Calendario planificado de pagos: días 1 y 15</strong>
+                      <p>La política prevista contempla revisiones quincenales. La fecha, el importe y el estado de cada liquidación solo se mostrarán cuando estén confirmados por el sistema.</p>
+                    </div>
+                  </aside>
                   <div className="wallet-card">
                     <div>
                       <span>Dinero en mano disponible</span>
