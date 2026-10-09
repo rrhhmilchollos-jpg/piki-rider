@@ -13,9 +13,9 @@ type InboxItem = {
 };
 
 type InboxResponse = { notifications?: InboxItem[]; unreadCount?: number };
-type Props = { apiOrigin: string; token: string; surface: "partner" | "fleet" | "admin" | "rider" };
+type Props = { apiOrigin: string; token: string; surface: "partner" | "fleet" | "admin" | "rider"; onUnreadChange?: (summary: { support: number; customer: number }) => void };
 
-export default function NotificationCenter({ apiOrigin, token, surface }: Props) {
+export default function NotificationCenter({ apiOrigin, token, surface, onUnreadChange }: Props) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<InboxItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -42,6 +42,14 @@ export default function NotificationCenter({ apiOrigin, token, surface }: Props)
       setLoading(false);
     }
   }, [apiOrigin, surface, token]);
+
+  useEffect(() => {
+    const unread = items.filter((item) => !item.readAt);
+    onUnreadChange?.({
+      support: unread.filter((item) => item.category === "support").length,
+      customer: unread.filter((item) => item.category === "message").length,
+    });
+  }, [items, onUnreadChange]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void load(), 0);

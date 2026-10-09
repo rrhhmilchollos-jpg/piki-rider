@@ -1,4 +1,4 @@
-const BUILD_ID = "45fa87e7ba6c";
+const BUILD_ID = "67b283ad883a";
 const CACHE_PREFIX = "piki-rider-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const APP_SHELL = ["/","/manifest.json","/piki-mascot-192.png","/piki-mascot-512.png"];
@@ -8,7 +8,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
-    await self.skipWaiting();
+    // Do not activate a new worker during an in-progress delivery or form. The
+    // app requests SKIP_WAITING only after the Rider explicitly chooses to apply it.
   })());
 });
 

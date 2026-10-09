@@ -116,3 +116,7 @@
 .active-shift-shell .slide-confirm.is-compact .slide-confirm-range::-moz-range-thumb{width:24px;height:24px}
 
 .active-shift-shell .active-assignment-note{margin:18px 0 0;padding:12px 14px;border-left:4px solid var(--rider-lime,#d4ff57);border-radius:0 12px 12px 0;background:#18231d;color:#e5f5d7;font-size:13px;font-weight:700;line-height:1.35}
+
+
+/* Insignia persistente para respuestas de Soporte y mensajes del cliente durante una jornada activa. */
+.active-help-message-button{position:absolute}.active-message-badge,.rider-message-badge{position:absolute;display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:#ef5c5c;color:#fff;font:800 10px/1 system-ui,sans-serif;box-shadow:0 0 0 3px #121212}.active-message-badge{right:-5px;top:-5px}.rider-support-message-button{position:relative}.rider-message-badge{right:-7px;top:-7px;box-shadow:0 0 0 2px #fff}

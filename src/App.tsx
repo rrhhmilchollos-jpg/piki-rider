@@ -334,6 +334,8 @@ function App() {
   const [supportChatError, setSupportChatError] = useState("");
   const [supportChatOrderLabel, setSupportChatOrderLabel] = useState("");
   const [supportPeerTyping, setSupportPeerTyping] = useState(false);
+  const [unreadSupportMessages, setUnreadSupportMessages] = useState(0);
+  const [unreadCustomerMessages, setUnreadCustomerMessages] = useState(0);
   const closeSupportChat = useCallback(() => setSupportChatOpen(false), []);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
   const lastOfferAtRef = useRef(0);
@@ -581,7 +583,16 @@ function App() {
           setToast("Tus horarios se han actualizado.");
           return;
         }
-        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
+        if (event.type === "support.message") {
+          setUnreadSupportMessages((count) => count + 1);
+          setToast("Soporte PIKI ha respondido a tu incidencia.");
+          return;
+        }
+        if (event.type === "order.message") {
+          setUnreadCustomerMessages((count) => count + 1);
+          setToast("Tienes un mensaje nuevo del cliente.");
+          return;
+        }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
@@ -1182,7 +1193,8 @@ function App() {
         nativeTracking={nativeTracking}
         onDismissStartNotice={() => setStartedShiftNotice(false)}
         onOpenOperations={() => setShowOperations(true)}
-        onOpenSupport={() => showSection("Soporte")}
+        onOpenSupport={() => { setUnreadSupportMessages(0); setShowOperations(true); showSection("Soporte"); if (supportTicketId) setSupportChatOpen(true); }}
+        unreadMessageCount={unreadSupportMessages + unreadCustomerMessages}
         onRefreshOffers={() => {
           setOffersError("");
           void loadRiderData();
@@ -1263,13 +1275,22 @@ function App() {
             <span className="status-dot" />
           </div>
           <div className="topbar-actions">
-            <NotificationCenter apiOrigin={apiOrigin} token={apiToken} surface="rider" />
+            <NotificationCenter
+              apiOrigin={apiOrigin}
+              token={apiToken}
+              surface="rider"
+              onUnreadChange={({ support, customer }) => {
+                setUnreadSupportMessages(support);
+                setUnreadCustomerMessages(customer);
+              }}
+            />
             <button
-              className="icon-button"
-              onClick={() => showSection("Soporte")}
-              aria-label="Abrir soporte"
+              className="icon-button rider-support-message-button"
+              onClick={() => { setUnreadSupportMessages(0); showSection("Soporte"); if (supportTicketId) setSupportChatOpen(true); }}
+              aria-label={unreadSupportMessages ? `Abrir soporte: ${unreadSupportMessages} respuestas sin leer` : "Abrir soporte"}
             >
               <Headphones size={19} />
+              {unreadSupportMessages > 0 && <b className="rider-message-badge" aria-hidden="true">{unreadSupportMessages > 9 ? "9+" : unreadSupportMessages}</b>}
             </button>
             <div className="profile-wrap">
               <button
