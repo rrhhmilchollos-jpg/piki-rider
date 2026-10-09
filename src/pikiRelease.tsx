@@ -1,45 +1,21 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PIKI_RELEASE } from "./release-meta";
 import { shouldShowPushConsent } from "./pushConsentPolicy";
-
-type ReleasePolicy = {
-  surface?: unknown;
-  version?: unknown;
-  minimumVersion?: unknown;
-  buildId?: unknown;
-  forceUpdate?: unknown;
-  updateRequired?: unknown;
-};
+import { getPwaOperationSafety, subscribePwaOperationSafety } from "./pwaOperationSafety";
+import {
+  canReloadAfterControllerChange,
+  getRequiredPwaUpdate,
+  pwaReloadMarker,
+  shouldDeferPwaActivation,
+  type ReleasePolicy,
+  type UpdateRequirement,
+} from "./pwaUpdateRecovery";
 
 type GateState = "checking" | "ready" | "required" | "error";
-type ValidPolicy = { surface: string; version?: unknown; minimumVersion: string; buildId: string; forceUpdate: boolean; updateRequired?: unknown };
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
-
-function versionParts(value: string): number[] | null {
-  const match = value.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
-  return match ? match.slice(1, 4).map(Number) : null;
-}
-
-function isNewer(candidate: string, current: string): boolean {
-  const left = versionParts(candidate);
-  const right = versionParts(current);
-  if (!left || !right) return false;
-  for (let index = 0; index < 3; index += 1) {
-    if (left[index] !== right[index]) return left[index] > right[index];
-  }
-  return false;
-}
-
-function isValidPolicy(value: ReleasePolicy): value is ValidPolicy {
-  return value.surface === PIKI_RELEASE.surface
-    && typeof value.minimumVersion === "string"
-    && versionParts(value.minimumVersion) !== null
-    && typeof value.buildId === "string"
-    && typeof value.forceUpdate === "boolean";
-}
 
 async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
@@ -214,20 +190,57 @@ function PushConsentControl() {
 }
 
 export function PikiReleaseGate({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GateState>("checking");
+  const [state, setState] = useState<GateState>("ready");
   const [requiredVersion, setRequiredVersion] = useState("");
   const [detail, setDetail] = useState("");
   const [updating, setUpdating] = useState(false);
+  const requirementRef = useRef<UpdateRequirement | null>(null);
+  const safetyRef = useRef(getPwaOperationSafety());
+  const activationRequestedRef = useRef(false);
+  const controllerChangedRef = useRef(false);
+
+  const showRequirementWhenSafe = useCallback(() => {
+    const requirement = requirementRef.current;
+    if (!requirement || shouldDeferPwaActivation(safetyRef.current)) return;
+    setRequiredVersion(`${requirement.targetVersion} · ${requirement.targetBuildId}`);
+    setState("required");
+  }, []);
+
+  const reloadAfterControllerChange = useCallback(() => {
+    const requirement = requirementRef.current;
+    if (!requirement || !controllerChangedRef.current) return;
+    const marker = pwaReloadMarker(requirement.targetBuildId);
+    const alreadyReloadedForTarget = sessionStorage.getItem(marker) === "1";
+    if (canReloadAfterControllerChange({
+      activationRequested: activationRequestedRef.current,
+      safety: safetyRef.current,
+      alreadyReloadedForTarget,
+    })) {
+      sessionStorage.setItem(marker, "1");
+      const url = new URL(window.location.href);
+      url.searchParams.set("piki_build", requirement.targetBuildId);
+      window.location.replace(url.toString());
+      return;
+    }
+    if (activationRequestedRef.current && alreadyReloadedForTarget) {
+      setUpdating(false);
+      setDetail("El nuevo build PWA aún no se ha cargado. Cierra y vuelve a abrir PIKI Riders cuando tengas conexión.");
+    }
+  }, []);
 
   const check = useCallback(async () => {
     try {
       await registerWorker();
       const policy = await fetchPolicy();
-      if (!isValidPolicy(policy)) throw new Error("La política de versión no es válida.");
-      const requiresUpdate = policy.forceUpdate && (policy.updateRequired === true || isNewer(policy.minimumVersion, PIKI_RELEASE.version) || policy.buildId !== PIKI_RELEASE.buildId);
-      if (requiresUpdate) {
-        setRequiredVersion(`${String(policy.version || policy.minimumVersion)} · ${policy.buildId}`);
-        setState("required");
+      const requirement = getRequiredPwaUpdate(policy, PIKI_RELEASE, PIKI_RELEASE.surface);
+      requirementRef.current = requirement;
+      if (requirement) {
+        if (shouldDeferPwaActivation(safetyRef.current)) {
+          // Do not cover an active delivery, payment collection, or form with an update gate.
+          setState("ready");
+        } else {
+          showRequirementWhenSafe();
+        }
       } else {
         setState("ready");
       }
@@ -237,35 +250,64 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       setDetail(error instanceof Error ? error.message : "No se pudo comprobar la versión.");
       setState("error");
     }
-  }, []);
+  }, [showRequirementWhenSafe]);
 
   useEffect(() => {
     installPikiReleaseHeaders();
     // oxlint-disable-next-line react/set-state-in-effect
     void check();
     const onFocus = () => void check();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+    const unsubscribeSafety = subscribePwaOperationSafety((safety) => {
+      safetyRef.current = safety;
+      if (!shouldDeferPwaActivation(safety)) {
+        showRequirementWhenSafe();
+        reloadAfterControllerChange();
+      }
+    });
+    const onControllerChange = () => {
+      controllerChangedRef.current = true;
+      reloadAfterControllerChange();
+    };
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    navigator.serviceWorker?.addEventListener("controllerchange", onControllerChange);
     const timer = window.setInterval(() => void check(), 5 * 60_000);
-    return () => { window.removeEventListener("focus", onFocus); window.clearInterval(timer); };
-  }, [check]);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
+      unsubscribeSafety();
+      window.clearInterval(timer);
+    };
+  }, [check, reloadAfterControllerChange, showRequirementWhenSafe]);
 
   const update = useCallback(async () => {
     setUpdating(true);
     setDetail("");
     try {
+      if (shouldDeferPwaActivation(safetyRef.current)) {
+        setUpdating(false);
+        setDetail("Terminaremos la actualización cuando acabes la entrega, el cobro o el formulario en curso.");
+        return;
+      }
       const registration = await registerWorker();
       const waiting = registration?.waiting ?? null;
-      if (waiting) waiting.postMessage({ type: "SKIP_WAITING" });
-      const url = new URL(window.location.href);
-      url.searchParams.set("piki_update", String(Date.now()));
-      window.location.replace(url.toString());
+      if (!waiting) {
+        setUpdating(false);
+        setDetail("El nuevo build PWA todavía se está descargando. Mantén PIKI Riders abierto y vuelve a intentarlo en unos segundos.");
+        return;
+      }
+      activationRequestedRef.current = true;
+      waiting.postMessage({ type: "SKIP_WAITING" });
     } catch (error) {
       setUpdating(false);
       setDetail(error instanceof Error ? error.message : "No se pudo descargar la actualización.");
     }
   }, []);
 
-  if (state === "checking") return <main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main>;
-  if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI · ACTUALIZACIÓN OBLIGATORIA</p><h1 id="piki-update-title">Actualiza para continuar</h1><p>Esta versión no puede utilizarse. Descargaremos la versión {requiredVersion} y recargaremos la aplicación sin perder tu sesión.</p>{detail && <p role="alert">{detail}</p>}<button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar ahora"}</button></section></main>;
+  if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI RIDERS · ACTUALIZACIÓN PWA</p><h1 id="piki-update-title">Hay una nueva versión lista</h1><p>El nuevo build {requiredVersion} se descargará desde esta web y se aplicará sin cerrar tu sesión ni borrar los datos guardados.</p>{detail && <p role="alert">{detail}</p>}<button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Aplicando nuevo build…" : "Actualizar PWA"}</button></section></main>;
   return <>{state === "error" && <div role="status" style={{ position: "fixed", zIndex: 9998, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#fef3c7", color: "#78350f", fontSize: "13px" }}>Conexión de seguridad temporalmente no disponible. Puedes iniciar sesión; lo volveremos a comprobar automáticamente.</div>}{children}<PushConsentControl /></>;
 }
