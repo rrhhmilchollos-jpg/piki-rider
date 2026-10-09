@@ -536,3 +536,29 @@ button, a, input, select, textarea { touch-action: manipulation; }
     font-size: 11px;
   }
 }
+
+.rider-map-card { position: relative; }
+.rider-google-map-canvas { width: 100%; height: min(58vh, 520px); min-height: 320px; overflow: hidden; border-radius: 14px; background: #e8eef3; }
+.rider-google-map-loading { min-height: 320px; display: grid; place-content: center; gap: 10px; color: #40556c; background: #e8eef3; border-radius: 14px; text-align: center; font-size: 13px; font-weight: 700; }
+.rider-google-map-loading .spin { justify-self: center; }
+.rider-google-map-error { color: #9b3c3c; background: #fff5f5; }
+.rider-home-map-canvas .rider-google-map-canvas { height: 100%; min-height: 620px; border-radius: 0; }
+@media (max-width: 1000px) { .rider-home-map-canvas .rider-google-map-canvas { min-height: 430px; } }
+@media (max-width: 700px) { .rider-google-map-canvas { height: 300px; min-height: 260px; } }
+@media (max-width: 580px) { .rider-home-map-canvas .rider-google-map-canvas { min-height: 390px; } }
+
+/* El mapa real ocupa el lienzo completo tanto en Inicio como durante una jornada activa. */
+.rider-home-map-canvas .rider-map-card { position: absolute; inset: 0; display: block; }
+.rider-home-map-canvas .rider-google-map-canvas { display: block; width: 100%; height: 100%; min-height: 0; border-radius: 0; }
+.rider-home-map-canvas .rider-map-status { position: absolute; z-index: 2; display: flex; align-items: center; }
+.rider-home-map-canvas .rider-map-open { position: absolute; z-index: 3; left: 24px; bottom: 68px; background: #fff; box-shadow: 0 8px 22px rgba(11,18,32,.14); }
+.real-google-map-section .rider-map-card { position: absolute; inset: 0; display: block; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: #e8eef3; box-shadow: none; }
+.real-google-map-section .rider-google-map-canvas, .real-google-map-section .rider-google-map-frame { width: 100%; height: 100%; min-height: 100vh; border: 0; border-radius: 0; }
+.real-google-map-section .rider-google-map-loading { min-height: 100vh; border-radius: 0; }
+.real-google-map-section .rider-map-status { position: absolute; z-index: 4; left: 50%; top: 92px; transform: translateX(-50%); max-width: calc(100% - 48px); padding: 9px 14px; border-radius: 16px; color: #fff; background: rgba(17,24,32,.92); text-align: center; }
+.real-google-map-section .rider-map-open { position: absolute; z-index: 4; right: 24px; bottom: 238px; background: #fff; box-shadow: 0 8px 22px rgba(11,18,32,.14); }
+@media (max-width: 580px) {
+  .home-page-content .rider-home-map-canvas .rider-google-map-canvas { width: 100%; height: 100%; min-height: 0; border-radius: 0; }
+  .real-google-map-section .rider-map-status { top: 84px; max-width: calc(100% - 34px); font-size: 11px; }
+  .real-google-map-section .rider-map-open { right: 16px; bottom: 218px; }
+}
