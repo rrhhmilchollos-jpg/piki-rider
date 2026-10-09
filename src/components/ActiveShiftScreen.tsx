@@ -8,6 +8,7 @@ import {
   isCustomerDeliveryPhase,
 } from "../orderPaymentInstruction";
 import { orderRiderQueue } from "../orderQueue";
+import { visibleOrderReference } from "../orderReference";
 import {
   buildDirectionsUrl,
   getRiderNavigationTarget,
@@ -80,7 +81,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
   const paymentInstruction = getRiderPaymentInstruction(order);
 
   return <section className="active-order-detail" aria-label="Detalle del pedido">
-    <div className="rider-order-meta-row"><span className={`rider-order-status ${order.assignmentState === "offered" ? "is-offer" : ""}`}><i aria-hidden="true"/> {orderStatusLabel(order)}</span><span className="rider-order-code">#{order.displayCode || order.publicCode || order._id.slice(-4)}</span></div>
+    <div className="rider-order-meta-row"><span className={`rider-order-status ${order.assignmentState === "offered" ? "is-offer" : ""}`}><i aria-hidden="true"/> {orderStatusLabel(order)}</span><span className="rider-order-code">{visibleOrderReference(order.publicCode, order._id)}</span></div>
     <header className="active-order-header">
       <div>
         <h2>{deliveryPhase ? order.customerName || "Cliente final" : order.restaurant?.name || "Establecimiento PIKI"}</h2>
@@ -91,7 +92,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
     <p className="active-order-context"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN ESTABLECIMIENTO"}</span><strong><Clock3 size={15}/> {etaLabel(order)}</strong></p>
     <p className="active-order-address"><MapPin size={17}/><span>{address}</span></p>
     {deliveryPhase && order.deliveryNote?.trim() && <div className="rider-order-customer-note"><strong>Nota del cliente</strong><span>{order.deliveryNote.trim()}</span></div>}
-    {!deliveryPhase && <><p className="rider-order-company">Empresa: {order.restaurant?.name || "Establecimiento PIKI"}</p><div className="rider-order-instruction"><strong>Recoger en {order.restaurant?.name || "el establecimiento"}.</strong><span>Referencia de pedido: <b>{order.displayCode || order.publicCode || order._id.slice(-6).toUpperCase()}</b></span></div></>}
+    {!deliveryPhase && <><p className="rider-order-company">Empresa: {order.restaurant?.name || "Establecimiento PIKI"}</p><div className="rider-order-instruction"><strong>Recoger en {order.restaurant?.name || "el establecimiento"}.</strong><span>Referencia de pedido: <b>{visibleOrderReference(order.publicCode, order._id)}</b></span></div></>}
     <button type="button" className="active-items-toggle" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
       <strong>{productLineCount(order)} {productLineCount(order) === 1 ? "producto" : "productos"}</strong>
       {expanded ? <ChevronUp size={23}/> : <ChevronDown size={23}/>}

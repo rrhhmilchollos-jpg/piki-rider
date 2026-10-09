@@ -53,6 +53,7 @@ import {
   stopTrackingSession,
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
+import { visibleOrderReference } from "./orderReference";
 import { orderRiderQueue } from "./orderQueue";
 import {
   clearStoredToken,
@@ -1029,7 +1030,7 @@ function App() {
       setSupportTicketStatus(data.ticket?.status || "open");
       setSupportAgentName("");
       setSupportChatMessages(Array.isArray(data.ticket?.messages) ? data.ticket.messages : []);
-      setSupportChatOrderLabel(activeOrder ? `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)} · en reparto` : "Incidencia de soporte");
+      setSupportChatOrderLabel(activeOrder ? `Pedido ${visibleOrderReference(activeOrder.publicCode, activeOrder._id)} · en reparto` : "Incidencia de soporte");
       setSupportChatDraft("");
       setSupportChatOpen(true);
     } catch (error) { setSupportFormMessage(error instanceof Error ? error.message : "No se pudo enviar la incidencia."); } finally { setSupportFormBusy(false); }
@@ -1078,7 +1079,7 @@ function App() {
     const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     const priority = topic === "safety" ? "urgent" : topic === "order" ? "high" : "normal";
     const orderContext = activeOrder
-      ? `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`
+      ? `Pedido ${visibleOrderReference(activeOrder.publicCode, activeOrder._id)}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`
       : "No hay un pedido activo vinculado en este momento.";
     try {
       const ticket = await createRiderSupportTicket({
@@ -1096,7 +1097,7 @@ function App() {
       setSupportChatMessages([]);
       setSupportChatDraft("");
       setSupportChatError("");
-      setSupportChatOrderLabel(activeOrder ? `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)} · en reparto` : "Incidencia de soporte");
+      setSupportChatOrderLabel(activeOrder ? `Pedido ${visibleOrderReference(activeOrder.publicCode, activeOrder._id)} · en reparto` : "Incidencia de soporte");
       setSupportChatOpen(true);
       setSupportTopic(null);
     } catch (ticketError) {
@@ -1560,7 +1561,7 @@ function App() {
                           <div>
                             <span className="eyebrow">
                               {offer.assignmentState === "offered" ? "NUEVA OFERTA · " : "PEDIDO ASIGNADO · "}
-                              {offer.displayCode || offer.publicCode}
+                              {visibleOrderReference(offer.publicCode, offer._id)}
                             </span>
                             <h2>
                               {offer.restaurant?.name || "Establecimiento PIKI"}
@@ -1623,7 +1624,7 @@ function App() {
                         <article className="delivery-card" key={offer._id}>
                           <div>
                             <span className="eyebrow">
-                              {offer.displayCode || offer.publicCode} ·{" "}
+                              {visibleOrderReference(offer.publicCode, offer._id)} ·{" "}
                               {offer.status}
                             </span>
                             <h2>
@@ -1955,7 +1956,7 @@ function App() {
                     </section>
                   ) : (
                     <form className="support-ticket-form" onSubmit={submitSupportTicket}>
-                      <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general o seleccionar un pedido activo para adjuntar todo su contexto."}</p></div>
+                      <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${visibleOrderReference(activeOrder.publicCode, activeOrder._id)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general o seleccionar un pedido activo para adjuntar todo su contexto."}</p></div>
                       <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div><button className="primary-button" disabled={supportFormBusy}>{supportFormBusy ? "Enviando…" : "Enviar incidencia vinculada al pedido"}</button>{supportFormMessage && <p className="support-form-message" role="alert">{supportFormMessage}</p>}
                     </form>
                   )}
