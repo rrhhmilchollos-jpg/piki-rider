@@ -581,6 +581,11 @@ function App() {
       onEvent: (event) => {
         if (event.type === "rider.schedule_updated") {
           void loadRiderData();
+          // Si el navegador ya ha permitido audio durante esta sesión,
+          // avisamos también del nuevo turno; si aplica autoplay, el botón
+          // seguirá apareciendo mediante la consulta periódica del turno.
+          primeRiderOrderAudio(audioContextRef);
+          playRiderShiftStart();
           setToast("Tus horarios se han actualizado.");
           return;
         }
@@ -614,22 +619,33 @@ function App() {
     });
   }, [apiOrigin, apiToken, riderId, loadRiderData, playAssignmentAlert]);
   useEffect(() => {
-    if (!apiToken || !riderId || !shiftActive) return;
+    if (!apiToken || !riderId) return;
     let disposed = false;
     const checkShift = async () => {
       try {
         const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift`, { headers: authHeaders(apiToken), cache: "no-store" });
         if (!response.ok || disposed) return;
         const data = await response.json() as CurrentShift & { shift?: Record<string, unknown> | null };
-        if (data.shift?.status === "active") return;
-        setCurrentShift({ ...data, shift: data.shift ? normalizeRiderShift(data.shift) : null });
+        const nextShift = data.shift ? normalizeRiderShift(data.shift) : null;
+        if (nextShift?.status === "active") {
+          setCurrentShift({ ...data, shift: nextShift });
+          setShiftActive(true);
+          return;
+        }
+        if (!shiftActive) {
+          setCurrentShift({ ...data, shift: nextShift });
+          return;
+        }
+        setCurrentShift({ ...data, shift: nextShift });
         setShiftActive(false);
         setStartedShiftNotice(false);
         setToast("Tu jornada ha finalizado automáticamente al terminar el slot.");
       } catch { /* el siguiente ciclo vuelve a consultar el estado oficial */ }
     };
     void checkShift();
-    const timer = window.setInterval(() => void checkShift(), 15000);
+    // Fleet puede guardar el turno mientras Rider ya tiene la sesión abierta;
+    // no debemos depender exclusivamente de que el evento SSE llegue al navegador.
+    const timer = window.setInterval(() => void checkShift(), 10000);
     return () => { disposed = true; window.clearInterval(timer); };
   }, [apiOrigin, apiToken, riderId, shiftActive]);
   useEffect(() => {
