@@ -127,6 +127,24 @@ async function encodeApplicationDocument(
   };
 }
 
+function formatOrderMoney(cents?: number) {
+  return typeof cents === "number"
+    ? (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })
+    : "—";
+}
+function isPickupPhase(status: RiderOffer["status"]) {
+  return ["pending", "accepted", "preparing", "ready_for_pickup"].includes(status);
+}
+function orderDestination(offer: RiderOffer) {
+  return isPickupPhase(offer.status)
+    ? offer.restaurant?.address || offer.restaurant?.name || "Dirección del Partner"
+    : offer.deliveryAddress || "Dirección del cliente";
+}
+function orderStepIndex(status: RiderOffer["status"]) {
+  if (status === "on_the_way") return 2;
+  if (status === "picked_up") return 1;
+  return 0;
+}
 const apiOrigin = (
   import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com"
 ).replace(/\/$/, "");
@@ -1588,45 +1606,32 @@ function App() {
                     {offers
                       .filter((offer) => offer.assignmentState === "offered")
                       .map((offer) => (
-                        <article className="delivery-card" key={offer._id}>
-                          <div>
-                            <span className="eyebrow">
-                              {offer.assignmentState === "offered" ? "NUEVA OFERTA · " : "PEDIDO ASIGNADO · "}
-                              {visibleOrderReference(offer.publicCode, offer._id)}
-                            </span>
-                            <h2>
-                              {offer.restaurant?.name || "Establecimiento PIKI"}
-                            </h2>
-                            <p>
-                              {offer.restaurant?.address ||
-                                "Dirección del establecimiento protegida"}
-                            </p>
-                            <p>
-                              {offer.restaurant?.cuisine || "Restaurante"} ·{" "}
-                              {(offer.items || [])
-                                .map(
-                                  (item) =>
-                                    `${item.quantity || 1}× ${item.name || "Producto"}`,
-                                )
-                                .join(" · ")}
-                            </p>
-                            <small>
-                              Acepta para reservar el reparto; después confirma la llegada por GPS y la recogida con QR/PIN cuando el Partner entregue el pedido.
-                            </small>
+                        <article className="assignment-card assignment-card-incoming" key={offer._id}>
+                          <div className="assignment-card-topline">
+                            <span className="assignment-kicker"><Bell size={14} /> NUEVO PEDIDO</span>
+                            <span className="assignment-countdown"><Clock3 size={14} /> 60 s</span>
                           </div>
-                          <div className="delivery-actions">
-                            <a
-                              className="secondary-button"
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(offer.restaurant?.address || offer.restaurant?.name || "")}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <MapPinned size={16} /> Maps
-                            </a>
-                            <button className="primary-button" disabled={orderActionBusy} onClick={() => void acceptRiderOfferAction(offer._id)}>
-                              Aceptar reparto
-                            </button>
+                          <div className="assignment-card-body">
+                            <div className="assignment-order-heading">
+                              <div>
+                                <span className="assignment-order-code">{offer.displayCode || offer.publicCode || "Pedido PIKI"}</span>
+                                <h2>{offer.restaurant?.name || "Establecimiento PIKI"}</h2>
+                              </div>
+                              <span className="assignment-alert-dot" aria-label="Alerta de nueva asignación" />
+                            </div>
+                            <div className="assignment-facts">
+                              <span><MapPinned size={16} /><b>Recogida</b> {offer.restaurant?.etaMinutes?.[0] || 4} min</span>
+                              <span><MapPinned size={16} /><b>Entrega</b> {offer.etaMinutes || 18} min</span>
+                              <span><CreditCard size={16} /><b>Ganancia</b> {formatOrderMoney(offer.deliveryFeeCents || offer.totalCents)}</span>
+                            </div>
+                            <p className="assignment-address">{offer.restaurant?.address || "Dirección del Partner protegida"}</p>
+                            <p className="assignment-items">{(offer.items || []).map((item) => `${item.quantity || 1}× ${item.name || "Producto"}`).join(" · ") || "Pedido preparado para recoger"}</p>
                           </div>
+                          <div className="assignment-card-actions">
+                            <a className="assignment-secondary-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(offer.restaurant?.address || offer.restaurant?.name || "")}`} target="_blank" rel="noreferrer"><MapPinned size={16} /> Ver mapa</a>
+                            <button className="assignment-primary-action" disabled={orderActionBusy} onClick={() => void acceptRiderOfferAction(offer._id)}>ACEPTAR PEDIDO <ChevronRight size={18} /></button>
+                          </div>
+                          <p className="assignment-helper">La alerta sonora seguirá activa mientras esta oferta esté pendiente.</p>
                         </article>
                       ))}
                     {!offers.some(
@@ -1652,82 +1657,37 @@ function App() {
                     {offers
                       .filter((offer) => offer.assignmentState === "assigned")
                       .map((offer) => (
-                        <article className="delivery-card" key={offer._id}>
-                          <div>
-                            <span className="eyebrow">
-                              {visibleOrderReference(offer.publicCode, offer._id)} ·{" "}
-                              {offer.status}
-                            </span>
-                            <h2>
-                              {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status)
-                                ? offer.restaurant?.name ||
-                                  "Establecimiento PIKI"
-                                : offer.customerName || "Cliente"}
-                            </h2>
-                            <p>
-                              {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status)
-                                ? offer.restaurant?.address ||
-                                  "Dirección del establecimiento protegida"
-                                : offer.deliveryAddress ||
-                                  "Dirección del cliente"}
-                            </p>
-                            <p>
-                              {(offer.items || [])
-                                .map(
-                                  (item) =>
-                                    `${item.quantity || 1}× ${item.name || "Producto"}`,
-                                )
-                                .join(" · ")}
-                            </p>
+                        <article className="assignment-card assignment-card-active" key={offer._id}>
+                          <div className="assignment-card-topline">
+                            <span className="assignment-kicker"><ClipboardList size={14} /> PEDIDO ACTIVO</span>
+                            <span className="assignment-order-code">{offer.displayCode || offer.publicCode || "Pedido PIKI"}</span>
                           </div>
-                          <div className="delivery-actions">
-                            <a
-                              className="secondary-button"
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) ? offer.restaurant?.address || offer.restaurant?.name || "" : offer.deliveryAddress || "")}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <MapPinned size={16} /> Maps
-                            </a>
-                            {["pending", "accepted", "preparing", "ready_for_pickup"].includes(offer.status) && !offer.riderArrivedAt && (
-                              <button className="primary-button" disabled={orderActionBusy} onClick={() => void confirmPartnerArrival(offer._id)}>
-                                Confirmar llegada al Partner
-                              </button>
-                            )}
-                            {offer.status === "ready_for_pickup" && offer.riderArrivedAt && (
-                              <button className="primary-button" disabled={orderActionBusy} onClick={() => void confirmPickup(offer._id)}>
-                                Confirmar recogida
-                              </button>
-                            )}
-                            {offer.status === "picked_up" && (
-                              <button
-                                className="secondary-button"
-                                onClick={() =>
-                                  void offerAction(offer._id, "on_the_way")
-                                }
-                              >
-                                Iniciar ruta
-                              </button>
-                            )}
-                            {offer.status === "on_the_way" && (
-                              <button
-                                className="primary-button"
-                                onClick={() => {
-                                  const code = window.prompt(
-                                    "Introduce el PIN o pega el enlace QR que muestra el Customer para confirmar la entrega.",
-                                  );
-                                  if (code?.trim())
-                                    void confirmDelivery(
-                                      offer._id,
-                                      code.trim(),
-                                    );
-                                }}
-                              >
-                                Validar QR/PIN y confirmar{" "}
-                                <ShieldCheck size={17} />
-                              </button>
-                            )}
+                          <div className="assignment-card-body">
+                            <div className="assignment-order-heading">
+                              <div>
+                                <span className="assignment-phase">{isPickupPhase(offer.status) ? "Recogida en Partner" : offer.status === "picked_up" ? "Recogida confirmada" : "En ruta hacia el cliente"}</span>
+                                <h2>{isPickupPhase(offer.status) ? offer.restaurant?.name || "Establecimiento PIKI" : offer.customerName || "Cliente PIKI"}</h2>
+                              </div>
+                              <span className="assignment-live-pill">EN DIRECTO</span>
+                            </div>
+                            <div className="assignment-stepper" aria-label="Progreso del pedido">
+                              {["Recoger", "En camino", "Entregado"].map((label, index) => <span className={index <= orderStepIndex(offer.status) ? "is-done" : ""} key={label}><i>{index + 1}</i>{label}</span>)}
+                            </div>
+                            <div className="assignment-facts">
+                              <span><MapPinned size={16} /><b>Destino</b> {offer.etaMinutes || 18} min</span>
+                              <span><CreditCard size={16} /><b>Cobro</b> {offer.paymentMethod === "cash" ? formatOrderMoney(offer.totalCents) : "Pagado online"}</span>
+                            </div>
+                            <p className="assignment-address">{orderDestination(offer)}</p>
+                            <p className="assignment-items">{(offer.items || []).map((item) => `${item.quantity || 1}× ${item.name || "Producto"}`).join(" · ") || "Pedido en seguimiento"}</p>
                           </div>
+                          <div className="assignment-card-actions">
+                            <a className="assignment-secondary-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(orderDestination(offer))}`} target="_blank" rel="noreferrer"><MapPinned size={16} /> ABRIR NAVEGACIÓN</a>
+                            {isPickupPhase(offer.status) && !offer.riderArrivedAt && <button className="assignment-primary-action" disabled={orderActionBusy} onClick={() => void confirmPartnerArrival(offer._id)}>Confirmar llegada</button>}
+                            {offer.status === "ready_for_pickup" && offer.riderArrivedAt && <button className="assignment-primary-action" disabled={orderActionBusy} onClick={() => void confirmPickup(offer._id)}>CONFIRMAR RECOGIDA</button>}
+                            {offer.status === "picked_up" && <button className="assignment-primary-action" onClick={() => void offerAction(offer._id, "on_the_way")}>INICIAR RUTA</button>}
+                            {offer.status === "on_the_way" && <button className="assignment-primary-action" onClick={() => { const code = window.prompt("Introduce el PIN o pega el enlace QR que muestra el Customer para confirmar la entrega."); if (code?.trim()) void confirmDelivery(offer._id, code.trim()); }}>VALIDAR QR/PIN <ShieldCheck size={17} /></button>}
+                          </div>
+                          <p className="assignment-helper">{offer.paymentMethod === "cash" ? `Cobro al entregar: ${formatOrderMoney(offer.totalCents)}` : "Pedido pagado online · no cobres al cliente"}</p>
                         </article>
                       ))}
                     {!offers.some(
