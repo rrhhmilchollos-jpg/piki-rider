@@ -4,6 +4,36 @@
 @media(max-width:580px){.page-heading h1,.feature-heading h1{font-size:35px}.page-heading,.feature-heading{display:block}.page-heading .secondary-button{margin-top:18px}.metric-grid,.empty-state-grid,.support-grid,.wallet-grid,.stats-grid{grid-template-columns:1fr}.schedule-grid{grid-template-columns:repeat(2,1fr)}.shift-action{align-items:flex-start;flex-wrap:wrap}.shift-action .primary-button{width:100%}.connection-card{flex-wrap:wrap}.connection-url{width:100%}.topbar{height:64px}.feature-icon{margin-top:20px}.heatmap{height:420px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
+/* Drawer móvil Rider inspirado en la navegación de Glovo, con destinos PIKI reales. */
+.rider-drawer-header,.rider-drawer-nav,.rider-drawer-status{display:none}
+@media(max-width:900px){
+  .sidebar{width:min(100%,430px);padding:0;background:#fff;color:#18231f;box-shadow:18px 0 42px rgba(20,34,29,.18);overflow-y:auto}
+  .sidebar-open{transform:translateX(0)}
+  .rider-drawer-header{display:block;position:relative;min-height:205px;padding:72px 24px 24px;overflow:hidden;background:linear-gradient(145deg,#54b79e 0%,#128b73 72%,#08705f 100%);color:#fff}
+  .rider-drawer-title{position:relative;z-index:2;display:grid;gap:7px}
+  .rider-drawer-kicker{font-size:11px;font-weight:800;letter-spacing:.18em;opacity:.78}
+  .rider-drawer-title strong{font:800 clamp(28px,7vw,39px)/1.05 'Space Grotesk',sans-serif;letter-spacing:-1.5px}
+  .rider-drawer-wave{font-size:33px;line-height:1;margin-top:3px}
+  .rider-drawer-orb{position:absolute;border-radius:50%;background:rgba(183,246,220,.18);pointer-events:none}
+  .rider-drawer-orb-one{width:270px;height:270px;left:-115px;top:-155px}
+  .rider-drawer-orb-two{width:290px;height:290px;right:-110px;top:-178px;background:rgba(0,68,62,.17)}
+  .sidebar .close-menu{position:absolute;z-index:3;right:17px;top:18px;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff}
+  .rider-drawer-nav{display:block;padding:18px 23px 30px}
+  .rider-drawer-shortcuts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:30px}
+  .rider-drawer-shortcut{min-height:138px;border:0;border-radius:13px;background:#f6f7f7;color:#17221f;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:19px 18px;text-align:left;box-shadow:0 2px 0 rgba(15,31,26,.03);font:800 20px/1.15 'DM Sans',sans-serif;cursor:pointer}
+  .rider-drawer-shortcut svg{color:#111917}
+  .rider-drawer-shortcut:hover,.rider-drawer-shortcut:focus-visible{background:#eaf8f0;outline:3px solid #9edbc3;outline-offset:2px}
+  .rider-drawer-links{display:grid;gap:5px}
+  .rider-drawer-link{min-height:60px;border:0;background:transparent;color:#17221f;display:flex;align-items:center;gap:20px;padding:8px 0;text-align:left;font:800 20px 'DM Sans',sans-serif;cursor:pointer}
+  .rider-drawer-link svg{flex:0 0 27px;color:#0c1512}
+  .rider-drawer-link:hover{color:#087c67}
+  .rider-drawer-link-chevron{margin-left:auto}
+  .rider-drawer-status{display:flex;align-items:center;gap:13px;margin-top:22px;padding:14px 16px;border-radius:14px;background:#f1f8f4;color:#18372d;font-size:13px}
+  .rider-drawer-status>span:last-child{display:grid;gap:3px}
+  .rider-drawer-status small{color:#568071}
+  .rider-drawer-legacy-nav{display:none}
+}
+
 .delivery-list{display:grid;gap:14px;margin-top:18px}.delivery-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px;border:1px solid #dfe5ef;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(15,38,75,.06)}.delivery-card h2{margin:7px 0 6px;font-size:20px;color:#10294f}.delivery-card p{margin:0;color:#64748b}.delivery-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}.delivery-card .primary-button,.delivery-card .secondary-button{white-space:nowrap}@media(max-width:760px){.delivery-card{align-items:flex-start;flex-direction:column}.delivery-actions{justify-content:flex-start;width:100%}}
 
 /* PIKI Rider — modo de jornada activa */

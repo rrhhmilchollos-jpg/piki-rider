@@ -4,6 +4,8 @@ import {
   Activity,
   Bell,
   Bike,
+  BookOpen,
+  BriefcaseBusiness,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -23,6 +25,7 @@ import {
   WalletCards,
   X,
   Zap,
+  UserRound,
 } from "lucide-react";
 import "./App.css";
 import EmployeeAuthGate from "./EmployeeAuthGate";
@@ -260,6 +263,7 @@ function App() {
   const [showOperations, setShowOperations] = useState(false);
   const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
+  const [riderDisplayName, setRiderDisplayName] = useState("Rider");
   const [currentShift, setCurrentShift] = useState<CurrentShift>({
     eligible: false,
   });
@@ -333,12 +337,15 @@ function App() {
         return;
       }
       const sessionData = (await sessionResponse.json()) as {
-        rider?: { id?: string; status?: string };
+        rider?: { id?: string; status?: string; name?: string; firstName?: string };
       };
       const id = String(sessionData.rider?.id || "");
       if (!id) return;
       markStoredTokenValidated();
       setRiderId(id);
+      setRiderDisplayName(
+        String(sessionData.rider?.firstName || sessionData.rider?.name || "Rider").trim() || "Rider",
+      );
       const [slotResponse, statsResponse, shiftResponse, cashResponse] =
         await Promise.all([
           fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers }),
@@ -967,6 +974,7 @@ function App() {
   async function submitSupportTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!apiToken || !riderId || !supportForm.subject.trim() || !supportForm.description.trim()) return;
+    if (!shiftActive || !activeOrder) { setSupportFormMessage("Solo puedes solicitar asistencia si estás online y tienes un pedido asignado activo."); return; }
     setSupportFormBusy(true); setSupportFormMessage("");
     try {
       const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ subject: supportForm.subject.trim(), description: supportForm.description.trim(), priority: supportForm.priority, orderId: activeOrder?._id }) });
@@ -1010,6 +1018,7 @@ function App() {
       return;
     }
     const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+    if (!shiftActive || !activeOrder) { setToast("La asistencia de soporte está disponible cuando estás online y tienes un pedido asignado activo."); return; }
     const priority = topic === "safety" ? "urgent" : topic === "order" ? "high" : "normal";
     const orderContext = activeOrder
       ? `Pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`
@@ -1122,11 +1131,13 @@ function App() {
     <LocationPermissionGate appLabel="Rider">
     <div className="app-shell">
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
-        <div className="brand-block">
-          <div className="brand-mark">P</div>
-          <div>
-            <strong>piki</strong>
-            <span>Riders</span>
+        <div className="rider-drawer-header">
+          <div className="rider-drawer-orb rider-drawer-orb-one" />
+          <div className="rider-drawer-orb rider-drawer-orb-two" />
+          <div className="rider-drawer-title">
+            <span className="rider-drawer-kicker">PIKI · RIDERS</span>
+            <strong>Hola, {riderDisplayName}</strong>
+            <span className="rider-drawer-wave" aria-hidden="true">👋</span>
           </div>
           <button
             className="close-menu"
@@ -1136,8 +1147,47 @@ function App() {
             <X size={20} />
           </button>
         </div>
-        <nav className="nav-list">
-          <p className="nav-label">TU JORNADA</p>
+        <nav className="rider-drawer-nav">
+          <div className="rider-drawer-shortcuts">
+            {(
+              [
+                ["Bandeja de entrada", Bell, "Ofertas"],
+                ["Horario", CalendarDays, "Horarios"],
+                ["Cartera", WalletCards, "Cartera"],
+                ["Detalles sobre la actividad", Activity, "Estadísticas"],
+              ] as const
+            ).map(([label, Icon, target]) => (
+              <button key={label} className="rider-drawer-shortcut" onClick={() => showSection(target)}>
+                <Icon size={28} strokeWidth={2.2} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="rider-drawer-links">
+            <button className="rider-drawer-link" onClick={() => showSection("Inicio")}>
+              <UserRound size={25} />
+              <span>Mi perfil</span>
+            </button>
+            <button className="rider-drawer-link" onClick={() => showSection("Ofertas")}>
+              <BriefcaseBusiness size={25} />
+              <span>Oportunidades</span>
+            </button>
+            <button className="rider-drawer-link" onClick={() => showSection("Soporte")}>
+              <BookOpen size={25} />
+              <span>Recursos</span>
+              <ChevronDown size={20} className="rider-drawer-link-chevron" />
+            </button>
+            <button className="rider-drawer-link" onClick={() => setProfileOpen(true)}>
+              <Settings size={25} />
+              <span>Configuración y privacidad</span>
+            </button>
+          </div>
+          <div className="rider-drawer-status">
+            <span className="support-dot" />
+            <span><strong>Red PIKI</strong><small>{status === "ready" ? "Conectada" : "Comprobando"}</small></span>
+          </div>
+          {/* Mantiene los destinos existentes accesibles para lectores y navegación profunda. */}
+          <div className="rider-drawer-legacy-nav" aria-hidden="true">
           {nav.map(([label, Icon]) => (
             <button
               key={label}
@@ -1148,15 +1198,8 @@ function App() {
               <span>{label}</span>
             </button>
           ))}
-        </nav>
-        <div className="sidebar-footer">
-          <div className="support-dot" />
-          <div>
-            <strong>Red PIKI</strong>
-            <span>{status === "ready" ? "Conectada" : "Comprobando"}</span>
           </div>
-          <ChevronRight size={16} />
-        </div>
+        </nav>
       </aside>
       {open && (
         <button
@@ -1813,7 +1856,7 @@ function App() {
                   )}
                   <form className="support-ticket-form" onSubmit={submitSupportTicket}>
                     <div><span>INCIDENCIA OPERATIVA</span><h2>Enviar caso a Soporte PIKI</h2><p>{activeOrder ? `Se adjuntará automáticamente el pedido ${activeOrder.displayCode || activeOrder.publicCode || activeOrder._id.slice(-6)}, el cliente, la dirección, el comercio, los artículos y el importe.` : "Puedes enviar una consulta general; si tienes un pedido activo se adjuntará su contexto."}</p></div>
-                    <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div><button className="primary-button" disabled={supportFormBusy}>{supportFormBusy ? "Enviando…" : activeOrder ? "Enviar incidencia vinculada al pedido" : "Enviar incidencia"}</button>{supportFormMessage && <p className="support-form-message">{supportFormMessage}</p>}</form>
+                    <div className="support-ticket-fields"><input required value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} placeholder="Asunto de la incidencia" /><select value={supportForm.priority} onChange={(event) => setSupportForm({ ...supportForm, priority: event.target.value })}><option value="urgent">Urgente · pedido bloqueado</option><option value="high">Alta</option><option value="normal">Normal</option></select><textarea required rows={4} value={supportForm.description} onChange={(event) => setSupportForm({ ...supportForm, description: event.target.value })} placeholder="Explica qué ocurre, dónde está el pedido y qué necesitas de Soporte…" /></div>{(!shiftActive || !activeOrder) && <p className="support-form-message">La asistencia sobre pedidos está disponible solo para Riders online con un pedido asignado activo.</p>}<button className="primary-button" disabled={supportFormBusy || !shiftActive || !activeOrder}>{supportFormBusy ? "Enviando…" : "Solicitar asistencia sobre este pedido"}</button>{supportFormMessage && <p className="support-form-message">{supportFormMessage}</p>}</form>
                   {supportTicketId && <section className="support-chat-panel"><div className="support-chat-heading"><div><span>CHAT OPERATIVO</span><h2>{supportAgentName ? `Agente: ${supportAgentName}` : "Esperando asignación de agente"}</h2><p>{supportTicketStatus === "closed" || supportTicketStatus === "resolved" ? "La conversación ha sido cerrada por el agente." : "Mantén esta conversación abierta. El agente te irá indicando cada paso hasta resolver la incidencia."}</p></div><strong>{supportTicketStatus || "open"}</strong><button type="button" aria-label="Cerrar vista del chat" onClick={() => setSupportChatHidden(true)}>×</button></div>{supportChatHidden ? <button type="button" className="secondary-button" onClick={() => setSupportChatHidden(false)}>Volver al chat</button> : <><p className="support-form-message">{["open", "waiting"].includes(supportTicketStatus) ? "El próximo agente disponible te atenderá en breve. Quédate a la espera de su respuesta." : "Puedes continuar escribiendo a soporte."}</p><div className="support-quick-replies">{["No puedo localizar al cliente; necesito instrucciones", "El pedido está bloqueado", "Necesito ayuda con la recogida", "Necesito ayuda con la entrega"].map((quickMessage) => <button type="button" key={quickMessage} onClick={() => setSupportChatDraft(quickMessage)}>{quickMessage}</button>)}</div><div className="support-chat-messages">{supportChatMessages.map((message, index) => <article key={message._id || `${message.createdAt}-${index}`} className={message.senderRole === "rider" ? "chat-message chat-message-rider" : "chat-message chat-message-support"}><b>{message.senderRole === "rider" ? "Tú" : message.senderName || supportAgentName || "Agente de soporte"}</b><span>{message.body}</span><small>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></article>)}</div>{!['closed','resolved'].includes(supportTicketStatus) && <form className="support-chat-compose" onSubmit={sendSupportChatMessage}><input value={supportChatDraft} onChange={(event) => setSupportChatDraft(event.target.value)} placeholder="Escribe al agente de soporte…" autoComplete="off" /><button type="submit" className="primary-button" disabled={supportChatBusy || !supportChatDraft.trim()}>{supportChatBusy ? "Enviando…" : "Enviar"}</button></form>}{supportTicketStatus === "resolved" && <div className="support-rating-panel"><strong>¿Cómo fue la atención del agente?</strong><div className="support-rating-stars">{[1,2,3,4,5].map((star) => <button type="button" key={star} aria-label={`${star} estrellas`} onClick={() => setSupportRating(star)} className={star <= supportRating ? "selected" : ""}>★</button>)}</div><textarea rows={2} value={supportRatingComment} onChange={(event) => setSupportRatingComment(event.target.value)} placeholder="Comentario opcional" /><button type="button" className="primary-button" disabled={!supportRating || supportChatBusy} onClick={() => void rateAndCloseSupportChat()}>Cerrar el chat definitivamente</button><button type="button" className="secondary-button" onClick={() => setSupportChatHidden(false)}>Volver al chat</button></div>}{supportFormMessage && <p className="support-form-message" role="alert">{supportFormMessage}</p>}</>}</section>}
                   <div className="faq-panel">
                     <div className="faq-panel-heading">
