@@ -125,7 +125,7 @@ const riderSectionStorageKey = `piki-${location.hostname}-rider-section`;
 function getInitialRiderSection(): string {
   const requested = new URLSearchParams(window.location.search).get("section");
   const isKnownSection = (value: string | null): value is string =>
-    Boolean(value && (value === "Solicitar alta" || nav.some(([label]) => label === value)));
+    Boolean(value && (value === "Solicitar alta" || value === "Perfil" || nav.some(([label]) => label === value)));
   if (isKnownSection(requested)) return requested;
   try {
     const saved = localStorage.getItem(riderSectionStorageKey);
@@ -1164,7 +1164,7 @@ function App() {
             ))}
           </div>
           <div className="rider-drawer-links">
-            <button className="rider-drawer-link" onClick={() => showSection("Inicio")}>
+            <button className="rider-drawer-link" onClick={() => showSection("Perfil")}>
               <UserRound size={25} />
               <span>Mi perfil</span>
             </button>
@@ -1177,7 +1177,7 @@ function App() {
               <span>Recursos</span>
               <ChevronDown size={20} className="rider-drawer-link-chevron" />
             </button>
-            <button className="rider-drawer-link" onClick={() => setProfileOpen(true)}>
+            <button className="rider-drawer-link" onClick={() => showSection("Perfil")}>
               <Settings size={25} />
               <span>Configuración y privacidad</span>
             </button>
@@ -1233,7 +1233,7 @@ function App() {
             <div className="profile-wrap">
               <button
                 className="profile-trigger"
-                onClick={() => setProfileOpen((value) => !value)}
+                onClick={() => showSection("Perfil")}
                 aria-expanded={profileOpen}
                 aria-label="Abrir perfil"
               >
@@ -2027,6 +2027,41 @@ function App() {
                   })()}
                 </section>
               )}
+              {section === "Perfil" && (
+                <section className="rider-profile-page" aria-labelledby="rider-profile-title">
+                  <header className="rider-profile-topbar">
+                    <button type="button" className="rider-profile-back" onClick={() => showSection("Inicio")} aria-label="Volver">
+                      <ChevronRight size={29} />
+                    </button>
+                    <h1 id="rider-profile-title">Perfil</h1>
+                    <span aria-hidden="true" />
+                  </header>
+                  <div className="rider-profile-identity">
+                    <div className="rider-profile-avatar">
+                      <img src="/piki-icon-192.png" alt="Avatar PIKI" />
+                    </div>
+                    <h2>{riderDisplayName}</h2>
+                    <p>ID <strong>{riderId || "—"}</strong></p>
+                  </div>
+                  <div className="rider-profile-options">
+                    {([
+                      ["Cuenta", "Consulta tus datos de acceso y cuenta."],
+                      ["Vehículos", "Gestiona el vehículo autorizado para repartir."],
+                      ["Más información", "Consulta ayuda, privacidad y condiciones."],
+                    ] as const).map(([label, description]) => (
+                      <button
+                        type="button"
+                        className="rider-profile-option"
+                        key={label}
+                        onClick={() => setToast(`${label}: disponible desde tu panel Fleet.`)}
+                      >
+                        <span><strong>{label}</strong><small>{description}</small></span>
+                        <ChevronRight size={27} />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               {![
                 "Ofertas",
                 "Entregas",
@@ -2034,6 +2069,7 @@ function App() {
                 "Cartera",
                 "Estadísticas",
                 "Soporte",
+                "Perfil",
               ].includes(section) && (
                 <>
                   <div className="page-heading">

@@ -6,6 +6,24 @@
 
 /* Drawer móvil Rider inspirado en la navegación de Glovo, con destinos PIKI reales. */
 .rider-drawer-header,.rider-drawer-nav,.rider-drawer-status{display:none}
+.rider-profile-page{min-height:calc(100vh - 72px);background:#fff;color:#111;padding-bottom:48px}
+.rider-profile-topbar{height:74px;display:grid;grid-template-columns:48px 1fr 48px;align-items:center;padding:0 20px;border-bottom:1px solid #f2f2f2}
+.rider-profile-topbar h1{margin:0;text-align:center;font:800 26px 'DM Sans',sans-serif;letter-spacing:-.7px}
+.rider-profile-back{display:grid;place-items:center;width:42px;height:42px;border:0;background:transparent;color:#111;cursor:pointer}
+.rider-profile-back svg{transform:rotate(180deg)}
+.rider-profile-identity{text-align:center;padding:58px 24px 62px}
+.rider-profile-avatar{width:150px;height:150px;margin:0 auto 22px;padding:7px;border-radius:50%;background:#bdeee1;display:grid;place-items:center;overflow:hidden}
+.rider-profile-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;background:#138d72}
+.rider-profile-identity h2{margin:0;font:800 28px/1.2 'DM Sans',sans-serif;letter-spacing:-.8px}
+.rider-profile-identity p{margin:12px 0 0;font:500 23px 'DM Sans',sans-serif}
+.rider-profile-identity p strong{font-weight:800}
+.rider-profile-options{margin:0 24px;border-top:1px solid #eeeeee}
+.rider-profile-option{width:100%;min-height:86px;display:flex;align-items:center;justify-content:space-between;gap:18px;border:0;border-bottom:1px solid #eeeeee;background:#fff;color:#111;text-align:left;padding:17px 0;cursor:pointer}
+.rider-profile-option span{display:grid;gap:5px}
+.rider-profile-option strong{font:800 23px 'DM Sans',sans-serif}
+.rider-profile-option small{color:#75817c;font-size:12px}
+.rider-profile-option svg{flex:none}
+.rider-profile-option:hover{color:#087c67}
 @media(max-width:900px){
   .sidebar{width:min(100%,430px);padding:0;background:#fff;color:#18231f;box-shadow:18px 0 42px rgba(20,34,29,.18);overflow-y:auto}
   .sidebar-open{transform:translateX(0)}
@@ -32,6 +50,10 @@
   .rider-drawer-status>span:last-child{display:grid;gap:3px}
   .rider-drawer-status small{color:#568071}
   .rider-drawer-legacy-nav{display:none}
+  .rider-profile-page{min-height:calc(100dvh - 64px);margin:-34px -22px -60px}
+  .rider-profile-topbar{height:72px;padding:0 18px}
+  .rider-profile-identity{padding:56px 18px 64px}
+  .rider-profile-options{margin:0 24px}
 }
 
 .delivery-list{display:grid;gap:14px;margin-top:18px}.delivery-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px;border:1px solid #dfe5ef;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(15,38,75,.06)}.delivery-card h2{margin:7px 0 6px;font-size:20px;color:#10294f}.delivery-card p{margin:0;color:#64748b}.delivery-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}.delivery-card .primary-button,.delivery-card .secondary-button{white-space:nowrap}@media(max-width:760px){.delivery-card{align-items:flex-start;flex-direction:column}.delivery-actions{justify-content:flex-start;width:100%}}
