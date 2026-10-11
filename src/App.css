@@ -562,3 +562,6 @@ button, a, input, select, textarea { touch-action: manipulation; }
   .real-google-map-section .rider-map-status { top: 84px; max-width: calc(100% - 34px); font-size: 11px; }
   .real-google-map-section .rider-map-open { right: 16px; bottom: 218px; }
 }
+
+/* Teléfono directo para incidencias de reparto desde el chat Rider. */
+.support-chat-phone{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-top:4px;color:#356f46;font-size:11px;font-weight:800;text-decoration:none}.support-chat-phone:hover{color:#183f27;text-decoration:underline}
