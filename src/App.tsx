@@ -296,6 +296,7 @@ function App() {
   const [showOperations, setShowOperations] = useState(false);
   const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
+  const [riderProfile, setRiderProfile] = useState({ name: "", email: "", riderCode: "" });
   const [currentShift, setCurrentShift] = useState<CurrentShift>({
     eligible: false,
   });
@@ -407,12 +408,13 @@ function App() {
         return;
       }
       const sessionData = (await sessionResponse.json()) as {
-        rider?: { id?: string; status?: string };
+        rider?: { id?: string; name?: string; email?: string; riderCode?: string; status?: string };
       };
       const id = String(sessionData.rider?.id || "");
       if (!id) return;
       markStoredTokenValidated();
       setRiderId(id);
+      setRiderProfile({ name: String(sessionData.rider?.name || ""), email: String(sessionData.rider?.email || ""), riderCode: String(sessionData.rider?.riderCode || "") });
       const [slotResponse, statsResponse, shiftResponse, cashResponse] =
         await Promise.all([
           fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers, cache: "no-store" }),
@@ -1320,8 +1322,8 @@ function App() {
               </button>
               {profileOpen && (
                 <div className="profile-menu">
-                  <strong>Cuenta Rider</strong>
-                  <span>rrhh.milchollos@gmail.com</span>
+                  <strong>{riderProfile.name || "Cuenta Rider"}</strong>
+                  <span>{riderProfile.riderCode || riderProfile.email || "Perfil individual Rider"}</span>
                   <button onClick={() => showSection("Cuenta")}>
                     Ver mi cuenta
                   </button>
