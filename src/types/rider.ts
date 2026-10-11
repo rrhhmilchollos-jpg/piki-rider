@@ -41,6 +41,8 @@ export type RiderOffer = {
 	deliveryAddress?: string | null;
 	deliveryNote?: string | null;
 	paymentMethod?: "stripe" | "bizum" | "cash";
+	partnerPaymentRequired?: boolean;
+	partnerPaymentCents?: number | null;
 	totalCents?: number;
 	subtotalCents?: number;
 	deliveryFeeCents?: number;

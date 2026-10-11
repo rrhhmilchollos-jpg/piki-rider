@@ -3,6 +3,7 @@ import type { RiderOffer } from "./types/rider";
 export type RiderPaymentInstruction = {
   detail: string;
   amountToCollectCents?: number;
+  amountToPayPartnerCents?: number;
 };
 
 export function isCustomerDeliveryPhase(
@@ -17,10 +18,13 @@ export function isCustomerDeliveryPhase(
  * to the establishment, regardless of the customer's payment method.
  */
 export function getRiderPaymentInstruction(
-  order: Pick<RiderOffer, "status" | "paymentMethod" | "totalCents">,
+  order: Pick<RiderOffer, "status" | "paymentMethod" | "totalCents" | "partnerPaymentRequired" | "partnerPaymentCents">,
 ): RiderPaymentInstruction {
   if (!isCustomerDeliveryPhase(order.status)) {
-    return { detail: "No tienes que pagar en el establecimiento" };
+    if (order.partnerPaymentRequired) {
+      return { detail: "Paga al Partner", amountToPayPartnerCents: order.partnerPaymentCents ?? order.totalCents };
+    }
+    return { detail: "No tienes que pagar nada al establecimiento" };
   }
 
   if (order.paymentMethod === "cash") {

@@ -107,7 +107,7 @@ function OrderDetail({ order }: { order: RiderOffer }) {
         </div>
       </article>) : <p className="active-empty-items">El detalle de productos estará disponible al sincronizar el pedido.</p>}
     </div>}
-    {(paymentInstruction.amountToCollectCents != null || !deliveryPhase) && <div className="active-payment"><span>Pago</span><strong>{paymentInstruction.detail}</strong>{paymentInstruction.amountToCollectCents != null && <b>{formatPrice(paymentInstruction.amountToCollectCents)}</b>}</div>}
+    {(paymentInstruction.amountToCollectCents != null || !deliveryPhase) && <div className="active-payment"><span>Pago</span><strong>{paymentInstruction.detail}</strong>{paymentInstruction.amountToPayPartnerCents != null && <b>{formatPrice(paymentInstruction.amountToPayPartnerCents)}</b>}{paymentInstruction.amountToCollectCents != null && <b>{formatPrice(paymentInstruction.amountToCollectCents)}</b>}</div>}
     {(order.subtotalCents != null || order.totalCents != null) && <div className="active-order-totals"><span>Subtotal <b>{formatPrice(order.subtotalCents ?? order.totalCents)}</b></span>{order.deliveryFeeCents != null && <span>Envío <b>{formatPrice(order.deliveryFeeCents)}</b></span>}{order.serviceFeeCents != null && <span>Servicio <b>{formatPrice(order.serviceFeeCents)}</b></span>}<strong>Total del pedido <b>{formatPrice(order.totalCents)}</b></strong></div>}
   </section>;
 }
