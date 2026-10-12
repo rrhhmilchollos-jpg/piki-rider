@@ -35,7 +35,6 @@ import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
-import LocationPermissionGate from "./components/LocationPermissionGate";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
 import { connectPikiRealtime } from "./realtime";
@@ -68,7 +67,10 @@ import {
   supportsNativeBackgroundTracking,
 } from "./native/backgroundLocation";
 import { publishPwaOperationSafety } from "./pwaOperationSafety";
-import { shouldShowOperationalMap } from "./riderSectionPolicy";
+import {
+  shouldShowOperationalMap,
+  shouldTrackLocationOnOperationalMap,
+} from "./riderSectionPolicy";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -1205,7 +1207,6 @@ function App() {
     );
   if (shiftActive && !showOperations && riderId)
     return (
-      <LocationPermissionGate appLabel="Rider">
       <ActiveShiftScreen
         token={apiToken}
         riderId={riderId}
@@ -1236,10 +1237,8 @@ function App() {
         }
         onError={handleApiError}
       />
-      </LocationPermissionGate>
     );
   return (
-    <LocationPermissionGate appLabel="Rider">
     <div className="app-shell">
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="brand-block">
@@ -2063,7 +2062,7 @@ function App() {
                     <LiveGoogleMap
                       token={apiToken}
                       riderId={riderId}
-                      active={shiftActive}
+                      active={shouldTrackLocationOnOperationalMap(section, shiftActive)}
                       nativeTracking={nativeTracking}
                       onError={handleApiError}
                     />
@@ -2096,7 +2095,6 @@ function App() {
         </section>}
       </main>
     </div>
-    </LocationPermissionGate>
   );
 }
 

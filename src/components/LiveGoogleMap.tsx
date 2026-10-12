@@ -92,14 +92,13 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
       else if (error.code === error.POSITION_UNAVAILABLE) onErrorRef.current("GPS no disponible: activa la ubicación precisa del teléfono.");
       else onErrorRef.current("GPS sin respuesta: mantén la app abierta y vuelve a intentarlo.");
     };
-    if (navigator.geolocation) {
-      const success = (position: GeolocationPosition) => void publish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
-      navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 30_000, timeout: 12_000 });
-      if (active) {
-        watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 });
-        heartbeat = window.setInterval(() => { navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }); }, 10_000);
-      }
-    }
+    // Rendering the home map must not prompt for GPS. Tracking starts only
+    // after App has explicitly validated location while starting a journey.
+    if (!active || !navigator.geolocation) return;
+    const success = (position: GeolocationPosition) => void publish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
+    navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 30_000, timeout: 12_000 });
+    watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 });
+    heartbeat = window.setInterval(() => { navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }); }, 10_000);
     return () => {
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (heartbeat !== undefined) window.clearInterval(heartbeat);
