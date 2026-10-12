@@ -316,6 +316,15 @@ function App() {
     playRiderOrderAlert(audioContextRef);
   }, []);
 
+  const normalizeShift = useCallback((raw: any): Shift => ({
+    ...raw,
+    day: String(raw?.day || "").replace(/^./, (value: string) => value.toUpperCase()),
+    start: String(raw?.start || raw?.startTime || ""),
+    end: String(raw?.end || raw?.endTime || ""),
+    zone: String(raw?.zone || raw?.zoneSlug || ""),
+    status: raw?.status || "planned",
+  }), []);
+
   const loadRiderData = useCallback(async () => {
     if (!apiToken || riderRefreshInFlightRef.current) return;
     riderRefreshInFlightRef.current = true;
@@ -355,10 +364,11 @@ function App() {
         ]);
       if (slotResponse.ok) {
         const data = (await slotResponse.json()) as { slots?: Shift[] };
-        setShifts(Array.isArray(data.slots) ? data.slots : []);
+        setShifts(Array.isArray(data.slots) ? data.slots.map(normalizeShift) : []);
       }
       if (shiftResponse.ok) {
-        const data = (await shiftResponse.json()) as CurrentShift;
+        const raw = (await shiftResponse.json()) as CurrentShift;
+        const data = { ...raw, shift: raw.shift ? normalizeShift(raw.shift) : null };
         setCurrentShift(data);
         setShiftActive(data.shift?.status === "active" && Boolean(data.shift.start && data.shift.end && data.shift.zone));
       }
@@ -377,7 +387,7 @@ function App() {
     } finally {
       riderRefreshInFlightRef.current = false;
     }
-  }, [apiToken]);
+  }, [apiToken, normalizeShift]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -525,22 +535,6 @@ function App() {
       },
     });
   }, [apiToken, riderId, shiftActive, playAssignmentAlert, activeOrder?._id]);
-  useEffect(() => {
-    if (!apiToken || !riderId || !shiftActive || !navigator.geolocation) return;
-    let lastSentAt = 0;
-    let disposed = false;
-    const sendLocation = (position: GeolocationPosition) => {
-      if (disposed || Date.now() - lastSentAt < 2500) return;
-      lastSentAt = Date.now();
-      void fetch(`${apiOrigin}/api/v1/riders/${riderId}/location`, {
-        method: "POST",
-        headers: { ...authHeaders(apiToken), "Content-Type": "application/json" },
-        body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy }),
-      }).catch(() => undefined);
-    };
-    const watchId = navigator.geolocation.watchPosition(sendLocation, () => undefined, { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 });
-    return () => { disposed = true; navigator.geolocation.clearWatch(watchId); };
-  }, [apiToken, riderId, shiftActive]);
   useEffect(() => {
     const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     if (!apiToken || !riderId || !activeOrder) {
@@ -771,7 +765,7 @@ function App() {
             body: JSON.stringify({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
+              accuracy: Number.isFinite(position.coords.accuracy) ? Math.min(100000, Math.max(0, position.coords.accuracy)) : undefined,
             }),
           },
         );

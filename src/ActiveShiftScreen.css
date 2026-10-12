@@ -70,3 +70,11 @@
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-order-summary{display:block}
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-handle{margin:0 0 2px}
 @media(max-width:580px){.active-order-summary{padding:5px 22px 7px}.active-order-summary strong{font-size:18px}.active-order-summary p{font-size:14px}}
+
+.live-rider-map{position:absolute;inset:0;background:#dfe8ec;z-index:0}
+.live-rider-map-canvas{position:absolute;inset:0}
+.live-rider-map-recenter{position:absolute;right:18px;top:92px;z-index:4;width:48px;height:48px;border:0;border-radius:50%;display:grid;place-items:center;background:#fff;color:#123a48;box-shadow:0 5px 18px rgba(0,0,0,.24);cursor:pointer}
+.live-rider-map-recenter:active{transform:scale(.96)}
+.live-rider-map-loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;padding:12px 18px;border-radius:14px;background:rgba(255,255,255,.92);color:#17313b;font-weight:800;box-shadow:0 8px 25px rgba(0,0,0,.18)}
+.active-shift-shell .active-bottom-sheet,.active-shift-shell .active-menu-button,.active-shift-shell .online-pill,.active-shift-shell .active-start-dialog,.active-shift-shell .toast{z-index:5}
+@media(max-width:580px){.live-rider-map-recenter{top:78px;right:14px;width:44px;height:44px}.live-rider-map-loading{font-size:13px;white-space:nowrap}}
