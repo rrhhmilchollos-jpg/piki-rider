@@ -101,8 +101,12 @@ async function encodeApplicationDocument(
 ) {
   if (file.size < 1 || file.size > 2_500_000)
     throw new Error(`${file.name}: máximo 2,5 MB`);
+  if (file.type && file.type !== "application/pdf")
+    throw new Error(`${file.name}: solo se admiten documentos PDF.`);
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
+  if (bytes.length < 5 || String.fromCharCode(...bytes.subarray(0, 5)) !== "%PDF-")
+    throw new Error(`${file.name}: el archivo no contiene un PDF válido.`);
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000)
     binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -113,7 +117,7 @@ async function encodeApplicationDocument(
   return {
     type,
     fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
+    mimeType: "application/pdf",
     sizeBytes: file.size,
     sha256,
     contentBase64: btoa(binary),
@@ -1450,14 +1454,14 @@ function App() {
                     <p className="form-hint">
                       La identidad deberá verificarse mediante escaneo online.
                       Fleet/Admin revisarán el expediente antes de activar la
-                      cuenta.
+                      cuenta. Adjunta exclusivamente archivos PDF legibles.
                     </p>
                     <label>
                       DNI/NIE
                       <input
                         name="document_identity"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                         required
                       />
                     </label>
@@ -1466,7 +1470,7 @@ function App() {
                       <input
                         name="document_bank_certificate"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                         required
                       />
                     </label>
@@ -1475,7 +1479,7 @@ function App() {
                       <input
                         name="document_driving_license"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                       />
                     </label>
                     <label>
@@ -1483,7 +1487,7 @@ function App() {
                       <input
                         name="document_insurance"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                       />
                     </label>
                     <label>
@@ -1491,7 +1495,7 @@ function App() {
                       <input
                         name="document_vehicle_technical_sheet"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                       />
                     </label>
                     <label>
@@ -1499,7 +1503,7 @@ function App() {
                       <input
                         name="document_vehicle_registration"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                       />
                     </label>
                     <label>
@@ -1507,7 +1511,7 @@ function App() {
                       <input
                         name="document_scooter_declaration"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                       />
                     </label>
                     <label>
@@ -1515,7 +1519,7 @@ function App() {
                       <input
                         name="document_dgt_mvp"
                         type="file"
-                        accept="application/pdf,image/*"
+                        accept=".pdf,application/pdf"
                       />
                     </label>
                   </fieldset>
