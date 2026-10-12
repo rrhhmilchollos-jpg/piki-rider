@@ -35,7 +35,7 @@ export type RiderOffer = {
   phase?: string;
   etaMinutes?: number | null;
   vehicle?: string;
-  restaurant?: { name?: string; address?: string; phone?: string; cuisine?: string; etaMinutes?: number[] };
+  restaurant?: { name?: string; address?: string; phone?: string; cuisine?: string; imageUrl?: string; etaMinutes?: number[] };
 	customerName?: string | null;
 	customerPhone?: string | null;
 	deliveryAddress?: string | null;
