@@ -11,7 +11,7 @@ afterEach(() => {
 describe("acceptRiderOffer", () => {
   it("posts the authenticated acceptance to the rider-specific API route", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      message: "Pedido aceptado. Llegar al Partner en un máximo de 10 minutos.",
+      message: "Pedido aceptado. Llegar al Partner en un máximo de 15 minutos.",
       pickupDeadlineAt: "2026-10-06T20:00:00.000Z",
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
