@@ -855,12 +855,20 @@ function App() {
         message?: string;
         error?: string;
         shift?: Shift;
+        locationRequired?: boolean;
         now?: { date: string; time: string };
       };
       if (!response.ok) {
         setToast(
           data.message ||
             "No puedes iniciar: no hay un turno reservado activo.",
+        );
+        return;
+      }
+      if (data.locationRequired) {
+        setToast(
+          data.message ||
+            "La jornada sigue bloqueada: activa la ubicación y comparte una posición GPS real.",
         );
         return;
       }
