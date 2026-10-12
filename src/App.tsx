@@ -68,6 +68,7 @@ import {
   supportsNativeBackgroundTracking,
 } from "./native/backgroundLocation";
 import { publishPwaOperationSafety } from "./pwaOperationSafety";
+import { shouldShowOperationalMap } from "./riderSectionPolicy";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -778,6 +779,7 @@ function App() {
   function showSection(next: string) {
     setSection(next);
     setOpen(false);
+    setProfileOpen(false);
   }
   async function toggleShift() {
     if (shiftActive) {
@@ -2025,16 +2027,37 @@ function App() {
                   </div>
                 </section>
               )}
-              {![
-                "Ofertas",
-                "Entregas",
-                "Horarios",
-                "Cartera",
-                "Incentivos",
-                "Estadísticas",
-                "Mapa",
-                "Soporte",
-              ].includes(section) && (
+              {section === "Cuenta" && (
+                <section className="feature-section rider-account-section" aria-label="Cuenta Rider">
+                  <FeatureHeading
+                    eyebrow="PIKI · CUENTA"
+                    title="Tu perfil y acceso operativo."
+                    lead="Consulta tus datos de Rider y accede a las acciones personales. La jornada y el mapa solo están disponibles desde Inicio."
+                    icon={<Settings />}
+                  />
+                  <div className="rider-account-grid">
+                    <article className="rider-account-card">
+                      <span className="rider-account-label">PERFIL RIDER</span>
+                      <h2>{riderProfile.name || "Tu cuenta Rider"}</h2>
+                      <dl>
+                        <div><dt>Email</dt><dd>{riderProfile.email || "Pendiente de sincronizar"}</dd></div>
+                        <div><dt>Código Rider</dt><dd>{riderProfile.riderCode || "Pendiente de asignación"}</dd></div>
+                        <div><dt>Estado</dt><dd><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "En jornada" : "Fuera de jornada"}</dd></div>
+                      </dl>
+                    </article>
+                    <article className="rider-account-card rider-account-actions">
+                      <ShieldCheck size={26} aria-hidden="true" />
+                      <h2>Acciones personales</h2>
+                      <p>Revisa tus turnos, consulta tu documentación con Operaciones o abre una solicitud de soporte.</p>
+                      <div>
+                        <button type="button" className="primary-button" onClick={() => showSection("Horarios")}><CalendarDays size={16} /> Ver horarios</button>
+                        <button type="button" className="secondary-button" onClick={() => showSection("Soporte")}><LifeBuoy size={16} /> Contactar soporte</button>
+                      </div>
+                    </article>
+                  </div>
+                </section>
+              )}
+              {shouldShowOperationalMap(section) && (
                 <section className="rider-home-map" aria-label="Mapa y estado de jornada">
                   <div className="rider-home-map-canvas">
                     <LiveGoogleMap
