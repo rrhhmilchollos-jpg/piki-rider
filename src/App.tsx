@@ -608,7 +608,7 @@ function App() {
           setToast("Tienes un mensaje nuevo del cliente.");
           return;
         }
-        if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
+        if (!["order.rider_offer", "order.offer_expired", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
         })
@@ -617,6 +617,10 @@ function App() {
             const data = (await response.json()) as { offers?: RiderOffer[] };
             setOffers(Array.isArray(data.offers) ? data.offers : []);
             setOffersError("");
+            if (event.type === "order.offer_expired") {
+              setToast("La oferta ha caducado. PIKI está buscando otro Rider.");
+              return;
+            }
             if (event.type === "order.rider_offer") {
               lastOfferAtRef.current = Date.now();
               playAssignmentAlert();
