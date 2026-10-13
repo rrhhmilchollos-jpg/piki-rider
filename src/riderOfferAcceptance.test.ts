@@ -30,7 +30,7 @@ describe("acceptRiderOffer", () => {
     expect(result.pickupDeadlineAt).toBe("2026-10-06T20:00:00.000Z");
   });
 
-  it("preserves the API message and status when an offer has expired", async () => {
+  it("converts the legacy expiry response into a reassignment state", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error: "RIDER_OFFER_EXPIRED",
       message: "La oferta ha caducado y PIKI ya busca otro rider.",
@@ -41,7 +41,7 @@ describe("acceptRiderOffer", () => {
         name: "RiderOfferAcceptanceError",
         status: 409,
         code: "RIDER_OFFER_EXPIRED",
-        message: "La oferta ha caducado y PIKI ya busca otro rider.",
+        message: "Este pedido se está reasignando. Se ha liberado tu jornada y se actualizarán tus ofertas.",
       });
   });
 

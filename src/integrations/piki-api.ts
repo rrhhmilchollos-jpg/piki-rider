@@ -122,11 +122,10 @@ export async function acceptRiderOffer(token: string, riderId: string, orderId: 
   const body = await response.json().catch(() => ({})) as { message?: string; error?: string; pickupDeadlineAt?: string };
   if (!response.ok) {
     const code = body.error || "RIDER_OFFER_ACCEPT_FAILED";
-    throw new RiderOfferAcceptanceError(
-      body.message || riderOfferAcceptanceErrors[code] || "No se pudo aceptar el reparto. Se actualizarán tus pedidos.",
-      response.status,
-      code,
-    );
+    const userMessage = code === "RIDER_OFFER_EXPIRED"
+      ? riderOfferAcceptanceErrors.RIDER_OFFER_EXPIRED
+      : body.message || riderOfferAcceptanceErrors[code] || "No se pudo aceptar el reparto. Se actualizarán tus pedidos.";
+    throw new RiderOfferAcceptanceError(userMessage, response.status, code);
   }
   return body;
 }
