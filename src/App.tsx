@@ -833,11 +833,27 @@ function App() {
   }
   async function offerAction(
     orderId: string,
-    action: "picked_up" | "on_the_way",
+    action: "accept" | "picked_up" | "on_the_way",
   ) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
     try {
+      if (action === "accept") {
+        const response = await fetch(`${apiOrigin}/api/v1/dispatch/orders/${orderId}/offer-response`, {
+          method: "POST",
+          headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" },
+          body: JSON.stringify({ accept: true }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setToast(data.message || data.error || "No se pudo aceptar el pedido. Reintenta sin cerrar la jornada.");
+          await loadRiderData();
+          return;
+        }
+        setToast("Pedido aceptado. Dirígete al establecimiento.");
+        await loadRiderData();
+        return;
+      }
       const endpoint = `/api/v1/orders/${orderId}/transitions`;
       const body = {
         status: action,
