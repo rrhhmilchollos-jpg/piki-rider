@@ -108,7 +108,7 @@ export class RiderOfferAcceptanceError extends Error {
 }
 
 const riderOfferAcceptanceErrors: Record<string, string> = {
-  RIDER_OFFER_EXPIRED: "La oferta ha caducado. PIKI está buscando otro rider.",
+  RIDER_OFFER_EXPIRED: "Este pedido se está reasignando. Se ha liberado tu jornada y se actualizarán tus ofertas.",
   RIDER_OFFER_NOT_FOUND: "La oferta ya no está disponible. Se actualizarán tus pedidos.",
   ORDER_CHANGED_RETRY: "La asignación ha cambiado. Se actualizarán tus pedidos.",
   RIDER_ACCESS_DENIED: "Esta oferta no corresponde a tu cuenta de Rider.",

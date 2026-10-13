@@ -45,6 +45,19 @@ describe("acceptRiderOffer", () => {
       });
   });
 
+
+  it("uses the reassignment message when an old backend returns the legacy expiry code without a message", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "RIDER_OFFER_EXPIRED",
+    }), { status: 409, headers: { "Content-Type": "application/json" } })));
+    const error = await acceptRiderOffer("rider-token", "rider-1", "order-1")
+      .catch((reason: unknown) => reason);
+    expect(error).toMatchObject({
+      code: "RIDER_OFFER_EXPIRED",
+      message: "Este pedido se está reasignando. Se ha liberado tu jornada y se actualizarán tus ofertas.",
+    });
+  });
+
   it("shows a useful fallback when the offer is no longer available", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error: "RIDER_OFFER_NOT_FOUND",
