@@ -8,8 +8,13 @@
 .active-shift-shell .rider-order-status i { width:7px; height:7px; border-radius:50%; background:#52a83d; box-shadow:0 0 0 4px rgba(82,168,61,.12); }
 .active-shift-shell .rider-order-status.is-offer i { background:#f0a400; box-shadow:0 0 0 4px rgba(240,164,0,.14); }
 .active-shift-shell .rider-order-code { color:#7c8884; font-size:12px; font-weight:800; letter-spacing:.04em; }
+.active-shift-shell .rider-order-phase { display:grid; gap:4px; margin:0 0 12px; padding:10px 12px; border-radius:13px; background:#fff7df; border:1px solid #f1dfab; color:#8a610c; }
+.active-shift-shell .rider-order-phase.is-customer { background:#edf7ff; border-color:#cfe5f6; color:#16567e; }
+.active-shift-shell .rider-order-phase span { font-size:10px; font-weight:900; letter-spacing:.1em; }
+.active-shift-shell .rider-order-phase strong { font-size:13px; line-height:1.25; }
 .active-shift-shell .active-order-detail { margin:0; padding:0; border:0; box-shadow:none; background:transparent; }
 .active-shift-shell .active-order-header { align-items:flex-start; margin-bottom:8px; }
+.active-shift-shell .rider-partner-image { width:68px; height:68px; flex:0 0 68px; object-fit:cover; border-radius:15px; background:#edf1ec; }
 .active-shift-shell .active-order-header h2 { margin:0; color:#152d25; font-size:23px; letter-spacing:-.045em; }
 .active-shift-shell .rider-order-subtitle { display:flex; align-items:center; gap:6px; margin:6px 0 0; color:#77837e; font-size:13px; font-weight:650; }
 .active-shift-shell .rider-order-subtitle svg { color:#5e8d3a; }
@@ -17,6 +22,17 @@
 .active-shift-shell .active-order-context strong { display:inline-flex; align-items:center; gap:5px; color:#326e3e; font-size:13px; letter-spacing:0; }
 .active-shift-shell .active-order-address { display:flex; align-items:flex-start; gap:8px; min-height:42px; margin:0 0 13px; padding:12px 13px; border-radius:14px; background:#f1f6ef; color:#263d34; font-size:14px; font-weight:650; line-height:1.35; }
 .active-shift-shell .active-order-address svg { flex:0 0 auto; color:#e16f5e; margin-top:1px; }
+.active-shift-shell .active-customer-contact { display:flex; align-items:center; gap:8px; margin:-4px 0 13px; color:#31516b; font-size:13px; }
+.active-shift-shell .active-customer-contact svg { color:#2f83b7; flex:0 0 auto; }
+.active-shift-shell .active-customer-contact b { font-weight:850; }
+.active-shift-shell .rider-delivery-progress { display:grid; grid-template-columns:auto minmax(18px,1fr) auto minmax(18px,1fr) auto; align-items:start; gap:7px; margin:13px 0 15px; color:#9ba4aa; }
+.active-shift-shell .rider-delivery-progress > div { display:grid; justify-items:center; gap:5px; min-width:54px; font-size:10px; font-weight:850; white-space:nowrap; }
+.active-shift-shell .rider-delivery-progress > div span { display:grid; place-items:center; width:29px; height:29px; border-radius:50%; background:#eef0f2; color:#aab1b5; }
+.active-shift-shell .rider-delivery-progress > div.is-done span { background:#173e67; color:#fff; }
+.active-shift-shell .rider-delivery-progress > div.is-active { color:#173e67; }
+.active-shift-shell .rider-delivery-progress > div.is-active span { background:#173e67; color:#fff; box-shadow:0 0 0 4px rgba(23,62,103,.12); }
+.active-shift-shell .rider-delivery-progress > i { height:3px; margin-top:13px; border-radius:99px; background:#d9dde0; }
+.active-shift-shell .rider-delivery-progress > i.is-active { background:#173e67; }
 .active-shift-shell .active-items-toggle { border-top:1px solid #e7ede4; border-bottom:1px solid #e7ede4; }
 .active-shift-shell .active-payment { margin-top:13px; padding:11px 13px; border:1px solid #e9eee7; border-radius:13px; background:#fff; }
 .active-shift-shell .active-order-button, .active-shift-shell .active-gps-button { border-radius:14px; font-weight:800; }
