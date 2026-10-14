@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, Clock3, Coins, Headphones, MapPin, Menu, Navigation, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, Clock3, Coins, Headphones, MapPin, Menu, Navigation, Phone, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import SlideToConfirm from "./SlideToConfirm";
@@ -92,7 +92,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   const customerName = order.customerName || "Cliente final";
   return <div className="exact-card-content exact-active-card">
     <div className="exact-active-label"><span>PEDIDO ACTIVO</span><span className="exact-bee-mark">●</span></div>
-    <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.status === "picked_up" || order.status === "on_the_way" ? "Recogida confirmada" : order.riderArrivedAt ? "Llegada confirmada" : "Pendiente de llegada"}</span></div></div>
+    <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.status === "picked_up" || order.status === "on_the_way" ? "Recogida confirmada · ruta al cliente" : order.riderArrivedAt ? "Llegada confirmada" : "Pendiente de llegada"}</span></div>{deliveryPhase && order.customerPhone && <a className="active-call-button" href={`tel:${order.customerPhone}`} aria-label={`Llamar a ${customerName}`}><Phone size={20}/></a>}</div>
     <div className="exact-active-facts">
       <div><UserRound size={28}/><span>Cliente: {customerName}</span></div>
       <div><MapPin size={28}/><span>{order.deliveryAddress || "Dirección de entrega no disponible"}</span></div>
