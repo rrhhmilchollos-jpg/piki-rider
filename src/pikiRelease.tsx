@@ -296,8 +296,12 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       const registration = await registerWorker();
       const waiting = registration?.waiting ?? null;
       if (!waiting) {
-        setUpdating(false);
-        setDetail("El nuevo build PWA todavía se está descargando. Mantén PIKI Riders abierto y vuelve a intentarlo en unos segundos.");
+        // Algunas instalaciones no exponen `waiting` aunque el navegador ya
+        // haya descargado el nuevo app shell. Fuerza una navegación única con
+        // cache-busting para que el usuario vea el build servido por Vercel.
+        const url = new URL(window.location.href);
+        url.searchParams.set("piki_update", String(Date.now()));
+        window.location.replace(url.toString());
         return;
       }
       activationRequestedRef.current = true;

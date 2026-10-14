@@ -89,7 +89,8 @@
 .active-shift-shell .rider-order-meta-row{margin:0 0 15px 2px}
 .active-shift-shell .rider-order-status{padding:8px 12px;background:#edf8e7;color:#2d6a3b;font-size:11px}
 .active-shift-shell .rider-order-code{font-size:15px;color:#78827d}
-.active-shift-shell .active-order-header{margin-bottom:15px}
+.active-shift-shell .active-order-header{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:12px;margin-bottom:15px}
+.active-shift-shell .rider-restaurant-image{width:58px;height:58px;object-fit:cover;border-radius:16px;background:#eef3ea;box-shadow:0 3px 10px rgba(24,45,35,.14)}
 .active-shift-shell .active-order-header h2{font-size:27px;color:#17221d}
 .active-shift-shell .rider-order-subtitle{font-size:15px;margin-top:8px}
 .active-shift-shell .active-order-context{margin:18px 0 10px;font-size:12px}
@@ -109,6 +110,8 @@
   .active-shift-shell .active-order-summary p{font-size:16px}
   .active-shift-shell .active-order-stack-item{margin:0 -5px;padding:16px 14px 20px;border-radius:24px}
   .active-shift-shell .active-order-header h2{font-size:25px}
+  .active-shift-shell .active-order-header{grid-template-columns:52px minmax(0,1fr) auto;gap:10px}
+  .active-shift-shell .rider-restaurant-image{width:52px;height:52px;border-radius:14px}
   .active-shift-shell .active-order-address{font-size:15px}
 }
 
