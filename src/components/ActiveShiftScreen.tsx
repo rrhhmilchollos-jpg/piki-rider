@@ -45,12 +45,12 @@ function countdownSeconds(order: RiderOffer) {
   return Math.max(0, Math.ceil((new Date(order.assignmentExpiresAt).getTime() - Date.now()) / 1000));
 }
 
-function restaurantImage(_order: RiderOffer) {
-  return "/rider-solera.jpg";
+function restaurantImage(order: RiderOffer) {
+  return order.restaurant?.imageUrl || "";
 }
 
 function deliveryGain(order: RiderOffer) {
-  return formatPrice(order.deliveryFeeCents ?? 240) || "2,40 €";
+  return formatPrice(order.deliveryFeeCents) || "—";
 }
 
 function OrderItems({ order }: { order: RiderOffer }) {
@@ -71,15 +71,15 @@ function IncomingOrderCard({ order }: { order: RiderOffer }) {
     const timer = window.setInterval(() => setSeconds(countdownSeconds(order)), 1000);
     return () => window.clearInterval(timer);
   }, [order]);
-  const pickupMinutes = order.restaurant?.etaMinutes?.[0] || 4;
-  const deliveryMinutes = order.etaMinutes || 18;
+  const pickupMinutes = order.restaurant?.etaMinutes?.[0] ?? order.preparationMinutes ?? null;
+  const deliveryMinutes = order.etaMinutes ?? null;
   return <div className="exact-card-content exact-incoming-card">
     <div className="exact-card-title-row"><div className="exact-alert-icon"><BellRing size={29}/></div><div><h2>NUEVO PEDIDO</h2><p>Un nuevo pedido te está esperando</p></div><div className="exact-countdown"><b>{seconds}</b><span>seg</span></div></div>
     <div className="exact-divider" />
-    <div className="exact-restaurant-row"><img src={restaurantImage(order)} alt="Restaurante"/><div><h3>{order.restaurant?.name || "Restaurante Solera Cocina Viva"}</h3><p>{order.restaurant?.address || "C. de Fernando el Católico, 32"}</p><p>Madrid</p></div></div>
+    <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{order.restaurant?.name || "Establecimiento Partner"}</h3><p>{order.restaurant?.address || "Dirección del Partner no disponible"}</p></div></div>
     <div className="exact-facts">
-      <div><span className="exact-fact-icon yellow"><ShoppingBag size={24}/></span><p><b>Recogida · {pickupMinutes} min</b><small>{order.status === "ready_for_pickup" ? "El pedido está listo" : "Preparación en curso"}</small></p></div>
-      <div><span className="exact-fact-icon navy"><MapPin size={24}/></span><p><b>Entrega · {deliveryMinutes} min</b><small>{order.deliveryAddress || "C. de Serrano, 104"}</small></p></div>
+      <div><span className="exact-fact-icon yellow"><ShoppingBag size={24}/></span><p><b>Recogida · {pickupMinutes == null ? "—" : `${pickupMinutes} min`}</b><small>{order.status === "ready_for_pickup" ? "El pedido está listo" : "Preparación en curso"}</small></p></div>
+      <div><span className="exact-fact-icon navy"><MapPin size={24}/></span><p><b>Entrega · {deliveryMinutes == null ? "—" : `${deliveryMinutes} min`}</b><small>{order.deliveryAddress || "Dirección de entrega no disponible"}</small></p></div>
       <div><span className="exact-fact-icon mint"><Coins size={24}/></span><p><b>{deliveryGain(order)} + propina</b><small>Ganancia estimada</small></p></div>
     </div>
     <div className="exact-ready"><CheckCircle2 size={25}/> <b>Preparado para recoger</b></div>
@@ -89,14 +89,15 @@ function IncomingOrderCard({ order }: { order: RiderOffer }) {
 
 function ActiveOrderCard({ order }: { order: RiderOffer }) {
   const deliveryPhase = isCustomerDeliveryPhase(order.status);
-  const customerName = order.customerName || "Ana";
+  const customerName = order.customerName || "Cliente final";
   return <div className="exact-card-content exact-active-card">
     <div className="exact-active-label"><span>PEDIDO ACTIVO</span><span className="exact-bee-mark">●</span></div>
-    <div className="exact-restaurant-row"><img src={restaurantImage(order)} alt="Pedido"/><div><h3>{order.restaurant?.name || "Solera Cocina Viva"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.riderArrivedAt ? "Recogida confirmada" : "Pendiente de llegada"}</span></div></div>
+    <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.status === "picked_up" || order.status === "on_the_way" ? "Recogida confirmada" : order.riderArrivedAt ? "Llegada confirmada" : "Pendiente de llegada"}</span></div></div>
     <div className="exact-active-facts">
-      <div><UserRound size={28}/><span>Cliente: {customerName} · Valencia</span></div>
-      <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes || 18} min</b></span></div>
-      <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "12,50 €"}</b></> : <>Cobro al entregar: <b>Pagado online</b></>}</span></div>
+      <div><UserRound size={28}/><span>Cliente: {customerName}</span></div>
+      <div><MapPin size={28}/><span>{order.deliveryAddress || "Dirección de entrega no disponible"}</span></div>
+      <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes == null ? "—" : `${order.etaMinutes} min`}</b></span></div>
+      <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "Importe no disponible"}</b></> : <>Cobro al entregar: <b>Pagado online</b></>}</span></div>
     </div>
     <div className="exact-progress" aria-label="Progreso del pedido"><span className="done"><i>✓</i><b>Recoger</b></span><span className={order.status === "picked_up" || deliveryPhase ? "current" : ""}><i>○</i><b>En camino</b></span><span className={order.status === "on_the_way" ? "current" : ""}><i>○</i><b>Entregado</b></span></div>
     <OrderItems order={order}/>
