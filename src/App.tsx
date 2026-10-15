@@ -499,6 +499,15 @@ function App() {
     };
   }, [loadRiderData]);
   useEffect(() => {
+    if (!apiToken) return;
+    // SSE actualiza al instante cuando llega el evento, pero el polling evita
+    // que un móvil suspendido o una reconexión perdida deje el calendario viejo.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadRiderData();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [apiToken, loadRiderData]);
+  useEffect(() => {
     try {
       localStorage.setItem(riderSectionStorageKey, section);
     } catch {
@@ -1709,7 +1718,7 @@ function App() {
                   <div className="shift-toolbar">
                     <div>
                       <strong>Calendario de jornada</strong>
-                      <span>Asignaciones de Fleet · sincronización automática cada 30 segundos y al volver a abrir la app</span>
+                      <span>Asignaciones de Fleet · hora oficial de España · sincronización automática y en tiempo real</span>
                     </div>
                     <span className="zone-chip">Zona Xàtiva</span>
                   </div>
