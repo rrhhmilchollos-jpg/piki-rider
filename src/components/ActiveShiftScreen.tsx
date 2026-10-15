@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, Clock3, Coins, Headphones, MapPin, Menu, Navigation, Phone, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Navigation, Phone, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import SlideToConfirm from "./SlideToConfirm";
@@ -95,7 +95,9 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
     <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.status === "picked_up" || order.status === "on_the_way" ? "Recogida confirmada · ruta al cliente" : order.riderArrivedAt ? "Llegada confirmada" : "Pendiente de llegada"}</span></div>{deliveryPhase && order.customerPhone && <a className="active-call-button" href={`tel:${order.customerPhone}`} aria-label={`Llamar a ${customerName}`}><Phone size={20}/></a>}</div>
     <div className="exact-active-facts">
       <div><UserRound size={28}/><span>Cliente: {customerName}</span></div>
+      {deliveryPhase && order.customerPhone && <div><Phone size={28}/><span>Teléfono: {order.customerPhone}</span></div>}
       <div><MapPin size={28}/><span>{order.deliveryAddress || "Dirección de entrega no disponible"}</span></div>
+      {deliveryPhase && order.deliveryNote && <div><ClipboardList size={28}/><span>Nota: {order.deliveryNote}</span></div>}
       <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes == null ? "—" : `${order.etaMinutes} min`}</b></span></div>
       <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "Importe no disponible"}</b></> : <>Cobro al entregar: <b>Pagado online</b></>}</span></div>
     </div>
