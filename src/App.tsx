@@ -504,7 +504,7 @@ function App() {
     // que un móvil suspendido o una reconexión perdida deje el calendario viejo.
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadRiderData();
-    }, 15_000);
+    }, 5_000);
     return () => window.clearInterval(timer);
   }, [apiToken, loadRiderData]);
   useEffect(() => {

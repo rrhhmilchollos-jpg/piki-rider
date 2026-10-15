@@ -74,7 +74,10 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
     const publish = async (next: Point) => {
       setPoint(next);
       setMapCenter((previous) => previous === fallbackPoint ? { lat: next.lat, lng: next.lng } : previous);
-      setLocationMessage(`GPS actualizado · precisión aproximada ${Math.round(next.accuracy)} m`);
+      const accuracy = Number(next.accuracy);
+      setLocationMessage(Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
+        ? `GPS actualizado · precisión aproximada ±${Math.round(accuracy)} m`
+        : "GPS actualizado · precisión no disponible");
       if (!active || !riderId || nativeTracking) return;
       const previous = lastPublishedRef.current;
       const elapsed = previous ? Date.now() - previous.at : Number.POSITIVE_INFINITY;

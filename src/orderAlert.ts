@@ -59,7 +59,7 @@ export function primeRiderOrderAudio(
 }
 
 export function playRiderShiftStart(): boolean {
-  return playAsset("piki-alert-15s.mp3");
+  return playAsset("ui-shift-start.mp3") || playAsset("piki-alert-15s.mp3");
 }
 
 export function playRiderOrderCancelled(): boolean {
