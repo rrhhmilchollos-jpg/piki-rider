@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Navigation, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Minus, Navigation, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -144,11 +144,6 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
   const liveOrder = liveOrders[0];
   const selectedOrder = liveOrders.find((order) => order._id === selectedOrderId) || liveOrder;
   const navigation = liveOrder ? getRiderNavigationTarget(liveOrder) : null;
-  const summaryName = liveOrder
-    ? navigation?.phase === "customer"
-      ? liveOrder.customerName || "Cliente final"
-      : liveOrder.restaurant?.name || "Establecimiento Partner"
-    : "";
   const subtitle = currentShift.shift?.zone ? `Zona ${currentShift.shift.zone}` : "Xàtiva";
 
   useEffect(() => {
@@ -209,8 +204,8 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       
 
       <section className={`active-bottom-sheet ${liveOrder ? "has-live-order" : ""} ${sheetCollapsed && liveOrder ? "is-collapsed" : ""}`} aria-live="polite">
-        {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}><span aria-hidden="true"/></button>}
-        {liveOrder && navigation && <div className="active-order-summary"><strong>{summaryName}</strong><p>{navigation.address}</p></div>}
+        {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} title={sheetCollapsed ? "Ampliar pedido" : "Ocultar detalle y dejar el mapa visible"} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}>{sheetCollapsed ? <Plus size={21} strokeWidth={3}/> : <Minus size={21} strokeWidth={3}/>}</button>}
+        {liveOrder && <div className="active-order-summary"><span className="active-order-summary-label"><i aria-hidden="true"/> PEDIDO ACTIVO</span><strong>{liveOrder.customerName || "Cliente final"}</strong><p><MapPin size={17} aria-hidden="true"/>{liveOrder.deliveryAddress || "Dirección detallada del cliente"}</p></div>}
         <div className="active-sheet-expanded-content" aria-hidden={Boolean(sheetCollapsed && liveOrder)}>
           {offersLoading && !liveOrder ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Conectando con pedidos…</h1><p>Sincronizando tus ofertas de reparto en {subtitle}.</p></> : offersError ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Sin conexión temporal</h1><p>{offersError}. Tu jornada sigue activa; vuelve a sincronizar para recibir las ofertas pendientes.</p><button type="button" className="active-retry-button" onClick={onRefreshOffers}><RefreshCw size={16}/> Reintentar</button></> : liveOrder ? <>
             <p className="active-eyebrow">PIKI · {liveOrders.length === 1 ? "1 PEDIDO ACTIVO" : `${liveOrders.length} PEDIDOS ACTIVOS`}</p>
