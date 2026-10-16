@@ -536,3 +536,20 @@ button, a, input, select, textarea { touch-action: manipulation; }
     font-size: 11px;
   }
 }
+
+/* Tarjeta Rider desplazable: el mapa permanece disponible y el detalle se puede consultar de arriba abajo. */
+.active-shift-shell .active-bottom-sheet {
+  max-height: min(78vh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+}
+.active-shift-shell .active-bottom-sheet > * { max-width: 100%; }
+@media (max-width: 580px) {
+  .active-shift-shell .active-bottom-sheet {
+    max-height: 76vh;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
