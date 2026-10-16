@@ -1198,7 +1198,7 @@ function App() {
   }, []);
 
   const nativeTracking = supportsNativeBackgroundTracking();
-  const appVersion = String(import.meta.env.VITE_APP_VERSION || "0.4.0");
+  const appVersion = String(import.meta.env.VITE_APP_VERSION || "1.0.4");
   const trackingSessionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!nativeTracking || !shiftActive || !apiToken || !riderId) {
