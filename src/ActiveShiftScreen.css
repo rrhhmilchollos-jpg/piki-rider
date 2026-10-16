@@ -166,3 +166,5 @@
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-expanded-content { display: none; }
 @media (prefers-reduced-motion: reduce) { .active-shift-shell .active-sheet-handle, .active-shift-shell .active-bottom-sheet { transition: none; } }
 @media (max-width: 580px) { .active-shift-shell .active-sheet-handle { top: 14px; right: 14px; width: 44px; height: 44px; } .active-shift-shell .active-bottom-sheet.is-collapsed { padding: 70px 20px 18px; } .active-shift-shell .active-order-summary strong { font-size: 19px; } .active-shift-shell .active-order-summary p { font-size: 13px; } }
+
+/* test deploy */
