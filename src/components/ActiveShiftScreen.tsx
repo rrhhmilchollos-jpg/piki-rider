@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Navigation, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Navigation, RefreshCw, ShieldCheck, ShoppingBag, UserRound, Phone, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -93,7 +93,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
     <div className="exact-active-label"><span>PEDIDO ACTIVO</span><span className="exact-bee-mark">●</span></div>
     <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.status === "picked_up" || order.status === "on_the_way" ? "Recogida confirmada · ruta al cliente" : order.riderArrivedAt ? "Llegada confirmada" : "Pendiente de llegada"}</span></div></div>
     <div className="exact-active-facts">
-      <div><UserRound size={28}/><span>Cliente: {customerName}</span></div>
+      <div><UserRound size={28}/><span>Cliente: {customerName}{deliveryPhase && order.customerPhone ? ` · ${order.customerPhone}` : ""}</span></div>
             <div><MapPin size={28}/><span>{order.deliveryAddress || "Dirección de entrega no disponible"}</span></div>
       {deliveryPhase && order.deliveryNote && <div><ClipboardList size={28}/><span>Nota: {order.deliveryNote}</span></div>}
       <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes == null ? "—" : `${order.etaMinutes} min`}</b></span></div>
@@ -208,9 +208,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>{nativeTracking ? "El GPS nativo seguirá activo durante tu jornada, incluso al cerrar la app desde recientes." : "Mantén la app visible para recibir asignaciones y avisos en tiempo real."}</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
       </section>}
-      {newOrderNoticeOpen && liveOrder && <section className="active-new-order-dialog" role="dialog" aria-modal="true" aria-label="Nuevo pedido asignado">
-        <div className="active-new-order-icon"><ShoppingBag size={34}/></div><h1>{liveOrder.assignmentState === "assigned" ? "Nuevo pedido aceptado" : "Nueva asignación"}</h1><p>{liveOrder.restaurant?.name || "Establecimiento Partner"}</p><strong>{liveOrder.assignmentState === "assigned" ? "Dirígete al Partner para recogerlo" : "Revisa la dirección y acepta el pedido"}</strong><button type="button" onClick={() => { setNewOrderNoticeOpen(false); setSheetCollapsed(false); }}>Ver pedido</button>
-      </section>}
+      
 
       <section className={`active-bottom-sheet ${liveOrder ? "has-live-order" : ""} ${sheetCollapsed && liveOrder ? "is-collapsed" : ""}`} aria-live="polite">
         {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}><span aria-hidden="true"/></button>}
