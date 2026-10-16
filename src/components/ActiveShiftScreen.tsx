@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Navigation, RefreshCw, ShieldCheck, ShoppingBag, UserRound, Phone, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Navigation, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -93,7 +93,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
     <div className="exact-active-label"><span>PEDIDO ACTIVO</span><span className="exact-bee-mark">●</span></div>
     <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {order.status === "picked_up" || order.status === "on_the_way" ? "Recogida confirmada · ruta al cliente" : order.riderArrivedAt ? "Llegada confirmada" : "Pendiente de llegada"}</span></div></div>
     <div className="exact-active-facts">
-      <div><UserRound size={28}/><span>Cliente: {customerName}{deliveryPhase && order.customerPhone ? ` · ${order.customerPhone}` : ""}</span></div>
+      <div><UserRound size={28}/><span>Cliente: {customerName}</span></div>
             <div><MapPin size={28}/><span>{order.deliveryAddress || "Dirección de entrega no disponible"}</span></div>
       {deliveryPhase && order.deliveryNote && <div><ClipboardList size={28}/><span>Nota: {order.deliveryNote}</span></div>}
       <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes == null ? "—" : `${order.etaMinutes} min`}</b></span></div>
@@ -110,7 +110,6 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
   const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [newOrderNoticeOpen, setNewOrderNoticeOpen] = useState(false);
   const lastSeenOrderIdRef = useRef<string | null>(null);
   const [sheetCollapsed, setSheetCollapsed] = useState(() => {
     try {
@@ -155,7 +154,6 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
   useEffect(() => {
     if (!liveOrder || lastSeenOrderIdRef.current === liveOrder._id) return;
     lastSeenOrderIdRef.current = liveOrder._id;
-    setNewOrderNoticeOpen(true);
   }, [liveOrder]);
 
   useEffect(() => {
