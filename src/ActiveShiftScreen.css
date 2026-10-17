@@ -168,3 +168,10 @@
 @media (max-width: 580px) { .active-shift-shell .active-sheet-handle { top: 14px; right: 14px; width: 44px; height: 44px; } .active-shift-shell .active-bottom-sheet.is-collapsed { padding: 70px 20px 18px; } .active-shift-shell .active-order-summary strong { font-size: 19px; } .active-shift-shell .active-order-summary p { font-size: 13px; } }
 
 /* test deploy */
+
+/* Fase de entrega: la tarjeta cambia de Partner a Cliente sin repetir el destino. */
+.active-shift-shell .exact-active-facts > div > span { display:grid; gap:3px; min-width:0; }
+.active-shift-shell .exact-active-facts > div > span > b { display:block; color:#6b7789; font:800 13px 'Space Grotesk',sans-serif; letter-spacing:.04em; text-transform:uppercase; }
+.active-shift-shell .exact-active-facts > div > span > a { color:#0d5b8f; font-weight:800; text-decoration:underline; }
+.active-shift-shell .phase-customer .exact-active-card { border-left-color:#2f83b7; }
+.active-shift-shell .phase-customer .exact-active-label { color:#16567e; }
