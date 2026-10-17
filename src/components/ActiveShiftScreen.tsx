@@ -27,6 +27,7 @@ type Props = {
   onRefreshOffers: () => void;
   onAcceptOffer: (orderId: string) => void;
   onOfferAction: (orderId: string, action: "on_the_way") => void;
+  onStartPickupRoute: (orderId: string) => void;
   onConfirmArrival: (orderId: string) => void;
   actionBusy?: boolean;
   onConfirmPickup: (orderId: string, verificationCode: string) => void;
@@ -91,7 +92,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   const customerName = order.customerName || "Cliente final";
   return <div className="exact-card-content exact-active-card">
     <div className="exact-active-label"><span>PEDIDO ACTIVO</span><span className="exact-bee-mark">●</span></div>
-    <div className="exact-restaurant-row">{restaurantImage(order) && !deliveryPhase && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {deliveryPhase ? "Recogida confirmada · entrega al cliente" : order.riderArrivedAt ? "Llegada al Partner confirmada" : "Pendiente de llegada al Partner"}</span></div></div>
+    <div className="exact-restaurant-row">{restaurantImage(order) && !deliveryPhase && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {deliveryPhase ? "Recogida confirmada · entrega al cliente" : order.riderArrivedAt ? "Llegada al Partner confirmada" : order.riderHeadingToPartnerAt ? "En camino al Partner" : "Pendiente de llegada al Partner"}</span></div></div>
     <div className="exact-active-facts">
       {deliveryPhase ? <div><UserRound size={28}/><span>Cliente: {customerName}</span></div> : <div><ShoppingBag size={28}/><span>Recogida en: {order.restaurant?.address || order.restaurant?.name || "Dirección del Partner no disponible"}</span></div>}
       {deliveryPhase ? <div><MapPin size={28}/><span>Entrega en: {order.deliveryAddress || "Dirección de entrega no disponible"}</span></div> : <div><MapPin size={28}/><span>Dirección del Partner: {order.restaurant?.address || "Dirección no disponible"}</span></div>}
@@ -108,7 +109,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onStartPickupRoute, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<"pickup" | "delivery">("delivery");
   const [scannerReady, setScannerReady] = useState(false);
@@ -213,7 +214,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
         <div className="active-sheet-expanded-content" aria-hidden={Boolean(sheetCollapsed && liveOrder)}>
           {offersLoading && !liveOrder ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Conectando con pedidos…</h1><p>Sincronizando tus ofertas de reparto en {subtitle}.</p></> : offersError ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Sin conexión temporal</h1><p>{offersError}. Tu jornada sigue activa; vuelve a sincronizar para recibir las ofertas pendientes.</p><button type="button" className="active-retry-button" onClick={onRefreshOffers}><RefreshCw size={16}/> Reintentar</button></> : liveOrder ? <>
             <p className="active-eyebrow">PIKI · {liveOrders.length === 1 ? "1 PEDIDO ACTIVO" : `${liveOrders.length} PEDIDOS ACTIVOS`}</p>
-            <section className={`active-order-stack-item ${navigation?.phase === "customer" ? "phase-customer" : "phase-partner"} ${liveOrder.assignmentState === "offered" ? "is-offered" : "is-assigned"}`} key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}>{liveOrder.assignmentState === "offered" ? <IncomingOrderCard order={liveOrder}/> : <ActiveOrderCard order={liveOrder}/>}<button type="button" className="active-order-button active-gps-button" aria-label={`Abrir GPS hacia ${navigation?.phase === "partner" ? "el Partner" : "el cliente"}`} onClick={() => window.open(buildDirectionsUrl(navigation?.address || ""), "_blank", "noopener,noreferrer")}><Navigation size={17}/> {navigation?.label}</button>
+            <section className={`active-order-stack-item ${navigation?.phase === "customer" ? "phase-customer" : "phase-partner"} ${liveOrder.assignmentState === "offered" ? "is-offered" : "is-assigned"}`} key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}>{liveOrder.assignmentState === "offered" ? <IncomingOrderCard order={liveOrder}/> : <ActiveOrderCard order={liveOrder}/>}<button type="button" className="active-order-button active-gps-button" aria-label={`Abrir GPS hacia ${navigation?.phase === "partner" ? "el Partner" : "el cliente"}`} onClick={() => { if (navigation?.phase === "partner" && liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt) onStartPickupRoute(liveOrder._id); window.open(buildDirectionsUrl(navigation?.address || ""), "_blank", "noopener,noreferrer"); }}><Navigation size={17}/> {navigation?.label}</button>
               {liveOrder.assignmentState === "offered" && <><p className="active-assignment-note">Este pedido debe aceptarse, recogerse en el Partner y entregarse al cliente final. PIKI verificará cada paso con GPS y QR/PIN.</p><button type="button" className="active-order-button exact-accept-button" disabled={actionBusy} onClick={() => onAcceptOffer(liveOrder._id)}>ACEPTAR PEDIDO</button></>}
               {liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt && <button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => onConfirmArrival(liveOrder._id)}><CheckCircle2 size={18}/> CONFIRMAR LLEGADA AL PARTNER</button>}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">Llegada verificada. El Partner tiene hasta 15 minutos para preparar el pedido.</p>}

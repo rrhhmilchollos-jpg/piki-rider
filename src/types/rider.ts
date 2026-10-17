@@ -29,6 +29,7 @@ export type RiderOffer = {
   pickupDeadlineAt?: string | null;
   partnerPrepDeadlineAt?: string | null;
   preparationMinutes?: number;
+  riderHeadingToPartnerAt?: string | null;
   riderArrivedAt?: string | null;
   riderArrivalDistanceMeters?: number | null;
   status: "pending" | "ready_for_pickup" | "picked_up" | "on_the_way" | "accepted" | "preparing";

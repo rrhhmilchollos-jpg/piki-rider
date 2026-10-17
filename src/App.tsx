@@ -962,6 +962,19 @@ function App() {
       setOrderActionBusy(false);
     }
   }
+  async function startPickupRoute(orderId: string) {
+    if (orderActionBusy || !apiToken || !riderId) return;
+    setOrderActionBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/start-pickup-route`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setToast(data.message || data.error || "No se pudo iniciar la ruta al Partner."); await loadRiderData(); return; }
+      const headingAt = data.order?.riderHeadingToPartnerAt || new Date().toISOString();
+      setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, riderHeadingToPartnerAt: headingAt } : offer));
+      setToast(data.message || "En camino al Partner. El Partner y el Customer ya están avisados.");
+    } catch { setToast("No se pudo registrar la ruta al Partner. Comprueba la conexión."); }
+    finally { setOrderActionBusy(false); }
+  }
   async function acceptRiderOfferAction(orderId: string) {
     if (orderActionBusy || !apiToken || !riderId) return;
     setOrderActionBusy(true);
@@ -1264,6 +1277,7 @@ function App() {
         onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
         actionBusy={orderActionBusy}
         onOfferAction={(orderId, action) => void offerAction(orderId, action)}
+        onStartPickupRoute={(orderId) => void startPickupRoute(orderId)}
         onConfirmPickup={(orderId, verificationCode) =>
           void confirmPickup(orderId, verificationCode)
         }
