@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, CheckCheck, X } from "lucide-react";
 import "./NotificationCenter.css";
 
@@ -21,26 +21,38 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
+  const requestInFlight = useRef<Promise<void> | null>(null);
+  const lastLoadedAt = useRef(0);
+  const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${apiOrigin}/api/v1/notifications?limit=20`, {
-        cache: "no-store",
-        credentials: "include",
-        headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
-      });
-      if (!response.ok) throw new Error(response.status === 401 ? "Vuelve a iniciar sesión para ver tus avisos." : "No se pudieron cargar los avisos.");
-      const payload = await response.json() as InboxResponse;
-      setItems(Array.isArray(payload.notifications) ? payload.notifications : []);
-      setUnreadCount(Math.max(0, Number(payload.unreadCount || 0)));
-      setError("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudieron cargar los avisos.");
-    } finally {
-      setLoading(false);
-    }
+    const now = Date.now();
+    if (!force && now - lastLoadedAt.current < 5_000) return;
+    if (requestInFlight.current) return requestInFlight.current;
+    const request = (async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${apiOrigin}/api/v1/notifications?limit=20`, {
+          cache: "no-store",
+          credentials: "include",
+          headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
+        });
+        if (!response.ok) throw new Error(response.status === 401 ? "Vuelve a iniciar sesión para ver tus avisos." : "No se pudieron cargar los avisos.");
+        const payload = await response.json() as InboxResponse;
+        setItems(Array.isArray(payload.notifications) ? payload.notifications : []);
+        setUnreadCount(Math.max(0, Number(payload.unreadCount || 0)));
+        setError("");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "No se pudieron cargar los avisos.");
+      } finally {
+        lastLoadedAt.current = Date.now();
+        setLoading(false);
+      }
+    })();
+    requestInFlight.current = request;
+    void request.finally(() => {
+      if (requestInFlight.current === request) requestInFlight.current = null;
+    });
+    return request;
   }, [apiOrigin, surface, token]);
 
   useEffect(() => {
@@ -52,16 +64,23 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
   }, [items, onUnreadChange]);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => void load(), 0);
-    const interval = window.setInterval(() => void load(), 30_000);
-    const refresh = () => void load();
+    const initialLoad = window.setTimeout(() => void load(true), 0);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 60_000);
+    const refresh = (event: Event) => {
+      const type = (event as CustomEvent<{ type?: string }>).detail?.type || "";
+      const relevant = type.startsWith("order.") || type.startsWith("support.") || type.startsWith("onboarding.") || type.startsWith("employee.");
+      if (relevant) void load(true);
+    };
+    const onFocus = () => { if (document.visibilityState === "visible") void load(); };
     window.addEventListener("piki:realtime", refresh);
-    window.addEventListener("focus", refresh);
+    window.addEventListener("focus", onFocus);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(initialLoad);
       window.removeEventListener("piki:realtime", refresh);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", onFocus);
     };
   }, [load]);
 
@@ -109,7 +128,7 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
         aria-label={unreadCount ? `Notificaciones, ${unreadCount} sin leer` : "Notificaciones"}
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => { setOpen((value) => !value); if (!open) void load(); }}
+        onClick={() => { setOpen((value) => !value); if (!open) void load(true); }}
       >
         <Bell size={19} aria-hidden="true" />
         {unreadCount > 0 && <span className="piki-notification-badge" aria-live="polite">{unreadCount > 99 ? "99+" : unreadCount}</span>}
