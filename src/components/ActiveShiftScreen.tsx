@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Minus, Navigation, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Minus, Navigation, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -53,14 +53,10 @@ function deliveryGain(order: RiderOffer) {
 }
 
 function OrderItems({ order }: { order: RiderOffer }) {
-  const [expanded, setExpanded] = useState(false);
   const items = order.items || [];
   return <>
-    <button type="button" className="exact-items-toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
-      <strong>{items.length || 1} {items.length === 1 ? "producto" : "productos"}</strong>
-      {expanded ? <ChevronUp size={19}/> : <ChevronDown size={19}/>}
-    </button>
-    {expanded && <div className="exact-items-list">{items.length ? items.map((item, index) => <div key={`${item.name || "producto"}-${index}`}><span>{item.quantity || 1}× {item.name || "Producto"}</span><b>{formatPrice(item.totalCents ?? item.priceCents)}</b></div>) : <span>Detalle pendiente de sincronización</span>}</div>}
+    <div className="exact-items-heading"><strong>Productos del pedido</strong><span>{items.length || 1} {items.length === 1 ? "producto" : "productos"}</span></div>
+    <div className="exact-items-list exact-items-list-visible">{items.length ? items.map((item, index) => <div key={`${item.name || "producto"}-${index}`}><span><b>{item.quantity || 1}×</b> {item.name || "Producto"}{item.modifiers?.length ? <small>{item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span><b>{formatPrice(item.totalCents ?? item.priceCents) || "—"}</b></div>) : <span>Detalle pendiente de sincronización</span>}</div>
   </>;
 }
 
@@ -90,7 +86,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   const deliveryPhase = isCustomerDeliveryPhase(order.status);
   const customerName = order.customerName || "Cliente final";
   return <div className="exact-card-content exact-active-card">
-    <div className="exact-active-label"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN PARTNER"}</span><span className="exact-bee-mark">●</span></div>
+    <div className="exact-active-label"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN PARTNER"}<small>Pedido #{order.displayCode || order.publicCode || order._id.slice(-6).toUpperCase()}</small></span><span className="exact-bee-mark">●</span></div>
     <div className="exact-restaurant-row">{!deliveryPhase && restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {deliveryPhase ? "Recogida confirmada · ruta al cliente" : order.riderArrivedAt ? "Llegada confirmada · listo para recoger" : "Pendiente de llegada al Partner"}</span></div></div>
     <div className="exact-active-facts">
       {deliveryPhase ? <>
@@ -210,8 +206,8 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
       
 
       <section className={`active-bottom-sheet ${liveOrder ? "has-live-order" : ""} ${sheetCollapsed && liveOrder ? "is-collapsed" : ""}`} aria-live="polite">
-        {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} title={sheetCollapsed ? "Ampliar pedido" : "Ocultar detalle y dejar el mapa visible"} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}>{sheetCollapsed ? <Plus size={21} strokeWidth={3}/> : <Minus size={21} strokeWidth={3}/>}</button>}
-        {liveOrder && <div className="active-order-summary"><span className="active-order-summary-label"><i aria-hidden="true"/> PEDIDO ACTIVO</span><strong>{navigation?.phase === "customer" ? liveOrder.customerName || "Cliente final" : liveOrder.restaurant?.name || "Establecimiento Partner"}</strong><p><MapPin size={17} aria-hidden="true"/>{navigation?.address || "Destino no disponible"}</p></div>}
+        {liveOrder && <button type="button" className="active-sheet-handle" aria-label={sheetCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!sheetCollapsed} title={sheetCollapsed ? "Ampliar pedido" : "Ocultar detalle y dejar el mapa visible"} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}><span className="active-sheet-grab-bar" aria-hidden="true"/>{sheetCollapsed ? <Plus size={21} strokeWidth={3}/> : <Minus size={21} strokeWidth={3}/>}</button>}
+        {liveOrder && <div className="active-order-summary"><span className="active-order-summary-label"><i aria-hidden="true"/> PEDIDO #{liveOrder.displayCode || liveOrder.publicCode || liveOrder._id.slice(-6).toUpperCase()}</span><strong>{navigation?.phase === "customer" ? liveOrder.customerName || "Cliente final" : liveOrder.restaurant?.name || "Establecimiento Partner"}</strong><p><MapPin size={17} aria-hidden="true"/>{navigation?.address || "Destino no disponible"}</p></div>}
         <div className="active-sheet-expanded-content" aria-hidden={Boolean(sheetCollapsed && liveOrder)}>
           {offersLoading && !liveOrder ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Conectando con pedidos…</h1><p>Sincronizando tus ofertas de reparto en {subtitle}.</p></> : offersError ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Sin conexión temporal</h1><p>{offersError}. Tu jornada sigue activa; vuelve a sincronizar para recibir las ofertas pendientes.</p><button type="button" className="active-retry-button" onClick={onRefreshOffers}><RefreshCw size={16}/> Reintentar</button></> : liveOrder ? <>
             <p className="active-eyebrow">PIKI · {liveOrders.length === 1 ? "1 PEDIDO ACTIVO" : `${liveOrders.length} PEDIDOS ACTIVOS`}</p>

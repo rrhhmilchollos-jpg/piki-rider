@@ -175,3 +175,21 @@
 .active-shift-shell .exact-active-facts > div > span > a { color:#0d5b8f; font-weight:800; text-decoration:underline; }
 .active-shift-shell .phase-customer .exact-active-card { border-left-color:#2f83b7; }
 .active-shift-shell .phase-customer .exact-active-label { color:#16567e; }
+
+/* Tarjeta Rider: arrastre sobre el mapa, número de pedido y productos visibles. */
+.active-shift-shell .active-sheet-handle{touch-action:none;cursor:grab;display:flex;flex-direction:column;align-items:center;gap:5px}
+.active-shift-shell .active-sheet-handle:active{cursor:grabbing}
+.active-shift-shell .active-sheet-grab-bar{display:block;width:54px;height:5px;border-radius:999px;background:#aeb8bd;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.active-shift-shell .exact-active-label>span:first-child{display:grid;gap:5px}
+.active-shift-shell .exact-active-label small{font:700 12px/1.2 system-ui,sans-serif;letter-spacing:.04em;color:#7b8791}
+.active-shift-shell .exact-items-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid #e6ece4;color:#24372f;font-size:14px}
+.active-shift-shell .exact-items-heading>span{color:#718078;font-size:12px;font-weight:750}
+.active-shift-shell .exact-items-list-visible{display:grid!important;gap:8px;margin-top:8px;padding:0!important;border:0!important;background:transparent!important}
+.active-shift-shell .exact-items-list-visible>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2ed;color:#31483d;font-size:13px}
+.active-shift-shell .exact-items-list-visible>div>span{display:grid;gap:3px;min-width:0}
+.active-shift-shell .exact-items-list-visible>div>span>small{color:#71808d;font-size:11px}
+
+/* Soporte accesible durante cualquier pedido activo. */
+.active-shift-shell .active-help-message-button{display:grid!important;place-items:center;top:94px;right:76px;z-index:7;width:46px;height:46px;border:0;border-radius:12px;background:transparent;color:#12284d;box-shadow:none}
+.active-shift-shell .active-help-message-button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media(max-width:580px){.active-shift-shell .active-help-message-button{top:96px;right:64px;width:42px;height:42px}}
