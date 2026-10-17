@@ -99,7 +99,11 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
       <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes == null ? "—" : `${order.etaMinutes} min`}</b></span></div>
       <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "Importe no disponible"}</b></> : <>Cobro al entregar: <b>Pagado online</b></>}</span></div>
     </div>
-    <div className="exact-progress" aria-label="Progreso del pedido"><span className="done"><i>✓</i><b>Recoger</b></span><span className={order.status === "picked_up" || deliveryPhase ? "current" : ""}><i>○</i><b>En camino</b></span><span className={order.status === "on_the_way" ? "current" : ""}><i>○</i><b>Entregado</b></span></div>
+    <div className="exact-progress" aria-label="Progreso del pedido">
+      <span className={order.status === "picked_up" || order.status === "on_the_way" ? "done" : order.riderArrivedAt ? "current" : ""}><i>{order.status === "picked_up" || order.status === "on_the_way" ? "✓" : "○"}</i><b>Recoger</b></span>
+      <span className={order.status === "on_the_way" ? "done" : order.status === "picked_up" || (!order.riderArrivedAt && ["accepted", "preparing", "ready_for_pickup"].includes(order.status)) ? "current" : ""}><i>{order.status === "on_the_way" ? "✓" : "○"}</i><b>En camino</b></span>
+      <span className={order.status === "on_the_way" ? "current" : ""}><i>○</i><b>Entregado</b></span>
+    </div>
     <OrderItems order={order}/>
   </div>;
 }
