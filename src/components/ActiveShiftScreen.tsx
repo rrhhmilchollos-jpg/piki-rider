@@ -9,6 +9,7 @@ import {
   getRiderNavigationTarget,
 } from "../orderNavigation";
 import "../ActiveShiftScreen.css";
+import "../rider-card-payment-delay.css";
 
 type Props = {
   token: string;
@@ -82,6 +83,21 @@ function IncomingOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
+function PickupDeadlineFact({ deadline }: { deadline?: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const deadlineMs = deadline ? new Date(deadline).getTime() : Number.NaN;
+  const delayedMinutes = Number.isFinite(deadlineMs) ? Math.max(0, Math.floor((now - deadlineMs) / 60_000) + 1) : 0;
+  const remainingMinutes = Number.isFinite(deadlineMs) ? Math.max(0, Math.ceil((deadlineMs - now) / 60_000)) : null;
+  const delayed = delayedMinutes > 0;
+  return <div className={`exact-pickup-deadline ${delayed ? "is-delayed" : ""}`}>
+    <Clock3 size={28}/><span><b>{delayed ? "RETRASO EN RECOGIDA" : "PEDIDO LISTO PARA RETIRAR"}</b><strong>{delayed ? `+${delayedMinutes} min · reasignación automática en curso` : remainingMinutes == null ? "Confirma el retiro dentro de una manzana" : `${remainingMinutes} min para confirmar el retiro`}</strong></span>
+  </div>;
+}
+
 function ActiveOrderCard({ order }: { order: RiderOffer }) {
   const deliveryPhase = isCustomerDeliveryPhase(order.status);
   const customerName = order.customerName || "Cliente final";
@@ -97,10 +113,12 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
       </> : <>
         <div><MapPin size={28}/><span><b>Dirección de recogida</b>{order.restaurant?.address || "Dirección del Partner no disponible"}</span></div>
         {order.restaurant?.phone && <div><Headphones size={28}/><span><b>Teléfono del Partner</b><a href={`tel:${order.restaurant.phone}`}>{order.restaurant.phone}</a></span></div>}
+        <div><Coins size={28}/><span><b>Pago en el establecimiento</b>{order.paymentMethod === "cash" ? "Efectivo autorizado para este pedido. El importe se mostrará al entregar al cliente." : "No tienes que pagar nada al establecimiento."}</span></div>
       </>}
-      <div><Clock3 size={28}/><span>{deliveryPhase ? "Entrega estimada" : order.status === "ready_for_pickup" ? "Pedido listo" : "Estará listo en"} <b>{deliveryPhase ? (order.etaMinutes == null ? "—" : `${order.etaMinutes} min`) : order.status === "ready_for_pickup" ? "Ahora" : `${Math.min(10, Math.max(4, order.preparationMinutes ?? order.restaurant?.etaMinutes?.[0] ?? 4))} min`}</b></span></div>
-      {deliveryPhase && <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "Importe no disponible"}</b></> : <>Pago del pedido: <b>Pagado online</b></>}</span></div>}
+      {!deliveryPhase && order.status !== "ready_for_pickup" && <div><Clock3 size={28}/><span><b>Estará listo en</b>{`${Math.min(10, Math.max(4, order.preparationMinutes ?? order.restaurant?.etaMinutes?.[0] ?? 4))} min`}</span></div>}
     </div>
+    {!deliveryPhase && order.status === "ready_for_pickup" && <PickupDeadlineFact deadline={order.pickupDeadlineAt}/>}
+    {deliveryPhase && (order.paymentMethod === "cash" ? <div className="exact-cash-due"><Coins size={30}/><span>COBRA AL CLIENTE</span><strong>{formatPrice(order.totalCents) || "Importe no disponible"}</strong><small>Contrarreembolso autorizado · confírmalo al entregar</small></div> : <div className="exact-online-paid"><CheckCircle2 size={22}/><span>PAGO ONLINE CONFIRMADO · NO COBRES AL CLIENTE</span></div>)}
     <div className="exact-progress" aria-label="Progreso del pedido"><span className="done"><i>✓</i><b>Recoger</b></span><span className={order.status === "picked_up" || deliveryPhase ? "current" : ""}><i>○</i><b>En camino</b></span><span className={order.status === "on_the_way" ? "current" : ""}><i>○</i><b>Entregado</b></span></div>
     <OrderItems order={order}/>
   </div>;

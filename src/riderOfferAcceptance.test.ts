@@ -11,8 +11,8 @@ afterEach(() => {
 describe("acceptRiderOffer", () => {
   it("posts the authenticated acceptance to the rider-specific API route", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      message: "Pedido aceptado. Llegar al Partner en un máximo de 15 minutos.",
-      pickupDeadlineAt: "2026-10-06T20:00:00.000Z",
+      message: "Pedido aceptado. El Partner avisará cuando esté listo para retirar.",
+      pickupDeadlineAt: null,
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -27,7 +27,7 @@ describe("acceptRiderOffer", () => {
       "Content-Type": "application/json",
     });
     expect(result.message).toContain("Pedido aceptado");
-    expect(result.pickupDeadlineAt).toBe("2026-10-06T20:00:00.000Z");
+    expect(result.pickupDeadlineAt).toBeNull();
   });
 
   it("converts the legacy expiry response into a reassignment state", async () => {
