@@ -37,6 +37,7 @@ import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
+import RiderOrderChatDialog from "./components/RiderOrderChatDialog";
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
@@ -363,6 +364,7 @@ function App() {
   const [supportPeerTyping, setSupportPeerTyping] = useState(false);
   const [unreadSupportMessages, setUnreadSupportMessages] = useState(0);
   const [unreadCustomerMessages, setUnreadCustomerMessages] = useState(0);
+  const [orderChatOrder, setOrderChatOrder] = useState<RiderOffer | null>(null);
   const closeSupportChat = useCallback(() => setSupportChatOpen(false), []);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
   const lastOfferAtRef = useRef(0);
@@ -962,19 +964,6 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function startPickupRoute(orderId: string) {
-    if (orderActionBusy || !apiToken || !riderId) return;
-    setOrderActionBusy(true);
-    try {
-      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/start-pickup-route`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) { setToast(data.message || data.error || "No se pudo iniciar la ruta al Partner."); await loadRiderData(); return; }
-      const headingAt = data.order?.riderHeadingToPartnerAt || new Date().toISOString();
-      setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, riderHeadingToPartnerAt: headingAt } : offer));
-      setToast(data.message || "En camino al Partner. El Partner y el Customer ya están avisados.");
-    } catch { setToast("No se pudo registrar la ruta al Partner. Comprueba la conexión."); }
-    finally { setOrderActionBusy(false); }
-  }
   async function acceptRiderOfferAction(orderId: string) {
     if (orderActionBusy || !apiToken || !riderId) return;
     setOrderActionBusy(true);
@@ -1073,6 +1062,14 @@ function App() {
         );
         await loadRiderData();
         return;
+      }
+      const confirmedOrder = data.order as RiderOffer | undefined;
+      if (confirmedOrder) {
+        setOffers((previous) => previous.map((offer) => offer._id === orderId
+          ? { ...offer, ...confirmedOrder, status: confirmedOrder.status || "picked_up", riderArrivedAt: confirmedOrder.riderArrivedAt || offer.riderArrivedAt }
+          : offer));
+      } else {
+        setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "picked_up" } : offer));
       }
       setToast(
         data.message ||
@@ -1255,37 +1252,40 @@ function App() {
     );
   if (shiftActive && !showOperations && riderId)
     return (
-      <ActiveShiftScreen
-        token={apiToken}
-        riderId={riderId}
-        currentShift={currentShift}
-        offers={offers}
-        offersLoading={offersLoading}
-        offersError={offersError}
-        startedShiftNotice={startedShiftNotice}
-        toast={toast}
-        nativeTracking={nativeTracking}
-        onDismissStartNotice={() => setStartedShiftNotice(false)}
-        onOpenOperations={() => setShowOperations(true)}
-        onOpenSupport={() => { setUnreadSupportMessages(0); setShowOperations(true); showSection("Soporte"); if (supportTicketId) setSupportChatOpen(true); }}
-        unreadMessageCount={unreadSupportMessages + unreadCustomerMessages}
-        onRefreshOffers={() => {
-          setOffersError("");
-          void loadRiderData();
-        }}
-        onAcceptOffer={(orderId) => void acceptRiderOfferAction(orderId)}
-        onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
-        actionBusy={orderActionBusy}
-        onOfferAction={(orderId, action) => void offerAction(orderId, action)}
-        onStartPickupRoute={(orderId) => void startPickupRoute(orderId)}
-        onConfirmPickup={(orderId, verificationCode) =>
-          void confirmPickup(orderId, verificationCode)
-        }
-        onConfirmDelivery={(orderId, deliveryQr) =>
-          void confirmDelivery(orderId, deliveryQr)
-        }
-        onError={handleApiError}
-      />
+      <>
+        <ActiveShiftScreen
+          token={apiToken}
+          riderId={riderId}
+          currentShift={currentShift}
+          offers={offers}
+          offersLoading={offersLoading}
+          offersError={offersError}
+          startedShiftNotice={startedShiftNotice}
+          toast={toast}
+          nativeTracking={nativeTracking}
+          onDismissStartNotice={() => setStartedShiftNotice(false)}
+          onOpenOperations={() => setShowOperations(true)}
+          onOpenSupport={() => { setUnreadSupportMessages(0); setShowOperations(true); showSection("Soporte"); if (supportTicketId) setSupportChatOpen(true); }}
+          onOpenOrderChat={(order) => { setUnreadCustomerMessages(0); setOrderChatOrder(order); }}
+          unreadMessageCount={unreadSupportMessages + unreadCustomerMessages}
+          onRefreshOffers={() => {
+            setOffersError("");
+            void loadRiderData();
+          }}
+          onAcceptOffer={(orderId) => void acceptRiderOfferAction(orderId)}
+          onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
+          actionBusy={orderActionBusy}
+          onOfferAction={(orderId, action) => void offerAction(orderId, action)}
+          onConfirmPickup={(orderId, verificationCode) =>
+            void confirmPickup(orderId, verificationCode)
+          }
+          onConfirmDelivery={(orderId, deliveryQr) =>
+            void confirmDelivery(orderId, deliveryQr)
+          }
+          onError={handleApiError}
+        />
+        {orderChatOrder && <RiderOrderChatDialog token={apiToken} riderId={riderId} order={orderChatOrder} onClose={() => setOrderChatOrder(null)} />}
+      </>
     );
   return (
     <div className="app-shell">

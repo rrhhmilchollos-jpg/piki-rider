@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, Minus, Navigation, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, MessageCircle, Minus, Navigation, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -23,6 +23,7 @@ type Props = {
   onDismissStartNotice: () => void;
   onOpenOperations: () => void;
   onOpenSupport: () => void;
+  onOpenOrderChat: (order: RiderOffer) => void;
   unreadMessageCount?: number;
   onRefreshOffers: () => void;
   onAcceptOffer: (orderId: string) => void;
@@ -106,7 +107,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmArrival, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<"pickup" | "delivery">("delivery");
   const [scannerReady, setScannerReady] = useState(false);
@@ -215,9 +216,10 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
               {liveOrder.assignmentState === "offered" && <><p className="active-assignment-note">Este pedido debe aceptarse, recogerse en el Partner y entregarse al cliente final. PIKI verificará cada paso con GPS y QR/PIN.</p><button type="button" className="active-order-button exact-accept-button" disabled={actionBusy} onClick={() => onAcceptOffer(liveOrder._id)}>ACEPTAR PEDIDO</button></>}
               {liveOrder.assignmentState === "assigned" && !liveOrder.riderArrivedAt && <button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => onConfirmArrival(liveOrder._id)}><CheckCircle2 size={18}/> CONFIRMAR LLEGADA AL PARTNER</button>}
               {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">Llegada verificada. El Partner tiene hasta 15 minutos para preparar el pedido.</p>}
-              {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button exact-pickup-button" onClick={() => openScanner("pickup", liveOrder._id)}><Camera size={18}/> CONFIRMAR RECOGIDA</button>}
+              {liveOrder.assignmentState === "assigned" && Boolean(liveOrder.riderArrivedAt) && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => onConfirmPickup(liveOrder._id, "")}><CheckCircle2 size={18}/> CONFIRMAR RECOGIDA</button>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={18}/> INICIAR RUTA AL CLIENTE</button>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <><button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => openScanner("delivery", liveOrder._id)}><CheckCircle2 size={18}/> CONFIRMAR ENTREGA</button><button type="button" className="active-order-button active-qr-button" onClick={() => openScanner("delivery", liveOrder._id)}><Camera size={17}/> Escanear QR o PIN del cliente</button></>}
+              <button type="button" className="active-order-chat-button" onClick={() => onOpenOrderChat(liveOrder)}><MessageCircle size={18}/> Mensaje al cliente en tiempo real</button>
               {liveOrders.length > 1 && <p className="active-pickup-pending">Hay {liveOrders.length - 1} pedido{liveOrders.length - 1 === 1 ? "" : "s"} más en cola. Se mostrará automáticamente cuando completes este.</p>}</section>
           </> : <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1 className="searching-orders-title">Buscando pedidos…</h1><p>Estás visible en {subtitle}. PIKI te avisará cuando haya una asignación; no necesitas refrescar.</p></>}
         </div>
