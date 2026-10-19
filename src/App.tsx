@@ -1065,6 +1065,12 @@ function App() {
           "Recogida confirmada. Ya puedes iniciar la ruta hacia el cliente.",
       );
       await loadRiderData();
+      // La respuesta de la mutación es la fuente de verdad inmediata. Si la
+      // reconciliación REST llega desde una réplica con unos milisegundos de
+      // retraso, no debemos volver a pintar la tarjeta de Partner.
+      setOffers((previous) => previous.map((offer) => offer._id === orderId
+        ? { ...offer, ...(confirmedOrder || {}), status: "picked_up" }
+        : offer));
     } catch {
       setToast(
         "No se pudo validar la recogida. Comprueba tu ubicación GPS y vuelve a intentarlo.",

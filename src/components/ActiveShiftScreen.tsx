@@ -98,8 +98,8 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
         <div><MapPin size={28}/><span><b>Dirección de recogida</b>{order.restaurant?.address || "Dirección del Partner no disponible"}</span></div>
         {order.restaurant?.phone && <div><Headphones size={28}/><span><b>Teléfono del Partner</b><a href={`tel:${order.restaurant.phone}`}>{order.restaurant.phone}</a></span></div>}
       </>}
-      <div><Clock3 size={28}/><span>Entrega estimada <b>{order.etaMinutes == null ? "—" : `${order.etaMinutes} min`}</b></span></div>
-      <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "Importe no disponible"}</b></> : <>Cobro al entregar: <b>Pagado online</b></>}</span></div>
+      <div><Clock3 size={28}/><span>{deliveryPhase ? "Entrega estimada" : order.status === "ready_for_pickup" ? "Pedido listo" : "Estará listo en"} <b>{deliveryPhase ? (order.etaMinutes == null ? "—" : `${order.etaMinutes} min`) : order.status === "ready_for_pickup" ? "Ahora" : `${Math.min(10, Math.max(4, order.preparationMinutes ?? order.restaurant?.etaMinutes?.[0] ?? 4))} min`}</b></span></div>
+      {deliveryPhase && <div><Coins size={28}/><span>{order.paymentMethod === "cash" ? <>Cobro al entregar: <b>{formatPrice(order.totalCents) || "Importe no disponible"}</b></> : <>Pago del pedido: <b>Pagado online</b></>}</span></div>}
     </div>
     <div className="exact-progress" aria-label="Progreso del pedido"><span className="done"><i>✓</i><b>Recoger</b></span><span className={order.status === "picked_up" || deliveryPhase ? "current" : ""}><i>○</i><b>En camino</b></span><span className={order.status === "on_the_way" ? "current" : ""}><i>○</i><b>Entregado</b></span></div>
     <OrderItems order={order}/>
