@@ -978,18 +978,6 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function confirmPartnerArrival(orderId: string) {
-    if (orderActionBusy) return;
-    setOrderActionBusy(true);
-    try {
-      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-arrival`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json" } });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) { setToast(data.message || data.error || "No se pudo verificar la llegada al Partner."); await loadRiderData(); return; }
-      setToast(data.message || "Llegada al Partner verificada.");
-      await loadRiderData();
-    } catch { setToast("No se pudo verificar la llegada. Comprueba GPS y conexión."); await loadRiderData(); }
-    finally { setOrderActionBusy(false); }
-  }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
     if (orderActionBusy) return;
     const normalizedDeliveryQr = deliveryQr.trim();
@@ -1035,7 +1023,7 @@ function App() {
       setOrderActionBusy(false);
     }
   }
-  async function confirmPickup(orderId: string, verificationCode?: string) {
+  async function confirmPickup(orderId: string) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
     try {
@@ -1047,10 +1035,7 @@ function App() {
             ...authHeaders(apiToken),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            pickupQr: verificationCode,
-            pickupPin: verificationCode,
-          }),
+          body: JSON.stringify({}),
         },
       );
       const data = await response.json().catch(() => ({}));
@@ -1273,12 +1258,9 @@ function App() {
             void loadRiderData();
           }}
           onAcceptOffer={(orderId) => void acceptRiderOfferAction(orderId)}
-          onConfirmArrival={(orderId) => void confirmPartnerArrival(orderId)}
           actionBusy={orderActionBusy}
           onOfferAction={(orderId, action) => void offerAction(orderId, action)}
-          onConfirmPickup={(orderId, verificationCode) =>
-            void confirmPickup(orderId, verificationCode)
-          }
+          onConfirmPickup={(orderId) => void confirmPickup(orderId)}
           onConfirmDelivery={(orderId, deliveryQr) =>
             void confirmDelivery(orderId, deliveryQr)
           }
@@ -1705,8 +1687,7 @@ function App() {
                           </div>
                           <div className="assignment-card-actions">
                             <a className="assignment-secondary-action" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(orderDestination(offer))}`} target="_blank" rel="noreferrer"><MapPinned size={16} /> ABRIR NAVEGACIÓN</a>
-                            {isPickupPhase(offer.status) && !offer.riderArrivedAt && <button className="assignment-primary-action" disabled={orderActionBusy} onClick={() => void confirmPartnerArrival(offer._id)}>Confirmar llegada</button>}
-                            {offer.status === "ready_for_pickup" && offer.riderArrivedAt && <button className="assignment-primary-action" disabled={orderActionBusy} onClick={() => void confirmPickup(offer._id)}>CONFIRMAR RECOGIDA</button>}
+                            {offer.status === "ready_for_pickup" && <button className="assignment-primary-action" disabled={orderActionBusy} onClick={() => void confirmPickup(offer._id)}>CONFIRMAR RECOGIDA · GPS</button>}
                             {offer.status === "picked_up" && <button className="assignment-primary-action" onClick={() => void offerAction(offer._id, "on_the_way")}>INICIAR RUTA</button>}
                             {offer.status === "on_the_way" && <button className="assignment-primary-action" onClick={() => { const code = window.prompt("Introduce el PIN o pega el enlace QR que muestra el Customer para confirmar la entrega."); if (code?.trim()) void confirmDelivery(offer._id, code.trim()); }}>VALIDAR QR/PIN <ShieldCheck size={17} /></button>}
                           </div>
