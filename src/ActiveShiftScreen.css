@@ -201,3 +201,31 @@
 .rider-order-chat-thread{display:flex;flex-direction:column;gap:9px;overflow:auto;padding:16px 14px;background:#eaf0ec}
 .rider-order-chat-muted{margin:auto;text-align:center;color:#718078;font-size:13px;max-width:260px}.rider-order-chat-bubble{max-width:82%;padding:9px 11px;border-radius:15px;box-shadow:0 1px 2px rgba(20,40,30,.12)}.rider-order-chat-bubble.mine{align-self:flex-end;background:#d7f8c9;border-bottom-right-radius:4px}.rider-order-chat-bubble.theirs{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}.rider-order-chat-bubble p{margin:0;font-size:14px;line-height:1.35;white-space:pre-wrap}.rider-order-chat-bubble time{display:block;margin-top:4px;color:#718078;font-size:10px;text-align:right}.rider-order-chat-error{margin:0;padding:8px 14px;background:#fff0ef;color:#a0362f;font-size:12px}.rider-order-chat-dialog>form{display:flex;gap:8px;padding:11px;background:#fff;border-top:1px solid #dfe7e1}.rider-order-chat-dialog>form input{min-width:0;flex:1;border:1px solid #c9d4cd;border-radius:999px;padding:11px 14px;font:inherit}.rider-order-chat-dialog>form button{display:grid;place-items:center;width:42px;border:0;border-radius:50%;background:#22a366;color:#fff}.rider-order-chat-dialog>form button:disabled{opacity:.5}
 @media(max-width:580px){.rider-order-chat-dialog{inset:auto 10px 10px;width:calc(100vw - 20px);height:min(650px,calc(100vh - 20px))}}
+
+/* Acciones rápidas de Rider: soporte y chat visibles en la cabecera. */
+.active-shift-shell .active-help-button,
+.active-shift-shell .active-chat-header-button {
+  position: absolute;
+  z-index: 7;
+  top: 96px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #12284d;
+  cursor: pointer;
+}
+.active-shift-shell .active-help-button { right: 144px; }
+.active-shift-shell .active-chat-header-button { right: 102px; }
+.active-shift-shell .active-help-button:hover,
+.active-shift-shell .active-chat-header-button:hover { background: rgba(255,255,255,.28); }
+.active-shift-shell .active-chat-header-button:focus-visible,
+.active-shift-shell .active-help-button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+@media (max-width: 580px) {
+  .active-shift-shell .active-help-button { right: 112px; top: 96px; }
+  .active-shift-shell .active-chat-header-button { right: 70px; top: 96px; }
+}
