@@ -38,6 +38,7 @@ import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
 import RiderOrderChatDialog from "./components/RiderOrderChatDialog";
+import OperationalActivation from "./components/OperationalActivation";
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
@@ -2042,6 +2043,16 @@ function App() {
                       onError={handleApiError}
                     />
                   </div>
+                  {!nativeTracking && shiftActive && <OperationalActivation
+                    token={apiToken}
+                    riderId={riderId}
+                    active={shiftActive}
+                    playTestSound={async () => {
+                      primeRiderOrderAudio(audioContextRef);
+                      playRiderShiftStart();
+                    }}
+                    onError={handleApiError}
+                  />}
                   <div className="rider-home-control">
                     <div>
                       <p className="rider-home-eyebrow">JORNADA DE REPARTO</p>
