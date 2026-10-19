@@ -376,6 +376,7 @@ function App() {
   const riderRefreshQueuedRef = useRef(false);
   const loadRiderDataRef = useRef<() => void>(() => undefined);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+  const hasPersistedOrder = offers.some((offer) => offer.assignmentState === "assigned" || offer.assignmentState === "offered");
 
   useEffect(() => {
     const updateFormEditing = () => {
@@ -523,7 +524,8 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    if (!apiToken || !riderId || !shiftActive) {
+    // Las ofertas son estado persistido del pedido, no un estado volátil del turno.
+    if (!apiToken || !riderId) {
       knownOfferIdsRef.current = null; // oxlint-disable-next-line react/set-state-in-effect
       setOffersLoading(false);
       setOffersError("");
@@ -599,7 +601,7 @@ function App() {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, shiftActive, playAssignmentAlert]);
+  }, [apiToken, riderId, playAssignmentAlert]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     return connectPikiRealtime({
@@ -1245,7 +1247,7 @@ function App() {
         />
       </main>
     );
-  if (shiftActive && !showOperations && riderId)
+  if ((shiftActive || hasPersistedOrder) && !showOperations && riderId)
     return (
       <>
         <ActiveShiftScreen
