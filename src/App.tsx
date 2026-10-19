@@ -1026,6 +1026,9 @@ function App() {
   async function confirmPickup(orderId: string) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
+    // El Rider debe ver la siguiente tarjeta sin esperar la latencia de red.
+    // Si el backend rechaza la operación, loadRiderData restaura el estado canónico.
+    setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "picked_up" } : offer));
     try {
       const response = await fetch(
         `${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-pickup`,
@@ -1063,7 +1066,7 @@ function App() {
       await loadRiderData();
     } catch {
       setToast(
-        "No se pudo validar la recogida. Comprueba el código y vuelve a intentarlo.",
+        "No se pudo validar la recogida. Comprueba tu ubicación GPS y vuelve a intentarlo.",
       );
       await loadRiderData();
     } finally {
