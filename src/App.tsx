@@ -195,6 +195,7 @@ const supportTopics = [
     icon: ClipboardList,
     options: [
       "El comercio está cerrado",
+      "Retraso en cocina",
       "El pedido no está preparado",
       "No encuentro la dirección",
       "Problema durante la entrega",
