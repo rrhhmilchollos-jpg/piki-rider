@@ -597,3 +597,11 @@ button, a, input, select, textarea { touch-action: manipulation; }
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
 }
+
+/* Controles siempre visibles de tarjetas Rider: liberan el mapa sin perder la oferta. */
+.assignment-card{position:relative}
+.assignment-collapse-button{position:absolute;top:9px;right:18px;z-index:2;display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:6px 9px;border:1px solid rgba(31,57,86,.16);border-radius:999px;background:rgba(255,255,255,.9);color:#23466e;font:800 11px 'DM Sans';cursor:pointer;box-shadow:0 3px 10px rgba(16,41,79,.08)}
+.assignment-collapse-button:hover{background:#eef6de;color:#17365e}
+.assignment-card.is-collapsed .assignment-card-body,.assignment-card.is-collapsed .assignment-card-actions,.assignment-card.is-collapsed .assignment-helper{display:none}
+.assignment-card.is-collapsed .assignment-card-topline{border-bottom:0}
+@media(max-width:580px){.assignment-collapse-button{right:12px;min-width:32px;justify-content:center}.assignment-collapse-button span{display:none}}

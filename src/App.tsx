@@ -22,7 +22,9 @@ import {
   MapPinned,
   Menu,
   MessageCircle,
+  Minus,
   Power,
+  Plus,
   Settings,
   ShieldCheck,
   WalletCards,
@@ -345,6 +347,7 @@ function App() {
     collectedEntries: 0,
   });
   const [offers, setOffers] = useState<RiderOffer[]>([]);
+  const [collapsedOfferIds, setCollapsedOfferIds] = useState<Set<string>>(() => new Set());
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [orderActionBusy, setOrderActionBusy] = useState(false);
@@ -572,11 +575,11 @@ function App() {
           knownOfferIdsRef.current = currentIds;
           return;
         }
-        const hasNewOffer = nextOffers.some(
-          (offer) => !knownOfferIdsRef.current?.has(String(offer._id)),
+        const hasNewOffer = !initialSync && nextOffers.some(
+          (offer) => offer.assignmentState === "offered" && !knownOfferIdsRef.current?.has(String(offer._id)),
         );
         knownOfferIdsRef.current = currentIds;
-        if (hasNewOffer) {
+        if (hasNewOffer && !nextOffers.some((offer) => offer.assignmentState === "assigned")) {
           lastOfferAtRef.current = Date.now();
           playAssignmentAlert();
           setToast("Nuevo reparto asignado. Revisa tus ofertas.");
@@ -648,9 +651,15 @@ function App() {
           .then(async (response) => {
             if (!response.ok) return;
             const data = (await response.json()) as { offers?: RiderOffer[] };
-            setOffers(Array.isArray(data.offers) ? data.offers : []);
+            const nextOffers = Array.isArray(data.offers) ? data.offers : [];
+            const previousOfferIds = knownOfferIdsRef.current;
+            const isNewPendingOffer = event.type === "order.rider_offer" && previousOfferIds !== null
+              && nextOffers.some((offer) => offer.assignmentState === "offered" && !previousOfferIds?.has(String(offer._id)));
+            knownOfferIdsRef.current = new Set(nextOffers.map((offer) => String(offer._id)));
+            assignedOrderRef.current = nextOffers.some((offer) => offer.assignmentState === "assigned");
+            setOffers(nextOffers);
             setOffersError("");
-            if (event.type === "order.rider_offer") {
+            if (isNewPendingOffer && !assignedOrderRef.current) {
               lastOfferAtRef.current = Date.now();
               playAssignmentAlert();
               setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
@@ -1624,11 +1633,12 @@ function App() {
                     {offers
                       .filter((offer) => offer.assignmentState === "offered")
                       .map((offer) => (
-                        <article className="assignment-card assignment-card-incoming" key={offer._id}>
+                        <article className={`assignment-card assignment-card-incoming ${collapsedOfferIds.has(offer._id) ? "is-collapsed" : ""}`} key={offer._id}>
                           <div className="assignment-card-topline">
                             <span className="assignment-kicker"><Bell size={14} /> NUEVO PEDIDO</span>
                             <span className="assignment-countdown"><Clock3 size={14} /> 60 s</span>
                           </div>
+                          <button type="button" className="assignment-collapse-button" aria-label={collapsedOfferIds.has(offer._id) ? "Mostrar oferta" : "Ocultar oferta"} aria-expanded={!collapsedOfferIds.has(offer._id)} onClick={() => setCollapsedOfferIds((current) => { const next = new Set(current); if (next.has(offer._id)) next.delete(offer._id); else next.add(offer._id); return next; })}>{collapsedOfferIds.has(offer._id) ? <Plus size={18} /> : <Minus size={18} />}<span>{collapsedOfferIds.has(offer._id) ? "Mostrar" : "Ocultar"}</span></button>
                           <div className="assignment-card-body">
                             <div className="assignment-order-heading">
                               <div>
@@ -1675,11 +1685,12 @@ function App() {
                     {offers
                       .filter((offer) => offer.assignmentState === "assigned")
                       .map((offer) => (
-                        <article className="assignment-card assignment-card-active" key={offer._id}>
+                        <article className={`assignment-card assignment-card-active ${collapsedOfferIds.has(offer._id) ? "is-collapsed" : ""}`} key={offer._id}>
                           <div className="assignment-card-topline">
                             <span className="assignment-kicker"><ClipboardList size={14} /> PEDIDO ACTIVO</span>
                             <span className="assignment-order-code">{offer.displayCode || offer.publicCode || "Pedido PIKI"}</span>
                           </div>
+                          <button type="button" className="assignment-collapse-button" aria-label={collapsedOfferIds.has(offer._id) ? "Mostrar entrega" : "Ocultar entrega"} aria-expanded={!collapsedOfferIds.has(offer._id)} onClick={() => setCollapsedOfferIds((current) => { const next = new Set(current); if (next.has(offer._id)) next.delete(offer._id); else next.add(offer._id); return next; })}>{collapsedOfferIds.has(offer._id) ? <Plus size={18} /> : <Minus size={18} />}<span>{collapsedOfferIds.has(offer._id) ? "Mostrar" : "Ocultar"}</span></button>
                           <div className="assignment-card-body">
                             <div className="assignment-order-heading">
                               <div>
