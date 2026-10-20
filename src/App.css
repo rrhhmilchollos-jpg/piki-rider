@@ -598,6 +598,30 @@ button, a, input, select, textarea { touch-action: manipulation; }
   }
 }
 
+/* Modal de entrega: debe salir por encima de la hoja y del mapa en Android/PWA. */
+.active-shift-shell .delivery-qr-dialog {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  overflow-y: auto;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+  background: rgba(8, 16, 24, .96);
+  color: #fff;
+  touch-action: pan-y;
+}
+.active-shift-shell .delivery-qr-dialog h2 { margin: 34px 0 0; max-width: 620px; font-size: clamp(25px, 7vw, 38px); line-height: 1.08; }
+.active-shift-shell .delivery-qr-dialog > p:not(.active-eyebrow) { margin: 0; max-width: 620px; color: #d9e3eb; line-height: 1.45; }
+.active-shift-shell .delivery-qr-dialog label { display: grid; gap: 8px; max-width: 620px; color: #d9e3eb; font-size: 13px; font-weight: 800; }
+.active-shift-shell .delivery-qr-dialog input { width: 100%; min-height: 52px; box-sizing: border-box; padding: 13px 15px; border: 2px solid #91b8d8; border-radius: 13px; background: #fff; color: #10294f; font: 700 16px 'DM Sans'; text-transform: uppercase; }
+.active-shift-shell .delivery-qr-dialog .active-order-button { width: min(100%, 620px); min-height: 54px; border: 0; border-radius: 14px; background: #d4ff57; color: #10294f; font: 850 15px 'DM Sans'; cursor: pointer; }
+.active-shift-shell .delivery-qr-dialog .active-order-button:disabled { opacity: .55; cursor: not-allowed; }
+.active-shift-shell .delivery-qr-close { position: absolute; top: max(16px, env(safe-area-inset-top)); right: 18px; z-index: 2; display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid rgba(255,255,255,.3); border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; cursor: pointer; }
+.active-shift-shell .delivery-qr-video { width: min(100%, 620px); max-height: 52vh; border: 2px solid #d4ff57; border-radius: 18px; background: #000; object-fit: cover; }
+.active-shift-shell .delivery-qr-dialog .hidden { display: none; }
+
 /* Controles siempre visibles de tarjetas Rider: liberan el mapa sin perder la oferta. */
 .assignment-card{position:relative}
 .assignment-collapse-button{position:absolute;top:9px;right:18px;z-index:2;display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:6px 9px;border:1px solid rgba(31,57,86,.16);border-radius:999px;background:rgba(255,255,255,.9);color:#23466e;font:800 11px 'DM Sans';cursor:pointer;box-shadow:0 3px 10px rgba(16,41,79,.08)}
