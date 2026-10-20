@@ -52,6 +52,7 @@ import {
   acceptRiderOffer,
   createRiderSupportTicket,
   loadMobilityAdvice,
+  publishRiderLocation,
   startTrackingSession,
   stopTrackingSession,
 } from "./integrations/piki-api";
@@ -1000,6 +1001,29 @@ function App() {
     }
     setOrderActionBusy(true);
     try {
+      // Nunca confirmes contra una posición antigua del heartbeat. En móvil,
+      // el último watchPosition puede tener varios segundos de retraso o
+      // haber sido cacheado por Chrome/TWA; fuerza una lectura de alta
+      // precisión y publícala antes de pedir al API que valide el radio.
+      if (navigator.geolocation && riderId) {
+        try {
+          const freshPosition = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              maximumAge: 0,
+              timeout: 12_000,
+            }),
+          );
+          await publishRiderLocation(apiToken, riderId, {
+            latitude: freshPosition.coords.latitude,
+            longitude: freshPosition.coords.longitude,
+            accuracy: freshPosition.coords.accuracy,
+          });
+        } catch {
+          setToast("No se pudo obtener un GPS preciso. Activa la ubicación precisa y vuelve a intentarlo.");
+          return;
+        }
+      }
       const response = await fetch(
         `${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-delivery`,
         {
