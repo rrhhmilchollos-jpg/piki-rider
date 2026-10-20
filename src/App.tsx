@@ -1065,7 +1065,7 @@ function App() {
     setOrderActionBusy(true);
     // El Rider debe ver la siguiente tarjeta sin esperar la latencia de red.
     // Si el backend rechaza la operación, loadRiderData restaura el estado canónico.
-    setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "picked_up" } : offer));
+    setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "on_the_way" } : offer));
     try {
       const response = await fetch(
         `${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-pickup`,
@@ -1091,21 +1091,21 @@ function App() {
       const confirmedOrder = data.order as RiderOffer | undefined;
       if (confirmedOrder) {
         setOffers((previous) => previous.map((offer) => offer._id === orderId
-          ? { ...offer, ...confirmedOrder, status: confirmedOrder.status || "picked_up", riderArrivedAt: confirmedOrder.riderArrivedAt || offer.riderArrivedAt }
+          ? { ...offer, ...confirmedOrder, status: confirmedOrder.status || "on_the_way", riderArrivedAt: confirmedOrder.riderArrivedAt || offer.riderArrivedAt }
           : offer));
       } else {
-        setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "picked_up" } : offer));
+        setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "on_the_way" } : offer));
       }
       setToast(
         data.message ||
-          "Recogida confirmada. Ya puedes iniciar la ruta hacia el cliente.",
+          "Recogida confirmada. Ruta al cliente iniciada automáticamente.",
       );
       await loadRiderData();
       // La respuesta de la mutación es la fuente de verdad inmediata. Si la
       // reconciliación REST llega desde una réplica con unos milisegundos de
       // retraso, no debemos volver a pintar la tarjeta de Partner.
       setOffers((previous) => previous.map((offer) => offer._id === orderId
-        ? { ...offer, ...(confirmedOrder || {}), status: "picked_up" }
+        ? { ...offer, ...(confirmedOrder || {}), status: "on_the_way" }
         : offer));
     } catch {
       setToast(
