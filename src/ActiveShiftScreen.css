@@ -220,12 +220,31 @@
   cursor: pointer;
 }
 .active-shift-shell .active-help-button { right: 144px; }
+.active-shift-shell .active-support-call-button { right: 186px; }
 .active-shift-shell .active-chat-header-button { right: 102px; }
+.active-shift-shell .active-support-call-button {
+  position: absolute;
+  z-index: 7;
+  top: 96px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff1ef;
+  color: #b52d2d;
+  cursor: pointer;
+}
 .active-shift-shell .active-help-button:hover,
+.active-shift-shell .active-support-call-button:hover,
 .active-shift-shell .active-chat-header-button:hover { background: rgba(255,255,255,.28); }
 .active-shift-shell .active-chat-header-button:focus-visible,
-.active-shift-shell .active-help-button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.active-shift-shell .active-help-button:focus-visible,
+.active-shift-shell .active-support-call-button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 @media (max-width: 580px) {
+  .active-shift-shell .active-support-call-button { right: 154px; top: 96px; }
   .active-shift-shell .active-help-button { right: 112px; top: 96px; }
   .active-shift-shell .active-chat-header-button { right: 70px; top: 96px; }
 }

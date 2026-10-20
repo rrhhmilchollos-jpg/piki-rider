@@ -1,4 +1,4 @@
-import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, MessageCircle, Minus, Navigation, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
+import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, MessageCircle, Minus, Navigation, Phone, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
@@ -23,6 +23,7 @@ type Props = {
   nativeTracking?: boolean;
   onDismissStartNotice: () => void;
   onOpenOperations: () => void;
+  onCallSupport: () => void;
   onOpenSupport: () => void;
   onOpenOrderChat: (order: RiderOffer) => void;
   unreadMessageCount?: number;
@@ -124,7 +125,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, nativeTracking = false, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
@@ -215,6 +216,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
         <strong>PIKI <em>Rider</em></strong>
       </header>
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
+      <button type="button" className="active-support-call-button" onClick={onCallSupport} aria-label="Llamada directa al soporte" title="Llamada directa al soporte"><Phone size={22}/></button>
       <button type="button" className="active-help-button active-help-message-button" onClick={onOpenSupport} aria-label={unreadMessageCount ? `Abrir mensajes y soporte: ${unreadMessageCount} sin leer` : "Abrir soporte"}><Headphones size={24}/>{unreadMessageCount > 0 && <b className="active-message-badge" aria-hidden="true">{unreadMessageCount > 9 ? "9+" : unreadMessageCount}</b>}</button>
       {liveOrder && <button type="button" className="active-chat-header-button" onClick={() => onOpenOrderChat(liveOrder)} aria-label="Abrir chat con el cliente" title="Chat con el cliente"><MessageCircle size={24}/></button>}
       <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : "En línea"}</strong><i className="online-dot"/></div>

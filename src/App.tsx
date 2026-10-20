@@ -295,6 +295,8 @@ const whatsappNumber = String(
 const manychatWhatsAppUrl = String(
   import.meta.env.VITE_MANYCHAT_WHATSAPP_URL ?? "",
 );
+const SUPPORT_PHONE = "+34634038662";
+const SUPPORT_PHONE_LABEL = "634 03 86 62";
 function normalizeRiderShift(raw: Record<string, unknown>): Shift {
   const date = String(raw.date || "");
   const weekday = date
@@ -353,6 +355,7 @@ function App() {
   const [offersError, setOffersError] = useState("");
   const [orderActionBusy, setOrderActionBusy] = useState(false);
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
+  const [quickIncidentReply, setQuickIncidentReply] = useState("");
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const [supportForm, setSupportForm] = useState({ subject: "", description: "", priority: "high" });
   const [supportFormBusy, setSupportFormBusy] = useState(false);
@@ -1223,6 +1226,19 @@ function App() {
       "noopener,noreferrer",
     );
   }
+  function callSupport() {
+    window.location.href = `tel:${SUPPORT_PHONE}`;
+  }
+  function handleQuickIncident(kind: "kitchen" | "customer" | "critical") {
+    if (kind === "critical") {
+      setQuickIncidentReply(`Incidente grave: llamando al soporte PIKI (${SUPPORT_PHONE_LABEL}). Si hay peligro, llama también al 112.`);
+      window.location.href = `tel:${SUPPORT_PHONE}`;
+      return;
+    }
+    setQuickIncidentReply(kind === "kitchen"
+      ? "Entendido, espera en el local. Hemos registrado el retraso y añadimos un aviso al cliente."
+      : "Prueba a llamar al cliente desde el pedido. Si no responde en 5 minutos, marca el pedido como Estacionado y continúa la ruta.");
+  }
   const [profileOpen, setProfileOpen] = useState(false);
   const handleApiError = useCallback((message: string) => {
     if (
@@ -1296,6 +1312,7 @@ function App() {
           nativeTracking={nativeTracking}
           onDismissStartNotice={() => setStartedShiftNotice(false)}
           onOpenOperations={() => setShowOperations(true)}
+          onCallSupport={callSupport}
           onOpenSupport={() => { setUnreadSupportMessages(0); setShowOperations(true); showSection("Soporte"); if (supportTicketId) setSupportChatOpen(true); }}
           onOpenOrderChat={(order) => { setUnreadCustomerMessages(0); setOrderChatOrder(order); }}
           unreadMessageCount={unreadSupportMessages + unreadCustomerMessages}
@@ -1958,6 +1975,19 @@ function App() {
                       Atención guiada por ManyChat · WhatsApp Business
                     </span>
                   </div>
+                  <section className="support-incident-filter" aria-label="Filtro rápido de incidencias">
+                    <div>
+                      <span>CHATBOT DE INCIDENCIAS</span>
+                      <h2>¿Qué ocurre durante el reparto?</h2>
+                      <p>Las incidencias menores se resuelven aquí. Solo una emergencia abre una llamada directa.</p>
+                    </div>
+                    <div className="support-option-grid">
+                      <button type="button" className="support-option" onClick={() => handleQuickIncident("kitchen")}><span>Retraso en cocina<br /><small>Más de 10 minutos</small></span></button>
+                      <button type="button" className="support-option" onClick={() => handleQuickIncident("customer")}><span>Cliente no responde<br /><small>Dirección incorrecta</small></span></button>
+                      <button type="button" className="support-option support-option-critical" onClick={() => handleQuickIncident("critical")}><span>Incidente grave<br /><small>Avería, pinchazo o accidente</small></span></button>
+                    </div>
+                    {quickIncidentReply && <p className="support-incident-reply" role="status">{quickIncidentReply}</p>}
+                  </section>
                   <div className="support-grid">
                     {supportTopics.map(({ id, title, text, icon: Icon }) => (
                       <SupportCard

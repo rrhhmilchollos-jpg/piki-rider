@@ -85,7 +85,7 @@ export default function RiderSupportChatDialog({
           <div className="support-chat-window-title">
             <h2 id="rider-support-chat-title">Soporte PIKI</h2>
             <p>{agentName || "Esperando asignación de un agente"}</p>
-            <a className="support-chat-phone" href="tel:+34960500685"><Phone size={13} /> 960 500 685</a>
+            <a className="support-chat-phone" href="tel:+34634038662"><Phone size={13} /> 634 03 86 62</a>
           </div>
           <span className={`support-chat-status support-chat-status-${status || "open"}`}>{statusLabel(status)}</span>
           <button className="support-chat-window-close" type="button" aria-label="Minimizar chat" title="Minimizar chat" onClick={onClose}>
