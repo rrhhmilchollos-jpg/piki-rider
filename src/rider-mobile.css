@@ -155,3 +155,217 @@
     top: 14px;
   }
 }
+
+/*
+ * Android Chrome Custom Tabs and a few generated shells can report a 980 px
+ * layout viewport even on a narrow touch screen. Keep the whole Rider UI in its
+ * phone layout for coarse pointers instead of waiting only on a width breakpoint.
+ */
+@media (pointer: coarse), (max-width: 1024px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    overflow-x: hidden;
+    font-size: 16px;
+  }
+
+  .app-shell {
+    width: 100%;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+  }
+
+  .sidebar-open {
+    transform: translateX(0);
+  }
+
+  .close-menu {
+    display: block;
+    margin-left: auto;
+  }
+
+  .backdrop {
+    display: block;
+  }
+
+  .main-content {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .topbar {
+    height: 64px;
+    min-height: 64px;
+    padding: 0 16px;
+  }
+
+  .menu-button {
+    display: block;
+  }
+
+  .page-content {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 22px 16px calc(40px + env(safe-area-inset-bottom));
+  }
+
+  .feature-section {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .page-heading,
+  .feature-heading {
+    display: block;
+  }
+
+  .page-heading h1,
+  .feature-heading h1 {
+    max-width: 100%;
+    font-size: clamp(27px, 5vw, 40px);
+    line-height: 1.1;
+    letter-spacing: -.04em;
+  }
+
+  .page-heading p,
+  .feature-heading p,
+  .lead {
+    max-width: 100%;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+
+  .schedule-day {
+    min-width: 0;
+    min-height: 124px;
+    padding: 14px 12px;
+  }
+
+  .schedule-day > span {
+    font-size: 13px;
+  }
+
+  .schedule-day strong {
+    margin: 10px 0;
+    font-size: 17px;
+  }
+
+  .schedule-day b {
+    font-size: 14px;
+  }
+
+  .schedule-day small {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .shift-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .shift-toolbar strong {
+    font-size: 17px;
+  }
+
+  .shift-toolbar span {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .shift-action {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .shift-action > div {
+    flex: 1 1 calc(100% - 38px);
+    min-width: 0;
+  }
+
+  .shift-action .primary-button {
+    flex: 1 0 100%;
+    min-height: 48px;
+    justify-content: center;
+  }
+
+  .onboarding-grid,
+  .token-card {
+    grid-template-columns: 1fr;
+  }
+
+  .token-card input {
+    margin-top: 0;
+  }
+
+  .home-page-content {
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - 64px);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .home-page-content .rider-home-map {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .home-page-content .rider-home-map-canvas,
+  .home-page-content .rider-google-map-canvas,
+  .home-page-content .rider-google-map-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border-radius: 0;
+  }
+
+  .home-page-content .rider-home-control {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .home-page-content .rider-google-map-notice {
+    top: 14px;
+  }
+
+  button,
+  .nav-item,
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
