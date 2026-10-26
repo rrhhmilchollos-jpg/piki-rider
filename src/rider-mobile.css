@@ -1,0 +1,126 @@
+/* PIKI Rider: viewport real de móvil para conducción con el mapa como superficie principal. */
+.active-shift-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.active-shift-shell > .active-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.active-shift-shell .rider-map-card,
+.active-shift-shell .rider-google-map-canvas,
+.active-shift-shell .rider-google-map-frame,
+.active-shift-shell .rider-google-map-loading {
+  height: 100%;
+  min-height: 0;
+}
+
+.active-shift-shell .rider-google-map-canvas,
+.active-shift-shell .rider-google-map-frame {
+  width: 100%;
+}
+
+.active-shift-shell .active-bottom-sheet {
+  max-height: min(76dvh, 760px);
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.active-shift-shell .active-sheet-expanded-content {
+  max-height: calc(100dvh - 196px);
+}
+
+.rider-google-map-notice {
+  position: absolute;
+  z-index: 5;
+  top: 58px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: min(520px, calc(100% - 28px));
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 12px;
+  background: rgba(17, 24, 32, .9);
+  color: #fff;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.35;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .12);
+}
+
+.real-google-map-section .rider-map-status {
+  top: 184px;
+}
+
+.real-google-map-section .rider-google-map-notice {
+  top: 226px;
+}
+
+@media (max-width: 580px) {
+  .active-shift-shell {
+    height: 100svh;
+    height: 100dvh;
+  }
+
+  .active-shift-shell .active-bottom-sheet {
+    max-height: min(76dvh, 760px);
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  .active-shift-shell .active-sheet-expanded-content {
+    max-height: calc(100dvh - 190px);
+  }
+
+  .home-page-content {
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - 64px);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .home-page-content .rider-home-map {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .home-page-content .rider-home-map-canvas {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .home-page-content .rider-google-map-canvas,
+  .home-page-content .rider-google-map-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border-radius: 0;
+  }
+
+  .home-page-content .rider-home-control {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .home-page-content .rider-google-map-notice {
+    top: 14px;
+  }
+}

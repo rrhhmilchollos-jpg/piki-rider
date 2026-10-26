@@ -5,7 +5,7 @@ import { loadGoogleMaps } from "../integrations/google-maps";
 
 type Props = { token: string; riderId?: string; active?: boolean; nativeTracking?: boolean; onError: (message: string) => void };
 type Point = { lat: number; lng: number; accuracy: number };
-type MapState = "loading" | "ready" | "fallback" | "error";
+type MapState = "loading" | "ready" | "fallback";
 
 const fallbackPoint = { lat: 38.9908, lng: -0.5185 };
 
@@ -17,8 +17,12 @@ const fallbackPoint = { lat: 38.9908, lng: -0.5185 };
 export default function LiveGoogleMap({ token, riderId, active = false, nativeTracking = false, onError }: Props) {
   const [point, setPoint] = useState<Point | null>(null);
   const [mapCenter, setMapCenter] = useState(fallbackPoint);
+  const fallbackCenterRef = useRef(fallbackPoint);
+  const hasGpsCenterRef = useRef(false);
+  const lastFallbackCenterUpdateRef = useRef(0);
   const [locationMessage, setLocationMessage] = useState("Mapa centrado en Xàtiva · activa la jornada para compartir tu posición");
   const [mapState, setMapState] = useState<MapState>("loading");
+  const [mapMessage, setMapMessage] = useState("");
   const onErrorRef = useRef(onError);
   const lastPublishedRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
@@ -29,6 +33,12 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
 
   useEffect(() => {
     let cancelled = false;
+    const handleAuthFailure = () => {
+      if (cancelled) return;
+      setMapState("fallback");
+      setMapMessage("La clave de Google Maps no está autorizada. Mostramos el mapa Google básico.");
+    };
+    window.addEventListener("piki-google-maps-auth-failure", handleAuthFailure);
     void loadGoogleMaps()
       .then((maps) => {
         if (cancelled || !mapNodeRef.current) return;
@@ -46,9 +56,17 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
       .catch((error: unknown) => {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : "";
-        setMapState(message.includes("VITE_GOOGLE_MAPS_API_KEY") || message.includes("KEY_MISSING") ? "fallback" : "error");
+        setMapState("fallback");
+        setMapMessage(message.includes("GOOGLE_MAPS_AUTH_FAILURE")
+          ? "La clave de Google Maps no está autorizada. Mostramos el mapa Google básico."
+          : message.includes("VITE_GOOGLE_MAPS_API_KEY") || message.includes("KEY_MISSING")
+            ? "Falta configurar la clave de Maps; mostramos el mapa Google básico."
+            : "No se pudo cargar el mapa interactivo; mostramos el mapa Google básico.");
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.removeEventListener("piki-google-maps-auth-failure", handleAuthFailure);
+    };
   }, []);
 
   useEffect(() => {
@@ -73,7 +91,18 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
     let heartbeat: number | undefined;
     const publish = async (next: Point) => {
       setPoint(next);
-      setMapCenter((previous) => previous === fallbackPoint ? { lat: next.lat, lng: next.lng } : previous);
+      const previousCenter = fallbackCenterRef.current;
+      const deltaLat = (next.lat - previousCenter.lat) * 111_000;
+      const deltaLng = (next.lng - previousCenter.lng) * 85_000;
+      const fallbackMovedMeters = Math.hypot(deltaLat, deltaLng);
+      const now = Date.now();
+      if (!hasGpsCenterRef.current || fallbackMovedMeters >= 120 || now - lastFallbackCenterUpdateRef.current >= 60_000) {
+        const nextCenter = { lat: next.lat, lng: next.lng };
+        hasGpsCenterRef.current = true;
+        fallbackCenterRef.current = nextCenter;
+        lastFallbackCenterUpdateRef.current = now;
+        setMapCenter(nextCenter);
+      }
       const accuracy = Number(next.accuracy);
       setLocationMessage(Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
         ? `GPS actualizado · precisión aproximada ±${Math.round(accuracy)} m`
@@ -97,7 +126,11 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
     };
     // Rendering the home map must not prompt for GPS. Tracking starts only
     // after App has explicitly validated location while starting a journey.
-    if (!active || !navigator.geolocation) return;
+    if (!active) return;
+    if (!navigator.geolocation) {
+      onErrorRef.current("Este dispositivo no ofrece geolocalización.");
+      return;
+    }
     const success = (position: GeolocationPosition) => void publish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
     navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 30_000, timeout: 12_000 });
     watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 });
@@ -113,10 +146,10 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
 
   return <div className="rider-map-card">
     <div className="rider-map-status" aria-live="polite">{locationMessage}</div>
-    <div ref={mapNodeRef} className="rider-google-map-canvas" style={{ display: mapState === "fallback" || mapState === "error" ? "none" : undefined }} aria-label="Mapa Google Maps con tu posición GPS en directo" />
+    <div ref={mapNodeRef} className="rider-google-map-canvas" style={{ display: mapState === "fallback" ? "none" : undefined }} aria-label="Mapa Google Maps con tu posición GPS en directo" />
     {mapState === "loading" && <div className="rider-google-map-loading"><RefreshCw className="spin" size={20} /><span>Cargando Google Maps…</span></div>}
     {mapState === "fallback" && <iframe title="Mapa de Google Maps con tu posición GPS" className="rider-google-map-frame" src={fallbackMapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />}
-    {mapState === "error" && <div className="rider-google-map-loading rider-google-map-error"><MapPin size={20} /><span>No se pudo cargar Google Maps. Comprueba la clave y las restricciones del dominio.</span></div>}
+    {mapState === "fallback" && mapMessage && <div className="rider-google-map-notice" role="status"><MapPin size={16} />{mapMessage}</div>}
     <a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`} target="_blank" rel="noreferrer">Abrir en Google Maps</a>
   </div>;
 }

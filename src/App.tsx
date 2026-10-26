@@ -1254,23 +1254,42 @@ function App() {
     setToast(message);
   }, []);
 
-  const nativeTracking = supportsNativeBackgroundTracking();
+  const nativePlatform = supportsNativeBackgroundTracking();
+  const [nativeTracking, setNativeTracking] = useState(false);
   const appVersion = String(import.meta.env.VITE_APP_VERSION || "1.0.4");
   const trackingSessionRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!nativeTracking || !shiftActive || !apiToken || !riderId) {
+    if (!nativePlatform || !shiftActive || !apiToken || !riderId) {
+      // oxlint-disable-next-line react/set-state-in-effect
+      setNativeTracking(false);
       void stopNativeBackgroundTracking();
       return;
     }
     let disposed = false;
+    // oxlint-disable-next-line react/set-state-in-effect
+    setNativeTracking(false);
     void (async () => {
       try {
         const session = await startTrackingSession(apiToken, riderId, Capacitor.getPlatform() === "ios" ? "ios" : "android", appVersion, "location-v1");
         if (disposed) return;
         trackingSessionRef.current = session._id;
-        await startNativeBackgroundTracking({ apiOrigin, token: apiToken, riderId, sessionId: session._id, onError: (message) => { if (!disposed) setToast(message); } });
+        const started = await startNativeBackgroundTracking({
+          apiOrigin,
+          token: apiToken,
+          riderId,
+          sessionId: session._id,
+          onError: (message) => {
+            if (disposed) return;
+            setNativeTracking(false);
+            setToast(message);
+          },
+        });
+        if (!disposed) setNativeTracking(started);
       } catch (error) {
-        if (!disposed) setToast(error instanceof Error ? error.message : "No se pudo iniciar la sesión de tracking.");
+        if (!disposed) {
+          setNativeTracking(false);
+          setToast(error instanceof Error ? error.message : "No se pudo iniciar la sesión de tracking.");
+        }
       }
     })();
     return () => {
@@ -1280,7 +1299,7 @@ function App() {
       trackingSessionRef.current = null;
       if (sessionId) void stopTrackingSession(apiToken, riderId, sessionId);
     };
-  }, [apiOrigin, apiToken, appVersion, nativeTracking, riderId, shiftActive]);
+  }, [apiToken, appVersion, nativePlatform, riderId, shiftActive]);
 
   if (!apiToken || authRequired)
     return (
