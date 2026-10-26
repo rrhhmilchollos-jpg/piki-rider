@@ -95,7 +95,7 @@ export function connectPikiRealtime(input: RealtimeInput) {
           }
         }
         input.onState?.(false);
-      } catch (error) {
+      } catch {
         if (controller.signal.aborted) return;
         input.onState?.(false);
       }

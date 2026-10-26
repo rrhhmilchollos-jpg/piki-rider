@@ -672,7 +672,7 @@ function App() {
           .catch(() => undefined);
       },
     });
-  }, [apiOrigin, apiToken, riderId, loadRiderData, playAssignmentAlert]);
+  }, [apiToken, riderId, loadRiderData, playAssignmentAlert]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     let disposed = false;
@@ -702,7 +702,7 @@ function App() {
     // no debemos depender exclusivamente de que el evento SSE llegue al navegador.
     const timer = window.setInterval(() => void checkShift(), 10000);
     return () => { disposed = true; window.clearInterval(timer); };
-  }, [apiOrigin, apiToken, riderId, shiftActive]);
+  }, [apiToken, riderId, shiftActive]);
   useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
@@ -1161,7 +1161,12 @@ function App() {
     if (!apiToken || !riderId || supportTicketId) return;
     void (async () => { try { const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets`, { headers: { ...authHeaders(apiToken), "X-PIKI-Surface": "rider" } }); if (!response.ok) return; const data = await response.json() as { tickets?: Array<{ _id: string; ticketNumber?: string; status?: string; orderId?: string | null }> }; const openTicket = (data.tickets || []).find((item) => !["closed", "resolved"].includes(item.status || "")); if (openTicket) { setSupportTicketId(String(openTicket._id)); setSupportTicketNumber(openTicket.ticketNumber || ""); setSupportTicketStatus(openTicket.status || "open"); setSupportChatOrderLabel(openTicket.orderId ? "Incidencia vinculada a un pedido" : "Consulta de soporte"); } } catch { /* sin conexión, se reintentará al abrir o enviar una incidencia */ } })();
   }, [apiToken, riderId, supportTicketId]);
-  useEffect(() => { if (!supportTicketId || !supportChatOpen) return; void refreshSupportChat(); const timer = window.setInterval(() => void refreshSupportChat(), 2000); return () => window.clearInterval(timer); }, [supportTicketId, supportChatOpen, refreshSupportChat]);
+  useEffect(() => {
+    if (!supportTicketId || !supportChatOpen) return;
+    const initialRefresh = window.setTimeout(() => { void refreshSupportChat(); }, 0);
+    const timer = window.setInterval(() => { void refreshSupportChat(); }, 2000);
+    return () => { window.clearTimeout(initialRefresh); window.clearInterval(timer); };
+  }, [supportTicketId, supportChatOpen, refreshSupportChat]);
   useEffect(() => {
     if (!supportChatOpen || !apiToken || !riderId || !supportTicketId || !supportChatDraft.trim() || ["closed", "resolved"].includes(supportTicketStatus)) return;
     const ping = () => void fetch(`${apiOrigin}/api/v1/riders/${riderId}/support/tickets/${supportTicketId}/typing`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ active: true }) }).catch(() => undefined);

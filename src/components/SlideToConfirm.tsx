@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   label: string;
@@ -11,14 +11,15 @@ type Props = {
 
 const COMPLETION_VALUE = 96;
 
-/** A keyboard-accessible slider that requires an intentional full swipe. */
-export default function SlideToConfirm({ label, detail, disabled = false, busy = false, onConfirm, compact = false }: Props) {
+/** Reset the slider when it becomes disabled or busy without setting state in an effect. */
+export default function SlideToConfirm(props: Props) {
+  const resetKey = `${Boolean(props.disabled)}-${Boolean(props.busy)}`;
+  return <SlideToConfirmInput key={resetKey} {...props} />;
+}
+
+function SlideToConfirmInput({ label, detail, disabled = false, busy = false, onConfirm, compact = false }: Props) {
   const [value, setValue] = useState(0);
   const confirmedRef = useRef(false);
-
-  useEffect(() => {
-    if (disabled || busy) setValue(0);
-  }, [busy, disabled]);
 
   const update = (nextValue: number) => {
     if (disabled || busy || confirmedRef.current) return;
