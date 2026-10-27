@@ -13,7 +13,7 @@ export type ReleasePolicy = {
 };
 
 export type UpdateRequirement = {
-  kind: "version" | "build";
+  kind: "version";
   targetVersion: string;
   targetBuildId: string;
 };
@@ -54,18 +54,15 @@ export function isValidReleasePolicy(policy: ReleasePolicy, surface: string): po
 }
 
 /**
- * A server-side `updateRequired` flag alone is intentionally not enough to reload.
- * Once the currently running version and build match the policy, treating that flag
- * as a reason again would cause an endless PWA reload loop.
+ * Build IDs are diagnostic metadata, not a compatibility requirement. A stale CDN or
+ * service worker can serve a different build hash for the same compatible version;
+ * forcing an update for that mismatch can trap the PWA in an endless update loop.
  */
 export function getRequiredPwaUpdate(policy: ReleasePolicy, current: ReleaseIdentity, surface: string): UpdateRequirement | null {
   if (!isValidReleasePolicy(policy, surface) || !policy.forceUpdate) return null;
   const targetVersion = typeof policy.version === "string" ? policy.version : policy.minimumVersion;
   if (isNewerReleaseVersion(policy.minimumVersion, current.version)) {
     return { kind: "version", targetVersion, targetBuildId: policy.buildId };
-  }
-  if (policy.buildId !== current.buildId) {
-    return { kind: "build", targetVersion, targetBuildId: policy.buildId };
   }
   return null;
 }

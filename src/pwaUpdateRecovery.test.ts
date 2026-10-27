@@ -21,7 +21,7 @@ describe("PWA update recovery", () => {
     }, current, surface)).toBeNull();
   });
 
-  it("distinguishes a newer required version from a new build of the same version", () => {
+  it("requires a newer semantic version but ignores build-hash changes", () => {
     expect(getRequiredPwaUpdate({
       surface,
       version: "0.4.4",
@@ -36,7 +36,7 @@ describe("PWA update recovery", () => {
       minimumVersion: "0.4.3",
       buildId: "new-web-build",
       forceUpdate: true,
-    }, current, surface)).toMatchObject({ kind: "build", targetBuildId: "new-web-build" });
+    }, current, surface)).toBeNull();
   });
 
   it("defers an activation until Rider state is known and no delivery or form action is active", () => {

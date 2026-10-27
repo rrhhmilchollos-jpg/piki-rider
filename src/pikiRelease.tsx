@@ -17,19 +17,55 @@ const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
 
-async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
+async function registerWorker(checkForUpdate = true): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
   try {
     const registration = await navigator.serviceWorker.register("/sw.js", {
       scope: "/",
       updateViaCache: "none",
     });
-    try { await registration.update(); } catch { /* Un SW antiguo o una red móvil no debe bloquear la app. */ }
+    if (checkForUpdate) {
+      try { await registration.update(); } catch { /* Un SW antiguo o una red móvil no debe bloquear la app. */ }
+    }
     return registration;
   } catch {
     // La aplicación sigue funcionando aunque Android tarde en actualizar el SW.
     return null;
   }
+}
+
+function waitForWaitingWorker(registration: ServiceWorkerRegistration, timeoutMs = 20_000): Promise<ServiceWorker | null> {
+  if (registration.waiting) return Promise.resolve(registration.waiting);
+  return new Promise((resolve) => {
+    let settled = false;
+    let installing: ServiceWorker | null = null;
+    let timeout: number | undefined;
+    const finish = (worker: ServiceWorker | null) => {
+      if (settled) return;
+      settled = true;
+      registration.removeEventListener("updatefound", inspect);
+      installing?.removeEventListener("statechange", inspect);
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      resolve(worker);
+    };
+    const inspect = () => {
+      if (registration.waiting) {
+        finish(registration.waiting);
+        return;
+      }
+      const nextInstalling = registration.installing;
+      if (nextInstalling !== installing) {
+        installing?.removeEventListener("statechange", inspect);
+        installing = nextInstalling;
+        installing?.addEventListener("statechange", inspect);
+      }
+      if (installing?.state === "installed") finish(registration.waiting ?? installing);
+      else if (installing?.state === "redundant") finish(null);
+    };
+    registration.addEventListener("updatefound", inspect);
+    timeout = window.setTimeout(() => finish(registration.waiting), timeoutMs);
+    inspect();
+  });
 }
 
 // oxlint-disable-next-line react/only-export-components
@@ -296,15 +332,21 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
         setDetail("Terminaremos la actualización cuando acabes la entrega, el cobro o el formulario en curso.");
         return;
       }
-      const registration = await registerWorker();
-      const waiting = registration?.waiting ?? null;
+      const registration = await registerWorker(false);
+      if (!registration) {
+        setUpdating(false);
+        setDetail("No se pudo iniciar el servicio de actualización. Comprueba tu conexión y vuelve a intentarlo.");
+        return;
+      }
+      let waiting = registration.waiting ?? null;
       if (!waiting) {
-        // Algunas instalaciones no exponen `waiting` aunque el navegador ya
-        // haya descargado el nuevo app shell. Fuerza una navegación única con
-        // cache-busting para que el usuario vea el build servido por Vercel.
-        const url = new URL(window.location.href);
-        url.searchParams.set("piki_update", String(Date.now()));
-        window.location.replace(url.toString());
+        const installation = waitForWaitingWorker(registration);
+        try { await registration.update(); } catch { /* El tiempo de espera mostrará un mensaje recuperable. */ }
+        waiting = registration.waiting ?? await installation;
+      }
+      if (!waiting) {
+        setUpdating(false);
+        setDetail("La descarga aún no ha terminado. Mantén Rider abierto con conexión y vuelve a intentarlo; no se han borrado tus datos.");
         return;
       }
       activationRequestedRef.current = true;
