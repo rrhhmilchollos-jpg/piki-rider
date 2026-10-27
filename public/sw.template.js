@@ -4,6 +4,9 @@ const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const APP_SHELL = __APP_SHELL__;
 const CONTROL_PATHS = new Set(["/sw.js", "/release.json", "/manifest.json"]);
 
+// Estos recursos controlan la versión instalada. Las cabeceras HTTP del
+// hosting también deben declararlos no-store/no-cache.
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);

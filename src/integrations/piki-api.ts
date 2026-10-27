@@ -47,37 +47,6 @@ export async function publishRiderLocation(token: string, riderId: string, point
   });
 }
 
-export type TrackingSession = { _id: string; riderId: string; status: "active" | "stopped" | "degraded"; platform: "ios" | "android" | "web"; startedAt: string; lastSampleAt?: string | null };
-export type TrackingSample = GeoCoordinate & { sampleId: string; recordedAt: string };
-const trackingQueueKey = (riderId: string) => `piki-${location.hostname}-tracking-queue-${riderId}`;
-
-function readTrackingQueue(riderId: string): TrackingSample[] {
-  try { return JSON.parse(localStorage.getItem(trackingQueueKey(riderId)) || "[]") as TrackingSample[]; } catch { return []; }
-}
-function writeTrackingQueue(riderId: string, samples: TrackingSample[]) {
-  localStorage.setItem(trackingQueueKey(riderId), JSON.stringify(samples.slice(-100)));
-}
-export async function startTrackingSession(token: string, riderId: string, platform: "ios" | "android" | "web", appVersion: string, consentVersion = "location-v1"): Promise<TrackingSession> {
-  const result = await apiJson<{ session: TrackingSession }>(`/api/v1/riders/${encodeURIComponent(riderId)}/tracking/sessions`, token, { method: "POST", body: JSON.stringify({ platform, appVersion, consentVersion }) });
-  return result.session;
-}
-export async function stopTrackingSession(token: string, riderId: string, sessionId: string) {
-  return apiJson(`/api/v1/riders/${encodeURIComponent(riderId)}/tracking/sessions/${encodeURIComponent(sessionId)}/stop`, token, { method: "PATCH" });
-}
-export async function flushTrackingBatch(token: string, riderId: string, sessionId: string): Promise<void> {
-  const queued = readTrackingQueue(riderId);
-  if (!queued.length) return;
-  const result = await apiJson<{ accepted: string[] }>(`/api/v1/riders/${encodeURIComponent(riderId)}/location/batch`, token, { method: "POST", body: JSON.stringify({ sessionId, samples: queued }) });
-  const accepted = new Set(result.accepted || []);
-  writeTrackingQueue(riderId, queued.filter((sample) => !accepted.has(sample.sampleId)));
-}
-export async function queueTrackingSample(token: string, riderId: string, sessionId: string, point: GeoCoordinate): Promise<void> {
-  const sample: TrackingSample = { sampleId: `${sessionId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, latitude: point.latitude, longitude: point.longitude, accuracy: point.accuracy, recordedAt: new Date().toISOString() };
-  const queued = readTrackingQueue(riderId);
-  writeTrackingQueue(riderId, [...queued, sample]);
-  await flushTrackingBatch(token, riderId, sessionId);
-}
-
 export async function loadMobilityAdvice(token: string, riderId: string, lowActivityMinutes: number): Promise<MobilityAdvice> {
   const result = await apiJson<{ advice: MobilityAdvice }>(`/api/v1/riders/${encodeURIComponent(riderId)}/mobility-advice?lowActivityMinutes=${Math.round(lowActivityMinutes)}`, token);
   return result.advice;

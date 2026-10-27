@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Capacitor } from "@capacitor/core";
 import {
   Activity,
   ArrowDownLeft,
@@ -53,8 +52,6 @@ import {
   createRiderSupportTicket,
   loadMobilityAdvice,
   publishRiderLocation,
-  startTrackingSession,
-  stopTrackingSession,
 } from "./integrations/piki-api";
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 import { visibleOrderReference } from "./orderReference";
@@ -66,11 +63,6 @@ import {
   markStoredTokenValidated,
 } from "./authStorage";
 import { requiresRiderAuthentication } from "./apiAuthPolicy";
-import {
-  startNativeBackgroundTracking,
-  stopNativeBackgroundTracking,
-  supportsNativeBackgroundTracking,
-} from "./native/backgroundLocation";
 import { publishPwaOperationSafety } from "./pwaOperationSafety";
 import {
   shouldShowOperationalMap,
@@ -1259,53 +1251,6 @@ function App() {
     setToast(message);
   }, []);
 
-  const nativePlatform = supportsNativeBackgroundTracking();
-  const [nativeTracking, setNativeTracking] = useState(false);
-  const appVersion = String(import.meta.env.VITE_APP_VERSION || "1.0.4");
-  const trackingSessionRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!nativePlatform || !shiftActive || !apiToken || !riderId) {
-      // oxlint-disable-next-line react/set-state-in-effect
-      setNativeTracking(false);
-      void stopNativeBackgroundTracking();
-      return;
-    }
-    let disposed = false;
-    // oxlint-disable-next-line react/set-state-in-effect
-    setNativeTracking(false);
-    void (async () => {
-      try {
-        const session = await startTrackingSession(apiToken, riderId, Capacitor.getPlatform() === "ios" ? "ios" : "android", appVersion, "location-v1");
-        if (disposed) return;
-        trackingSessionRef.current = session._id;
-        const started = await startNativeBackgroundTracking({
-          apiOrigin,
-          token: apiToken,
-          riderId,
-          sessionId: session._id,
-          onError: (message) => {
-            if (disposed) return;
-            setNativeTracking(false);
-            setToast(message);
-          },
-        });
-        if (!disposed) setNativeTracking(started);
-      } catch (error) {
-        if (!disposed) {
-          setNativeTracking(false);
-          setToast(error instanceof Error ? error.message : "No se pudo iniciar la sesión de tracking.");
-        }
-      }
-    })();
-    return () => {
-      disposed = true;
-      void stopNativeBackgroundTracking();
-      const sessionId = trackingSessionRef.current;
-      trackingSessionRef.current = null;
-      if (sessionId) void stopTrackingSession(apiToken, riderId, sessionId);
-    };
-  }, [apiToken, appVersion, nativePlatform, riderId, shiftActive]);
-
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
@@ -1333,7 +1278,6 @@ function App() {
           offersError={offersError}
           startedShiftNotice={startedShiftNotice}
           toast={toast}
-          nativeTracking={nativeTracking}
           onDismissStartNotice={() => setStartedShiftNotice(false)}
           onOpenOperations={() => setShowOperations(true)}
           onCallSupport={callSupport}
@@ -2137,11 +2081,10 @@ function App() {
                       token={apiToken}
                       riderId={riderId}
                       active={shouldTrackLocationOnOperationalMap(section, shiftActive)}
-                      nativeTracking={nativeTracking}
                       onError={handleApiError}
                     />
                   </div>
-                  {!nativeTracking && shiftActive && <OperationalActivation
+                  {shiftActive && <OperationalActivation
                     token={apiToken}
                     riderId={riderId}
                     active={shiftActive}

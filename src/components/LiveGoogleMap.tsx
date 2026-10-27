@@ -3,7 +3,7 @@ import { MapPin, RefreshCw } from "lucide-react";
 import { publishRiderLocation } from "../integrations/piki-api";
 import { loadGoogleMaps } from "../integrations/google-maps";
 
-type Props = { token: string; riderId?: string; active?: boolean; nativeTracking?: boolean; onError: (message: string) => void };
+type Props = { token: string; riderId?: string; active?: boolean; onError: (message: string) => void };
 type Point = { lat: number; lng: number; accuracy: number };
 type MapState = "loading" | "ready" | "fallback";
 
@@ -14,7 +14,7 @@ const fallbackPoint = { lat: 38.9908, lng: -0.5185 };
  * Maps JavaScript API key is configured, it renders the real Google base map
  * and moves the Rider marker using those exact device coordinates.
  */
-export default function LiveGoogleMap({ token, riderId, active = false, nativeTracking = false, onError }: Props) {
+export default function LiveGoogleMap({ token, riderId, active = false, onError }: Props) {
   const [point, setPoint] = useState<Point | null>(null);
   const [mapCenter, setMapCenter] = useState(fallbackPoint);
   const fallbackCenterRef = useRef(fallbackPoint);
@@ -107,7 +107,7 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
       setLocationMessage(Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
         ? `GPS actualizado · precisión aproximada ±${Math.round(accuracy)} m`
         : "GPS actualizado · precisión no disponible");
-      if (!active || !riderId || nativeTracking) return;
+      if (!active || !riderId) return;
       const previous = lastPublishedRef.current;
       const elapsed = previous ? Date.now() - previous.at : Number.POSITIVE_INFINITY;
       const movedMeters = previous ? Math.hypot((next.lat - previous.lat) * 111_000, (next.lng - previous.lng) * 88_000) : Number.POSITIVE_INFINITY;
@@ -139,7 +139,7 @@ export default function LiveGoogleMap({ token, riderId, active = false, nativeTr
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (heartbeat !== undefined) window.clearInterval(heartbeat);
     };
-  }, [active, nativeTracking, riderId, token]);
+  }, [active, riderId, token]);
 
   const center = point ?? fallbackPoint;
   const fallbackMapUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${mapCenter.lat},${mapCenter.lng}`)}&z=15&output=embed`;

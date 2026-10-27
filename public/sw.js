@@ -1,8 +1,11 @@
-const BUILD_ID = "d399960d911d";
+const BUILD_ID = "6d5c9910e386";
 const CACHE_PREFIX = "piki-rider-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const APP_SHELL = ["/","/manifest.json","/piki-mascot-192.png","/piki-mascot-512.png"];
 const CONTROL_PATHS = new Set(["/sw.js", "/release.json", "/manifest.json"]);
+
+// Estos recursos controlan la versión instalada. Las cabeceras HTTP del
+// hosting también deben declararlos no-store/no-cache.
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
