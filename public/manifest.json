@@ -2,12 +2,17 @@
   "id": "/",
   "name": "PIKI Riders",
   "short_name": "PIKI Riders",
-  "description": "Solicita tu alta y gestiona tu jornada de reparto en PIKI.",
+  "description": "Gestiona tu jornada, rutas y pedidos de reparto de PIKI.",
   "lang": "es-ES",
   "dir": "ltr",
-  "start_url": "/?v=20260925-google-maps",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
   "orientation": "portrait-primary",
   "background_color": "#f5f7fb",
   "theme_color": "#c9ff60",
@@ -28,13 +33,7 @@
       "src": "/piki-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/piki-icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
   "screenshots": [
@@ -57,7 +56,7 @@
     {
       "name": "Iniciar jornada",
       "short_name": "Jornada",
-      "url": "/?section=Horarios",
+      "url": "/?section=Horarios&source=shortcut",
       "icons": [
         {
           "src": "/piki-icon-192.png",
@@ -69,7 +68,7 @@
     {
       "name": "Ver cartera",
       "short_name": "Cartera",
-      "url": "/?section=Cartera",
+      "url": "/?section=Cartera&source=shortcut",
       "icons": [
         {
           "src": "/piki-icon-192.png",
@@ -81,7 +80,7 @@
     {
       "name": "Abrir soporte",
       "short_name": "Soporte",
-      "url": "/?section=Soporte",
+      "url": "/?section=Soporte&source=shortcut",
       "icons": [
         {
           "src": "/piki-icon-192.png",
@@ -91,7 +90,7 @@
       ]
     }
   ],
-  "display_override": [
-    "standalone"
-  ]
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  }
 }

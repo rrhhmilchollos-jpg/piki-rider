@@ -20,7 +20,10 @@ const requestTimeoutMs = 8_000;
 async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+    const registration = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+      updateViaCache: "none",
+    });
     try { await registration.update(); } catch { /* Un SW antiguo o una red móvil no debe bloquear la app. */ }
     return registration;
   } catch {
