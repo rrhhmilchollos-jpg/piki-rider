@@ -1,5 +1,6 @@
 import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, MessageCircle, Minus, Navigation, Phone, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { IScannerControls } from "@zxing/browser";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
 import { isCustomerDeliveryPhase } from "../orderPaymentInstruction";
@@ -140,23 +141,67 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
   const sheetDragStartYRef = useRef<number | null>(null);
   const suppressSheetClickRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const stopScanner = () => { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; setScannerReady(false); };
-  useEffect(() => () => stopScanner(), []);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
+  const scannerGenerationRef = useRef(0);
+  const scannerStartingRef = useRef(false);
+  const stopScanner = () => {
+    scannerGenerationRef.current += 1;
+    scannerStartingRef.current = false;
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    scannerStreamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setScannerReady(false);
+  };
+  useEffect(() => () => {
+    scannerGenerationRef.current += 1;
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    scannerStreamRef.current = null;
+  }, []);
   const closeScanner = () => { stopScanner(); setScannerOpen(false); setQrValue(""); };
   const openScanner = (orderId?: string) => { setSelectedOrderId(orderId || null); setQrValue(""); setScannerOpen(true); };
   const startScanner = async () => {
+    if (scannerStartingRef.current || scannerControlsRef.current) return;
+    const generation = ++scannerGenerationRef.current;
+    scannerStartingRef.current = true;
     try {
-      const Detector = (window as any).BarcodeDetector;
-      if (!Detector) { onError("Este dispositivo no permite abrir el lector QR. Pega el enlace QR del Customer."); return; }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-      streamRef.current = stream; setScannerReady(true); setScannerOpen(true);
-      window.setTimeout(async () => {
-        const video = videoRef.current; if (!video) return;
-        video.srcObject = stream; await video.play(); const detector = new Detector({ formats: ["qr_code"] });
-        const timer = window.setInterval(async () => { try { const codes = await detector.detect(video); if (codes[0]?.rawValue) { setQrValue(codes[0].rawValue); window.clearInterval(timer); stopScanner(); } } catch {} }, 400);
-      }, 0);
-    } catch { onError("No se pudo abrir la cámara. Revisa el permiso o pega el enlace QR."); }
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("CAMERA_UNAVAILABLE");
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
+      if (generation !== scannerGenerationRef.current || !videoRef.current) return;
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+      if (generation !== scannerGenerationRef.current || !videoRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      scannerStreamRef.current = stream;
+      setScannerReady(true);
+      const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 400 });
+      const controls = await reader.decodeFromStream(
+        stream,
+        videoRef.current,
+        (result, _error, scannerControls) => {
+          if (generation !== scannerGenerationRef.current) { scannerControls.stop(); return; }
+          if (result) {
+            setQrValue(result.getText());
+            scannerControls.stop();
+            stopScanner();
+          }
+        },
+      );
+      if (generation !== scannerGenerationRef.current) controls.stop();
+      else scannerControlsRef.current = controls;
+    } catch {
+      if (generation === scannerGenerationRef.current) {
+        stopScanner();
+        onError("No se pudo abrir la cámara. Revisa el permiso o introduce el PIN del cliente; basta con uno de los dos métodos.");
+      }
+    } finally {
+      if (generation === scannerGenerationRef.current) scannerStartingRef.current = false;
+    }
   };
   const assignedOrders = offers.filter((order) => order.assignmentState === "assigned");
   const liveOrders = orderRiderQueue(assignedOrders.length ? assignedOrders : offers.filter((order) => order.assignmentState === "offered"));
@@ -241,7 +286,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
           </> : <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1 className="searching-orders-title">Buscando pedidos…</h1><p>Estás visible en {subtitle}. PIKI te avisará cuando haya una asignación; no necesitas refrescar.</p></>}
         </div>
       </section>
-      {scannerOpen && selectedOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label="Confirmar entrega"><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">ENTREGA SEGURA</p><h2>Escanea el QR o introduce el PIN del cliente</h2><p>El Customer debe mostrarte el QR o decirte el PIN para cerrar la entrega.</p><video ref={videoRef} muted playsInline className={scannerReady ? "delivery-qr-video" : "hidden"}/>{!scannerReady && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara para escanear QR</button>}<label>PIN o enlace QR del Customer<input value={qrValue} onChange={(event) => setQrValue(event.target.value.toUpperCase())} placeholder="PIN o enlace QR del Customer" autoComplete="one-time-code" /></label><button type="button" disabled={actionBusy || !qrValue.trim()} className="active-order-button" onClick={() => { onConfirmDelivery(selectedOrder._id, qrValue.trim()); closeScanner(); }}><ShieldCheck size={17}/> Confirmar entrega con QR/PIN</button></section>}
+      {scannerOpen && selectedOrder && <section className="delivery-qr-dialog" role="dialog" aria-modal="true" aria-label="Confirmar entrega"><button type="button" className="delivery-qr-close" onClick={closeScanner} aria-label="Cerrar"><X size={18}/></button><p className="active-eyebrow">ENTREGA SEGURA</p><h2>Escanea el QR o introduce el PIN del cliente</h2><p>Basta con validar uno de los dos: PIN o QR. No hace falta usar ambos.</p><video ref={videoRef} muted playsInline className={scannerReady ? "delivery-qr-video" : "hidden"}/>{!scannerReady && <button type="button" className="active-order-button" onClick={startScanner}><Camera size={17}/> Abrir cámara para escanear QR</button>}<label>PIN o enlace QR del Customer<input value={qrValue} onChange={(event) => setQrValue(event.target.value)} placeholder="PIN o enlace QR del Customer" autoComplete="one-time-code" autoCapitalize="off" autoCorrect="off" spellCheck={false} /></label><button type="button" disabled={actionBusy || !qrValue.trim()} className="active-order-button" onClick={() => { onConfirmDelivery(selectedOrder._id, qrValue.trim()); closeScanner(); }}><ShieldCheck size={17}/> Confirmar entrega con QR/PIN</button></section>}
       {toast && <div className="toast active-toast" role="status"><ShieldCheck size={17}/>{toast}</div>}
     </section>
   </main>;

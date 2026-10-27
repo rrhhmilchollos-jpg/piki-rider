@@ -63,6 +63,7 @@ import {
   markStoredTokenValidated,
 } from "./authStorage";
 import { requiresRiderAuthentication } from "./apiAuthPolicy";
+import { deliveryProofPayload, normalizeDeliveryProof } from "./deliveryProof";
 import { publishPwaOperationSafety } from "./pwaOperationSafety";
 import {
   shouldShowOperationalMap,
@@ -989,7 +990,7 @@ function App() {
   }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
     if (orderActionBusy) return;
-    const normalizedDeliveryQr = deliveryQr.trim();
+    const normalizedDeliveryQr = normalizeDeliveryProof(deliveryQr);
     if (!normalizedDeliveryQr) {
       setToast("El cliente debe proporcionarte su QR o PIN antes de confirmar la entrega.");
       return;
@@ -1027,7 +1028,7 @@ function App() {
             ...authHeaders(apiToken),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ deliveryQr: normalizedDeliveryQr, deliveryPin: normalizedDeliveryQr }),
+          body: JSON.stringify(deliveryProofPayload(normalizedDeliveryQr)),
         },
       );
       const data = await response.json().catch(() => ({}));
