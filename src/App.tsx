@@ -1402,7 +1402,7 @@ function App() {
           aria-label="Cerrar navegación"
         />
       )}
-      <main className="main-content">
+      <main className={`main-content ${section === "Inicio" ? "home-main-content" : ""}`}>
         <header className="topbar">
           <button
             className="menu-button"
