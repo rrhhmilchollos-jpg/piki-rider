@@ -1,371 +1,40 @@
-/* PIKI Rider: viewport real de móvil para conducción con el mapa como superficie principal. */
-.active-shift-shell {
-  position: fixed;
-  inset: 0;
-  z-index: 25;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
+
+
+/* En móvil se conserva el enlace de Maps, pero el control visible es un globo circular. */
+.rider-map-open {
+  display: grid !important;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  color: #173b63 !important;
+  box-shadow: 0 8px 22px rgba(13, 30, 45, .2) !important;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
 }
-
-.active-shift-shell > .active-map {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
+.rider-map-open:hover,
+.rider-map-open:focus-visible {
+  background: #d9ff56 !important;
+  color: #173b63 !important;
+  transform: translateY(-1px);
 }
-
-.active-shift-shell .rider-map-card,
-.active-shift-shell .rider-google-map-canvas,
-.active-shift-shell .rider-google-map-frame,
-.active-shift-shell .rider-google-map-loading {
-  height: 100%;
-  min-height: 0;
+.rider-map-open:focus-visible {
+  outline: 3px solid rgba(217, 255, 86, .75);
+  outline-offset: 3px;
 }
-
-.active-shift-shell .rider-google-map-canvas,
-.active-shift-shell .rider-google-map-frame {
-  width: 100%;
+.rider-map-open:active {
+  transform: scale(.94);
 }
-
-.active-shift-shell .active-bottom-sheet {
-  max-height: min(76dvh, 760px);
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
-}
-
-.active-shift-shell .active-sheet-expanded-content {
-  max-height: calc(100dvh - 196px);
-}
-
-.rider-google-map-notice {
-  position: absolute;
-  z-index: 5;
-  top: 58px;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: min(520px, calc(100% - 28px));
-  padding: 8px 12px;
-  transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, .22);
-  border-radius: 12px;
-  background: rgba(17, 24, 32, .9);
-  color: #fff;
-  text-align: center;
-  font-size: 11px;
-  line-height: 1.35;
-  box-shadow: 0 5px 16px rgba(0, 0, 0, .12);
-}
-
-.real-google-map-section .rider-map-status {
-  top: 184px;
-}
-
-.real-google-map-section .rider-google-map-notice {
-  top: 226px;
-}
-
-@media (max-width: 768px) {
-  .feature-section .schedule-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .feature-section .schedule-day {
-    min-width: 0;
-    min-height: 128px;
-    padding: 14px 12px;
-  }
-
-  .feature-section .schedule-day > span {
-    font-size: 12px;
-  }
-
-  .feature-section .schedule-day strong {
-    margin: 10px 0;
-    font-size: 16px;
-  }
-
-  .feature-section .schedule-day b {
-    font-size: 13px;
-  }
-
-  .feature-section .schedule-day small {
-    font-size: 12px;
-    line-height: 1.35;
-  }
-}
-
 @media (max-width: 580px) {
-  .active-shift-shell {
-    height: 100svh;
-    height: 100dvh;
-  }
-
-  .active-shift-shell .active-bottom-sheet {
-    max-height: min(76dvh, 760px);
-    padding-bottom: max(24px, env(safe-area-inset-bottom));
-  }
-
-  .active-shift-shell .active-sheet-expanded-content {
-    max-height: calc(100dvh - 190px);
-  }
-
-  .home-page-content {
-    width: 100%;
-    max-width: none;
-    height: calc(100dvh - 64px);
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .home-page-content .rider-home-map {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-  }
-
-  .home-page-content .rider-home-map-canvas {
-    height: 100%;
-    min-height: 0;
-  }
-
-  .home-page-content .rider-google-map-canvas,
-  .home-page-content .rider-google-map-frame {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    border-radius: 0;
-  }
-
-  .home-page-content .rider-home-control {
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
-  }
-
-  .home-page-content .rider-google-map-notice {
-    top: 14px;
-  }
-}
-
-/*
- * Android Chrome Custom Tabs and a few generated shells can report a 980 px
- * layout viewport even on a narrow touch screen. Keep the whole Rider UI in its
- * phone layout for coarse pointers instead of waiting only on a width breakpoint.
- */
-@media (pointer: coarse), (max-width: 1024px) {
-  html,
-  body,
-  #root {
-    width: 100%;
-    min-width: 320px;
-    min-height: 100%;
-  }
-
-  body {
-    min-height: 100dvh;
-    overflow-x: hidden;
-    font-size: 16px;
-  }
-
-  .app-shell {
-    width: 100%;
-    min-height: 100dvh;
-    overflow-x: hidden;
-  }
-
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform .25s ease;
-  }
-
-  .sidebar-open {
-    transform: translateX(0);
-  }
-
-  .close-menu {
-    display: block;
-    margin-left: auto;
-  }
-
-  .backdrop {
-    display: block;
-  }
-
-  .main-content {
-    width: 100%;
-    min-width: 0;
-    margin-left: 0;
-  }
-
-  .topbar {
-    height: 64px;
-    min-height: 64px;
-    padding: 0 16px;
-  }
-
-  .menu-button {
-    display: block;
-  }
-
-  .page-content {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    padding: 22px 16px calc(40px + env(safe-area-inset-bottom));
-  }
-
-  .feature-section {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-  }
-
-  .page-heading,
-  .feature-heading {
-    display: block;
-  }
-
-  .page-heading h1,
-  .feature-heading h1 {
-    max-width: 100%;
-    font-size: clamp(27px, 5vw, 40px);
-    line-height: 1.1;
-    letter-spacing: -.04em;
-  }
-
-  .page-heading p,
-  .feature-heading p,
-  .lead {
-    max-width: 100%;
-    font-size: 15px;
-    line-height: 1.5;
-  }
-
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .schedule-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px;
-  }
-
-  .schedule-day {
-    min-width: 0;
-    min-height: 124px;
-    padding: 14px 12px;
-  }
-
-  .schedule-day > span {
-    font-size: 13px;
-  }
-
-  .schedule-day strong {
-    margin: 10px 0;
-    font-size: 17px;
-  }
-
-  .schedule-day b {
-    font-size: 14px;
-  }
-
-  .schedule-day small {
-    font-size: 13px;
-    line-height: 1.35;
-  }
-
-  .shift-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-  }
-
-  .shift-toolbar strong {
-    font-size: 17px;
-  }
-
-  .shift-toolbar span {
-    font-size: 13px;
-    line-height: 1.4;
-  }
-
-  .shift-action {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 16px;
-  }
-
-  .shift-action > div {
-    flex: 1 1 calc(100% - 38px);
-    min-width: 0;
-  }
-
-  .shift-action .primary-button {
-    flex: 1 0 100%;
-    min-height: 48px;
-    justify-content: center;
-  }
-
-  .onboarding-grid,
-  .token-card {
-    grid-template-columns: 1fr;
-  }
-
-  .token-card input {
-    margin-top: 0;
-  }
-
-  .home-page-content {
-    width: 100%;
-    max-width: none;
-    height: calc(100dvh - 64px);
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .home-page-content .rider-home-map {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-  }
-
-  .home-page-content .rider-home-map-canvas,
-  .home-page-content .rider-google-map-canvas,
-  .home-page-content .rider-google-map-frame {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    border-radius: 0;
-  }
-
-  .home-page-content .rider-home-control {
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
-  }
-
-  .home-page-content .rider-google-map-notice {
-    top: 14px;
-  }
-
-  button,
-  .nav-item,
-  input,
-  select,
-  textarea {
-    font-size: max(16px, 1em);
+  .rider-map-open {
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    min-height: 50px;
   }
 }
