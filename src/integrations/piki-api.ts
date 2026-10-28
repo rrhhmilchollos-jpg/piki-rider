@@ -6,7 +6,9 @@ export type OperationalZone = {
   slug: string;
   name: string;
   isActive?: boolean;
-  polygon?: { type: "Polygon"; coordinates: number[][][] };
+  polygon?:
+    | { type: "Polygon"; coordinates: number[][][] }
+    | { type: "MultiPolygon"; coordinates: number[][][][] };
 };
 export type MobilityAdvice = {
   algorithmVersion: string;
