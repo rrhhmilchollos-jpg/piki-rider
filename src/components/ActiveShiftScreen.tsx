@@ -13,8 +13,6 @@ import "../ActiveShiftScreen.css";
 import "../rider-card-payment-delay.css";
 
 type Props = {
-  token: string;
-  riderId: string;
   currentShift: CurrentShift;
   offers: RiderOffer[];
   offersLoading: boolean;
@@ -125,7 +123,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
-export default function ActiveShiftScreen({ token, riderId, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
@@ -255,7 +253,7 @@ export default function ActiveShiftScreen({ token, riderId, currentShift, offers
 
   return <main className="active-shift-shell" aria-label="Jornada activa PIKI Rider">
     <section className="active-map real-google-map-section">
-      <LiveGoogleMap token={token} riderId={riderId} active onError={onError}/>
+      <LiveGoogleMap active />
       <header className="active-brand-header" aria-label="PIKI Rider">
         <strong>PIKI <em>Rider</em></strong>
       </header>

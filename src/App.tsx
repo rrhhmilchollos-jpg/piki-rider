@@ -70,6 +70,11 @@ import {
   shouldShowOperationalMap,
   shouldTrackLocationOnOperationalMap,
 } from "./riderSectionPolicy";
+import { createRiderGpsTracker } from "./riderGpsNative";
+import { isRiderGpsStatusBlocked, mayTrackRiderGps } from "./riderGpsPolicy";
+import { RIDER_GPS_START_EVENT, RIDER_GPS_STOP_EVENT, stopRiderDeviceGps } from "./riderGpsSession";
+import { resetRiderGpsState, setRiderGpsMapPoint, setRiderGpsSnapshot } from "./riderGpsState";
+import type { RiderGpsTracker } from "./riderGpsTracker";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -323,6 +328,7 @@ function App() {
   const [showOperations, setShowOperations] = useState(false);
   const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
+  const [riderOperationalStatus, setRiderOperationalStatus] = useState("");
   const [riderProfile, setRiderProfile] = useState({ name: "", email: "", riderCode: "" });
   const [currentShift, setCurrentShift] = useState<CurrentShift>({
     eligible: false,
@@ -377,8 +383,16 @@ function App() {
   const riderRefreshInFlightRef = useRef(false);
   const riderRefreshQueuedRef = useRef(false);
   const loadRiderDataRef = useRef<() => void>(() => undefined);
+  const gpsTrackerRef = useRef<RiderGpsTracker | null>(null);
+  const riderGpsSessionGenerationRef = useRef(0);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
   const hasPersistedOrder = offers.some((offer) => offer.assignmentState === "assigned" || offer.assignmentState === "offered");
+
+  const invalidateRiderGps = useCallback(() => {
+    riderGpsSessionGenerationRef.current += 1;
+    stopRiderDeviceGps();
+    resetRiderGpsState();
+  }, []);
 
   useEffect(() => {
     const updateFormEditing = () => {
@@ -414,6 +428,32 @@ function App() {
     playRiderOrderAlert(audioContextRef);
   }, []);
 
+  useEffect(() => {
+    if (!mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive })) {
+      resetRiderGpsState();
+      return;
+    }
+    const tracker = createRiderGpsTracker(
+      apiOrigin,
+      apiToken,
+      riderId,
+      setRiderGpsSnapshot,
+      setRiderGpsMapPoint,
+    );
+    gpsTrackerRef.current = tracker;
+    const stop = () => tracker.stop();
+    const start = () => { void tracker.start(); };
+    window.addEventListener(RIDER_GPS_STOP_EVENT, stop);
+    window.addEventListener(RIDER_GPS_START_EVENT, start);
+    start();
+    return () => {
+      window.removeEventListener(RIDER_GPS_STOP_EVENT, stop);
+      window.removeEventListener(RIDER_GPS_START_EVENT, start);
+      tracker.stop();
+      if (gpsTrackerRef.current === tracker) gpsTrackerRef.current = null;
+    };
+  }, [apiToken, riderId, riderOperationalStatus, shiftActive]);
+
   const loadRiderData = useCallback(async () => {
     if (!apiToken) return;
     if (riderRefreshInFlightRef.current) {
@@ -429,10 +469,12 @@ function App() {
       );
       if (!sessionResponse.ok) {
         if (await requiresRiderAuthentication(sessionResponse)) {
+          invalidateRiderGps();
           clearStoredToken();
           setApiToken("");
           setAuthRequired(true);
           setRiderId("");
+          setRiderOperationalStatus("");
           setShiftActive(false);
           setOffers([]);
         }
@@ -442,10 +484,19 @@ function App() {
         rider?: { id?: string; name?: string; email?: string; riderCode?: string; status?: string };
       };
       const id = String(sessionData.rider?.id || "");
-      if (!id) return;
+      const nextRiderStatus = String(sessionData.rider?.status || "");
+      if (!id) {
+        invalidateRiderGps();
+        setRiderId("");
+        setRiderOperationalStatus("");
+        setShiftActive(false);
+        return;
+      }
       markStoredTokenValidated();
       setRiderId(id);
+      setRiderOperationalStatus(nextRiderStatus);
       setRiderProfile({ name: String(sessionData.rider?.name || ""), email: String(sessionData.rider?.email || ""), riderCode: String(sessionData.rider?.riderCode || "") });
+      if (isRiderGpsStatusBlocked(nextRiderStatus)) invalidateRiderGps();
       const [slotResponse, statsResponse, shiftResponse, cashResponse] =
         await Promise.all([
           fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers, cache: "no-store" }),
@@ -460,7 +511,9 @@ function App() {
       if (shiftResponse.ok) {
         const data = (await shiftResponse.json()) as CurrentShift & { shift?: Record<string, unknown> | null };
         setCurrentShift({ ...data, shift: data.shift ? normalizeRiderShift(data.shift) : null });
-        setShiftActive(data.shift?.status === "active");
+        const nextShiftActive = data.shift?.status === "active" && !isRiderGpsStatusBlocked(nextRiderStatus);
+        if (!nextShiftActive) invalidateRiderGps();
+        setShiftActive(nextShiftActive);
       }
       if (statsResponse.ok) {
         const data = (await statsResponse.json()) as {
@@ -483,7 +536,7 @@ function App() {
         window.setTimeout(() => loadRiderDataRef.current(), 0);
       }
     }
-  }, [apiToken]);
+  }, [apiToken, invalidateRiderGps]);
   useEffect(() => {
     loadRiderDataRef.current = () => { void loadRiderData(); };
   }, [loadRiderData]);
@@ -548,10 +601,12 @@ function App() {
         if (!response.ok || disposed) {
           const requiresAuthentication = !disposed && await requiresRiderAuthentication(response);
           if (requiresAuthentication && !disposed) {
+            invalidateRiderGps();
             clearStoredToken();
             setApiToken("");
             setAuthRequired(true);
             setRiderId("");
+            setRiderOperationalStatus("");
             setShiftActive(false);
             setOffers([]);
           }
@@ -603,7 +658,7 @@ function App() {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, playAssignmentAlert]);
+  }, [apiToken, riderId, playAssignmentAlert, invalidateRiderGps]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     return connectPikiRealtime({
@@ -611,10 +666,12 @@ function App() {
       token: apiToken,
       surface: "rider",
       onAuthExpired: () => {
+        invalidateRiderGps();
         clearStoredToken();
         setApiToken("");
         setAuthRequired(true);
         setRiderId("");
+        setRiderOperationalStatus("");
         setShiftActive(false);
         setToast("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
       },
@@ -666,7 +723,7 @@ function App() {
           .catch(() => undefined);
       },
     });
-  }, [apiToken, riderId, loadRiderData, playAssignmentAlert]);
+  }, [apiToken, riderId, loadRiderData, playAssignmentAlert, invalidateRiderGps]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     let disposed = false;
@@ -676,11 +733,12 @@ function App() {
         if (!response.ok || disposed) return;
         const data = await response.json() as CurrentShift & { shift?: Record<string, unknown> | null };
         const nextShift = data.shift ? normalizeRiderShift(data.shift) : null;
-        if (nextShift?.status === "active") {
+        if (nextShift?.status === "active" && !isRiderGpsStatusBlocked(riderOperationalStatus)) {
           setCurrentShift({ ...data, shift: nextShift });
           setShiftActive(true);
           return;
         }
+        invalidateRiderGps();
         if (!shiftActive) {
           setCurrentShift({ ...data, shift: nextShift });
           return;
@@ -696,7 +754,7 @@ function App() {
     // no debemos depender exclusivamente de que el evento SSE llegue al navegador.
     const timer = window.setInterval(() => void checkShift(), 10000);
     return () => { disposed = true; window.clearInterval(timer); };
-  }, [apiToken, riderId, shiftActive]);
+  }, [apiToken, riderId, riderOperationalStatus, shiftActive, invalidateRiderGps]);
   useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
@@ -833,6 +891,10 @@ function App() {
         setToast("No hay una cuenta Rider vinculada a esta sesión.");
       return;
     }
+    if (isRiderGpsStatusBlocked(riderOperationalStatus)) {
+      setToast("Tu alta Rider sigue pendiente o no está operativa. Contacta con Fleet antes de iniciar jornada.");
+      return;
+    }
     if (!shiftActive && !currentShift.eligible) {
       setToast(
         "No hay un turno disponible ahora. Revisa Horarios o contacta con Fleet.",
@@ -845,6 +907,7 @@ function App() {
     }
     setStartConsentOpen(false);
     const endpoint = "start";
+    const gpsSessionGeneration = riderGpsSessionGenerationRef.current;
     setShiftBusy(true);
     try {
       if (!shiftActive) {
@@ -862,6 +925,7 @@ function App() {
               timeout: 15_000,
             }),
         );
+        if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
         const locationResponse = await fetch(
           `${apiOrigin}/api/v1/riders/${riderId}/location`,
           {
@@ -877,6 +941,7 @@ function App() {
             }),
           },
         );
+        if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
         if (!locationResponse.ok) {
           const payload = await locationResponse.json().catch(() => ({}));
           setToast(
@@ -887,6 +952,7 @@ function App() {
           return;
         }
       }
+      if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
       const response = await fetch(
         `${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`,
         { method: "POST", headers: authHeaders(apiToken) },
@@ -898,6 +964,7 @@ function App() {
         locationRequired?: boolean;
         now?: { date: string; time: string };
       };
+      if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
       if (!response.ok) {
         setToast(
           data.message ||
@@ -997,6 +1064,7 @@ function App() {
       return;
     }
     setOrderActionBusy(true);
+    const gpsSessionGeneration = riderGpsSessionGenerationRef.current;
     try {
       // Nunca confirmes contra una posición antigua del heartbeat. En móvil,
       // el último watchPosition puede tener varios segundos de retraso o
@@ -1011,11 +1079,13 @@ function App() {
               timeout: 12_000,
             }),
           );
+          if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
           await publishRiderLocation(apiToken, riderId, {
             latitude: freshPosition.coords.latitude,
             longitude: freshPosition.coords.longitude,
             accuracy: freshPosition.coords.accuracy,
           });
+          if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
         } catch {
           setToast("No se pudo obtener un GPS preciso. Activa la ubicación precisa y vuelve a intentarlo.");
           return;
@@ -1244,14 +1314,18 @@ function App() {
       message.includes("API 401") ||
       message.includes("AUTHENTICATION_REQUIRED")
     ) {
+      invalidateRiderGps();
       clearStoredToken();
       setApiToken("");
+      setRiderId("");
+      setRiderOperationalStatus("");
+      setShiftActive(false);
       setAuthRequired(false);
       setToast("Tu sesión ha caducado. Vuelve a iniciar sesión.");
       return;
     }
     setToast(message);
-  }, []);
+  }, [invalidateRiderGps]);
 
   if (!apiToken || authRequired)
     return (
@@ -1272,8 +1346,6 @@ function App() {
     return (
       <>
         <ActiveShiftScreen
-          token={apiToken}
-          riderId={riderId}
           currentShift={currentShift}
           offers={offers}
           offersLoading={offersLoading}
@@ -2080,21 +2152,15 @@ function App() {
                 <section className="rider-home-map" aria-label="Mapa y estado de jornada">
                   <div className="rider-home-map-canvas">
                     <LiveGoogleMap
-                      token={apiToken}
-                      riderId={riderId}
                       active={shouldTrackLocationOnOperationalMap(section, shiftActive)}
-                      onError={handleApiError}
                     />
                   </div>
                   {shiftActive && <OperationalActivation
-                    token={apiToken}
-                    riderId={riderId}
                     active={shiftActive}
                     playTestSound={async () => {
                       primeRiderOrderAudio(audioContextRef);
                       playRiderShiftStart();
                     }}
-                    onError={handleApiError}
                   />}
                   <div className="rider-home-control">
                     <div>

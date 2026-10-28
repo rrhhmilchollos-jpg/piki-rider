@@ -1,36 +1,29 @@
 import { useEffect, useRef, useState } from "react";
-import { Capacitor } from "@capacitor/core";
 import { MapPin, RefreshCw } from "lucide-react";
-import { publishRiderLocation } from "../integrations/piki-api";
 import { loadGoogleMaps } from "../integrations/google-maps";
+import { useRiderGpsMapPoint, useRiderGpsSnapshot } from "../riderGpsState";
 
-type Props = { token: string; riderId?: string; active?: boolean; onError: (message: string) => void };
-type Point = { lat: number; lng: number; accuracy: number };
+type Props = { active?: boolean };
 type MapState = "loading" | "ready" | "fallback";
 
 const fallbackPoint = { lat: 38.9908, lng: -0.5185 };
 
 /**
- * Publishes the Rider's device GPS independently from map rendering. When the
- * Maps JavaScript API key is configured, it renders the real Google base map
- * and moves the Rider marker using those exact device coordinates.
+ * Displays the canonical GPS stream owned by RiderGpsTracker. It never starts
+ * a watcher or publishes a location, so rendering cannot create a second GPS publisher.
  */
-export default function LiveGoogleMap({ token, riderId, active = false, onError }: Props) {
-  const [point, setPoint] = useState<Point | null>(null);
+export default function LiveGoogleMap({ active = false }: Props) {
+  const point = useRiderGpsMapPoint();
+  const gps = useRiderGpsSnapshot();
   const [mapCenter, setMapCenter] = useState(fallbackPoint);
   const fallbackCenterRef = useRef(fallbackPoint);
   const hasGpsCenterRef = useRef(false);
   const lastFallbackCenterUpdateRef = useRef(0);
-  const [locationMessage, setLocationMessage] = useState("Mapa centrado en Xàtiva · activa la jornada para compartir tu posición");
   const [mapState, setMapState] = useState<MapState>("loading");
   const [mapMessage, setMapMessage] = useState("");
-  const onErrorRef = useRef(onError);
-  const lastPublishedRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
-
-  useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,73 +70,39 @@ export default function LiveGoogleMap({ token, riderId, active = false, onError 
     const center = point ?? fallbackPoint;
     map.panTo(center);
     if (!markerRef.current) {
-      markerRef.current = new maps.Marker({
-        map,
-        position: center,
-        title: "Tu posición GPS",
-      });
+      markerRef.current = new maps.Marker({ map, position: center, title: "Tu posición GPS" });
     } else {
       markerRef.current.setPosition(center);
     }
   }, [point, mapState]);
 
   useEffect(() => {
-    let watchId: number | undefined;
-    let heartbeat: number | undefined;
-    const publish = async (next: Point) => {
-      setPoint(next);
-      const previousCenter = fallbackCenterRef.current;
-      const deltaLat = (next.lat - previousCenter.lat) * 111_000;
-      const deltaLng = (next.lng - previousCenter.lng) * 85_000;
-      const fallbackMovedMeters = Math.hypot(deltaLat, deltaLng);
-      const now = Date.now();
-      if (!hasGpsCenterRef.current || fallbackMovedMeters >= 120 || now - lastFallbackCenterUpdateRef.current >= 60_000) {
-        const nextCenter = { lat: next.lat, lng: next.lng };
-        hasGpsCenterRef.current = true;
-        fallbackCenterRef.current = nextCenter;
-        lastFallbackCenterUpdateRef.current = now;
-        setMapCenter(nextCenter);
-      }
-      const accuracy = Number(next.accuracy);
-      setLocationMessage(Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
-        ? `GPS actualizado · precisión aproximada ±${Math.round(accuracy)} m`
-        : "GPS actualizado · precisión no disponible");
-      // On native builds OperationalActivation owns the background watcher and
-      // publishes the canonical location stream; keep this watcher visual only.
-      if (!active || !riderId || Capacitor.isNativePlatform()) return;
-      const previous = lastPublishedRef.current;
-      const elapsed = previous ? Date.now() - previous.at : Number.POSITIVE_INFINITY;
-      const movedMeters = previous ? Math.hypot((next.lat - previous.lat) * 111_000, (next.lng - previous.lng) * 88_000) : Number.POSITIVE_INFINITY;
-      if (elapsed < 4_000 && movedMeters < 12) return;
-      lastPublishedRef.current = { lat: next.lat, lng: next.lng, at: Date.now() };
-      try {
-        await publishRiderLocation(token, riderId, { latitude: next.lat, longitude: next.lng, accuracy: next.accuracy });
-      } catch (error) {
-        onErrorRef.current(error instanceof Error ? error.message : "No se pudo actualizar el servicio");
-      }
-    };
-    const failure = (error: GeolocationPositionError) => {
-      if (error.code === error.PERMISSION_DENIED) onErrorRef.current("Ubicación bloqueada: permite la ubicación para recibir pedidos.");
-      else if (error.code === error.POSITION_UNAVAILABLE) onErrorRef.current("GPS no disponible: activa la ubicación precisa del teléfono.");
-      else onErrorRef.current("GPS sin respuesta: mantén la app abierta y vuelve a intentarlo.");
-    };
-    // Rendering the home map must not prompt for GPS. Tracking starts only
-    // after App has explicitly validated location while starting a journey.
-    if (!active) return;
-    if (!navigator.geolocation) {
-      onErrorRef.current("Este dispositivo no ofrece geolocalización.");
-      return;
+    if (!point) return;
+    const previousCenter = fallbackCenterRef.current;
+    const deltaLat = (point.lat - previousCenter.lat) * 111_000;
+    const deltaLng = (point.lng - previousCenter.lng) * 85_000;
+    const fallbackMovedMeters = Math.hypot(deltaLat, deltaLng);
+    const now = Date.now();
+    if (!hasGpsCenterRef.current || fallbackMovedMeters >= 120 || now - lastFallbackCenterUpdateRef.current >= 60_000) {
+      const nextCenter = { lat: point.lat, lng: point.lng };
+      hasGpsCenterRef.current = true;
+      fallbackCenterRef.current = nextCenter;
+      lastFallbackCenterUpdateRef.current = now;
+      setMapCenter(nextCenter);
     }
-    const success = (position: GeolocationPosition) => void publish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
-    navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 30_000, timeout: 12_000 });
-    watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 });
-    heartbeat = window.setInterval(() => { navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }); }, 10_000);
-    return () => {
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-      if (heartbeat !== undefined) window.clearInterval(heartbeat);
-    };
-  }, [active, riderId, token]);
+  }, [point]);
 
+  const accuracy = Number(point?.accuracy);
+  const precision = Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
+    ? ` · precisión aproximada ±${Math.round(accuracy)} m`
+    : " · precisión no disponible";
+  const locationMessage = !point
+    ? active
+      ? "GPS activo · esperando una posición y la confirmación de la API"
+      : "Mapa centrado en Xàtiva · activa la jornada para compartir tu posición"
+    : gps.state === "tracking"
+      ? `GPS confirmado por la API${precision}`
+      : `Posición GPS recibida; esperando confirmación de la API${precision}`;
   const center = point ?? fallbackPoint;
   const fallbackMapUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${mapCenter.lat},${mapCenter.lng}`)}&z=15&output=embed`;
 
