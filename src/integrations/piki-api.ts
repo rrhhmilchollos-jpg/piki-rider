@@ -1,3 +1,5 @@
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
+
 export type GeoCoordinate = { latitude: number; longitude: number; accuracy?: number };
 export type OperationalZone = {
   _id?: string;
@@ -41,10 +43,22 @@ export async function loadOperationalZones(token: string): Promise<OperationalZo
 }
 
 export async function publishRiderLocation(token: string, riderId: string, point: GeoCoordinate) {
-  return apiJson(`/api/v1/riders/${encodeURIComponent(riderId)}/location`, token, {
-    method: "POST",
-    body: JSON.stringify(point),
-  });
+  const path = `/api/v1/riders/${encodeURIComponent(riderId)}/location`;
+  if (Capacitor.isNativePlatform()) {
+    const response = await CapacitorHttp.post({
+      url: apiUrl(path),
+      headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
+      data: point,
+      connectTimeout: 15_000,
+      readTimeout: 15_000,
+    });
+    if (response.status < 200 || response.status >= 300) {
+      const details = typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+      throw new Error(`API ${response.status}: ${details}`);
+    }
+    return response.data;
+  }
+  return apiJson(path, token, { method: "POST", body: JSON.stringify(point) });
 }
 
 export async function loadMobilityAdvice(token: string, riderId: string, lowActivityMinutes: number): Promise<MobilityAdvice> {

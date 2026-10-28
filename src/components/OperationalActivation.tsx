@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import type { BackgroundGeolocationPlugin, CallbackError, Location } from "@capacitor-community/background-geolocation";
 import { useEffect, useRef, useState } from "react";
 import { LocateFixed, Volume2 } from "lucide-react";
@@ -22,6 +23,16 @@ function locationErrorMessage(error: CallbackError | GeolocationPositionError) {
   if (code === "1" || code === "NOT_AUTHORIZED") return "No has autorizado la ubicación. Permite a PIKI Riders usarla durante la jornada.";
   if (code === "2") return "No se puede obtener una señal GPS ahora mismo.";
   return "La ubicación ha tardado demasiado. Comprueba el GPS y vuelve a intentarlo.";
+}
+
+async function ensureAndroidNotificationPermission() {
+  let permission = await LocalNotifications.checkPermissions();
+  if (permission.display === "prompt" || permission.display === "prompt-with-rationale") {
+    permission = await LocalNotifications.requestPermissions();
+  }
+  if (permission.display !== "granted") {
+    throw new Error("Permite las notificaciones de PIKI Riders en Ajustes para mantener visible el GPS durante la jornada.");
+  }
 }
 
 export default function OperationalActivation({ token, riderId, active, playTestSound, onError }: Props) {
@@ -85,6 +96,7 @@ export default function OperationalActivation({ token, riderId, active, playTest
       // Called directly from the rider's click so browsers may resume audio honestly.
       await playTestSound();
       if (Capacitor.isNativePlatform()) {
+        if (Capacitor.getPlatform() === "android") await ensureAndroidNotificationPermission();
         const id = await BackgroundGeolocation.addWatcher({
           backgroundMessage: "PIKI Riders comparte tu ubicación mientras estás conectado. Vuelve a la app para finalizar la jornada.",
           backgroundTitle: "PIKI Riders · jornada activa",
@@ -94,7 +106,9 @@ export default function OperationalActivation({ token, riderId, active, playTest
         }, handleNativeLocation);
         watchRef.current = { kind: "native", id };
         setState("active");
-        setDetail("GPS nativo activado; esperando la primera posición. iOS puede actualizar con la pantalla bloqueada si permites acceso Siempre.");
+        setDetail(Capacitor.getPlatform() === "android"
+          ? "GPS nativo activado; Android mantendrá el servicio visible durante la jornada. Esperando la primera posición."
+          : "GPS nativo activado; esperando la primera posición. En iPhone permite acceso Siempre para continuar con la pantalla bloqueada.");
         return;
       }
       const id = navigator.geolocation.watchPosition(
@@ -118,7 +132,11 @@ export default function OperationalActivation({ token, riderId, active, playTest
     <div>
       <strong>{state === "active" ? "Ubicación y sonido activados" : "Activa ubicación y sonido"}</strong>
       <p>{detail}</p>
-      <small>En iPhone, permite ubicación «Siempre» para el turno. iOS puede detener el rastreo si fuerzas el cierre de la app o revocas el permiso.</small>
+      <small>{Capacitor.getPlatform() === "android"
+        ? "Durante la jornada, PIKI transmite tu ubicación GPS para coordinar repartos y mostrar su avance. Android mantendrá una notificación mientras el GPS siga activo; se detiene al finalizar la jornada."
+        : Capacitor.getPlatform() === "ios"
+          ? "En iPhone, permite ubicación «Siempre» para el turno. iOS puede detener el rastreo si fuerzas el cierre de la app o revocas el permiso."
+          : "En navegador, el rastreo puede pausarse al bloquear la pantalla; para GPS en segundo plano hace falta instalar la app nativa."}</small>
     </div>
     <button className="primary-button" type="button" onClick={() => void activate()} disabled={state === "starting"}>
       <LocateFixed size={16} />{state === "starting" ? "Activando…" : state === "active" ? "Probar ubicación y sonido" : "Activar ubicación y sonido"}
