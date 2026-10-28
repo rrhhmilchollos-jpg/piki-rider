@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { MapPin, RefreshCw } from "lucide-react";
 import { publishRiderLocation } from "../integrations/piki-api";
 import { loadGoogleMaps } from "../integrations/google-maps";
@@ -107,7 +108,9 @@ export default function LiveGoogleMap({ token, riderId, active = false, onError 
       setLocationMessage(Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
         ? `GPS actualizado · precisión aproximada ±${Math.round(accuracy)} m`
         : "GPS actualizado · precisión no disponible");
-      if (!active || !riderId) return;
+      // On native builds OperationalActivation owns the background watcher and
+      // publishes the canonical location stream; keep this watcher visual only.
+      if (!active || !riderId || Capacitor.isNativePlatform()) return;
       const previous = lastPublishedRef.current;
       const elapsed = previous ? Date.now() - previous.at : Number.POSITIVE_INFINITY;
       const movedMeters = previous ? Math.hypot((next.lat - previous.lat) * 111_000, (next.lng - previous.lng) * 88_000) : Number.POSITIVE_INFINITY;

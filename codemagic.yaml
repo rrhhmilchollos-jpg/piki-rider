@@ -1,0 +1,47 @@
+workflows:
+  piki_riders_ios_ipa:
+    name: PIKI Riders - iOS IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: piki_app_store_connect
+    environment:
+      node: 22
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.pikidelivery.rider
+      vars:
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+    scripts:
+      - name: Install dependencies and build web bundle
+        script: |
+          corepack enable
+          corepack prepare pnpm@10.4.1 --activate
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Generate and sync the iOS platform
+        script: |
+          if [ ! -d ios/App ]; then
+            pnpm exec cap add ios
+          fi
+          pnpm exec cap sync ios
+      - name: Configure iOS background location privacy and mode
+        script: python3 scripts/configure-ios-background-location.py ios/App/App/Info.plist
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios/App
+          pod install
+      - name: Apply App Store signing profiles
+        script: xcode-project use-profiles
+      - name: Set the iOS build number
+        script: |
+          cd ios/App
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Build signed IPA
+        script: |
+          xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
