@@ -75,7 +75,7 @@ function IncomingOrderCard({ order }: { order: RiderOffer }) {
     <div className="exact-facts">
       <div><span className="exact-fact-icon yellow"><ShoppingBag size={24}/></span><p><b>Recogida · {pickupMinutes == null ? "—" : `${pickupMinutes} min`}</b><small>{order.status === "ready_for_pickup" ? "El pedido está listo" : "Preparación en curso"}</small></p></div>
       <div><span className="exact-fact-icon navy"><MapPin size={24}/></span><p><b>Entrega · {deliveryMinutes == null ? "—" : `${deliveryMinutes} min`}</b><small>{order.deliveryAddress || "Dirección de entrega no disponible"}</small></p></div>
-      <div><span className="exact-fact-icon mint"><Coins size={24}/></span><p><b>{deliveryGain(order)} + propina</b><small>Ganancia estimada</small></p></div>
+      <div><span className="exact-fact-icon mint"><Coins size={24}/></span><p><b>{deliveryGain(order)}</b><small>Ganancia estimada</small></p></div>
     </div>
     <div className="exact-ready"><CheckCircle2 size={25}/> <b>Preparado para recoger</b></div>
     <OrderItems order={order}/>

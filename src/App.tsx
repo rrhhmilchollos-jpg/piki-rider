@@ -398,6 +398,9 @@ function RiderWorkspace() {
   const assignedOrderRef = useRef(false);
   const riderRefreshInFlightRef = useRef(false);
   const riderRefreshQueuedRef = useRef(false);
+  // A poll/SSE response can be older than a just-confirmed mutation. Keep the
+  // optimistic state until the server reports the same or a later transition.
+  const pendingOrderStatesRef = useRef(new Map<string, { status: RiderOffer["status"]; startedAt: number }>());
   const loadRiderDataRef = useRef<() => void>(() => undefined);
   const gpsTrackerRef = useRef<RiderGpsTracker | null>(null);
   const riderGpsSessionGenerationRef = useRef(0);
@@ -405,6 +408,20 @@ function RiderWorkspace() {
   const activeTokenRef = useRef(apiToken);
   const riderIdentityRef = useRef("");
   const lastAlertAtRef = useRef(0);
+  const orderStatusRank = (status: RiderOffer["status"]) => ({ pending: 0, accepted: 1, preparing: 2, ready_for_pickup: 3, picked_up: 4, on_the_way: 5, delivered: 6, cancelled: 6 }[status] ?? 0);
+  const reconcileOfferSnapshot = useCallback((snapshot: RiderOffer[]) => {
+    const now = Date.now();
+    const next = snapshot.map((offer) => {
+      const pending = pendingOrderStatesRef.current.get(offer._id);
+      if (!pending) return offer;
+      if (orderStatusRank(offer.status) >= orderStatusRank(pending.status) || now - pending.startedAt > 20_000) {
+        pendingOrderStatesRef.current.delete(offer._id);
+        return offer;
+      }
+      return { ...offer, status: pending.status };
+    });
+    return next;
+  }, []);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
   const hasPersistedOrder = offers.some((offer) => offer.assignmentState === "assigned" || offer.assignmentState === "offered");
 
@@ -701,7 +718,7 @@ function RiderWorkspace() {
         }
         const data = (await response.json()) as { offers?: RiderOffer[] };
         if (disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
-        const nextOffers = Array.isArray(data.offers) ? data.offers : [];
+        const nextOffers = reconcileOfferSnapshot(Array.isArray(data.offers) ? data.offers : []);
         assignedOrderRef.current = nextOffers.some(
           (offer) => offer.assignmentState === "assigned",
         );
@@ -744,7 +761,7 @@ function RiderWorkspace() {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, playAssignmentAlert, endRiderSession]);
+  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     return connectPikiRealtime({
@@ -773,6 +790,10 @@ function RiderWorkspace() {
           setToast("Tienes un mensaje nuevo del cliente.");
           return;
         }
+        if (event.type === "order.tip_added") {
+          setToast(typeof event.payload.message === "string" ? event.payload.message : "Has recibido una propina del cliente.");
+          return;
+        }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         if (document.visibilityState !== "visible") return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
@@ -781,7 +802,7 @@ function RiderWorkspace() {
           .then(async (response) => {
             if (!response.ok || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
             const data = (await response.json()) as { offers?: RiderOffer[] };
-            const nextOffers = Array.isArray(data.offers) ? data.offers : [];
+            const nextOffers = reconcileOfferSnapshot(Array.isArray(data.offers) ? data.offers : []);
             const previousOfferIds = knownOfferIdsRef.current;
             const isNewPendingOffer = event.type === "order.rider_offer" && previousOfferIds !== null
               && nextOffers.some((offer) => offer.assignmentState === "offered" && !previousOfferIds?.has(String(offer._id)));
@@ -1207,8 +1228,9 @@ function RiderWorkspace() {
   async function confirmPickup(orderId: string) {
     if (orderActionBusy) return;
     setOrderActionBusy(true);
-    // El Rider debe ver la siguiente tarjeta sin esperar la latencia de red.
-    // Si el backend rechaza la operación, loadRiderData restaura el estado canónico.
+    // El API central confirma la recogida y arranca la ruta en una sola
+    // transición: ready_for_pickup -> on_the_way.
+    pendingOrderStatesRef.current.set(orderId, { status: "on_the_way", startedAt: Date.now() });
     setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "on_the_way" } : offer));
     try {
       const response = await fetch(
@@ -1224,6 +1246,7 @@ function RiderWorkspace() {
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        pendingOrderStatesRef.current.delete(orderId);
         setToast(
           data.message ||
             data.error ||
@@ -1249,7 +1272,7 @@ function RiderWorkspace() {
       // reconciliación REST llega desde una réplica con unos milisegundos de
       // retraso, no debemos volver a pintar la tarjeta de Partner.
       setOffers((previous) => previous.map((offer) => offer._id === orderId
-        ? { ...offer, ...(confirmedOrder || {}), status: "on_the_way" }
+        ? { ...offer, ...(confirmedOrder || {}), status: confirmedOrder?.status || "on_the_way" }
         : offer));
     } catch {
       setToast(
@@ -1327,7 +1350,6 @@ function RiderWorkspace() {
       setToast("Inicia sesión como Rider para enviar una incidencia a Soporte PIKI.");
       return;
     }
-    const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
     const priority = topic === "safety" ? "urgent" : topic === "order" ? "high" : "normal";
     const orderContext = activeOrder
       ? `Pedido ${visibleOrderReference(activeOrder.publicCode, activeOrder._id)}. Estado: ${activeOrder.status}. Comercio: ${activeOrder.restaurant?.name || "no disponible"}. Dirección relacionada: ${activeOrder.status === "ready_for_pickup" || activeOrder.status === "preparing" ? activeOrder.restaurant?.address || "no disponible" : activeOrder.deliveryAddress || "no disponible"}.`

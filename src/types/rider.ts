@@ -49,6 +49,8 @@ export type RiderOffer = {
 	subtotalCents?: number;
 	deliveryFeeCents?: number;
 	serviceFeeCents?: number;
+	/** Non-zero only after the customer has actually granted a tip. */
+	tipCents?: number;
 	items?: Array<{
 		name?: string;
 		quantity?: number;
