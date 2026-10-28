@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import CookieConsent from "./components/CookieConsent";
 import {
   Activity,
   ArrowDownLeft,
@@ -1302,7 +1303,7 @@ function App() {
       </>
     );
   return (
-    <div className="app-shell">
+    <div className="app-shell"><CookieConsent />
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="brand-block">
           <img className="brand-mark brand-logo" src="/piki-mascot.png" alt="PIKI" />
