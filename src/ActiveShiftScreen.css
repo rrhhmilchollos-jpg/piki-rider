@@ -248,3 +248,7 @@
   .active-shift-shell .active-help-button { right: 112px; top: 96px; }
   .active-shift-shell .active-chat-header-button { right: 70px; top: 96px; }
 }
+
+/* A Maps credential/network failure should not turn the mobile screen into a full-height blank map. */
+.real-google-map-section .rider-google-map-error,
+.rider-home-map-canvas .rider-google-map-error { height: auto; min-height: 240px; padding: 28px 20px; }

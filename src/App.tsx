@@ -36,6 +36,7 @@ import "./pwa-wallet-calendar.css";
 import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
+import OfferCountdown from "./components/OfferCountdown";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
@@ -392,6 +393,7 @@ function RiderWorkspace() {
   const [orderChatOrder, setOrderChatOrder] = useState<RiderOffer | null>(null);
   const closeSupportChat = useCallback(() => setSupportChatOpen(false), []);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
+  const offersRequestGenerationRef = useRef(0);
   const lastOfferAtRef = useRef(0);
   const lastMobilityAlertRef = useRef("");
   const audioContextRef = useRef<RiderAlertAudioContext | null>(null);
@@ -417,6 +419,7 @@ function RiderWorkspace() {
     riderIdentityRef.current = "";
     invalidateRiderGps();
     knownOfferIdsRef.current = null;
+    offersRequestGenerationRef.current += 1;
     assignedOrderRef.current = false;
     riderRefreshQueuedRef.current = false;
     lastOfferAtRef.current = 0;
@@ -683,24 +686,30 @@ function RiderWorkspace() {
     const pollOffers = async () => {
       if (pollInFlight || disposed || document.visibilityState !== "visible") return;
       pollInFlight = true;
+      const requestGeneration = ++offersRequestGenerationRef.current;
+      const isCurrentRequest = () => !disposed
+        && requestGeneration === offersRequestGenerationRef.current
+        && riderIdentityRef.current === riderId
+        && activeTokenRef.current === apiToken;
       const initialSync = knownOfferIdsRef.current === null;
       if (!disposed && initialSync) setOffersLoading(true);
       try {
         const response = await fetch(
           `${apiOrigin}/api/v1/riders/${riderId}/offers`,
-          { headers: authHeaders(apiToken) },
+          { headers: authHeaders(apiToken), cache: "no-store" },
         );
-        if (!response.ok || disposed) {
-          const requiresAuthentication = !disposed && await requiresRiderAuthentication(response);
-          if (requiresAuthentication && !disposed) {
+        if (!isCurrentRequest()) return;
+        if (!response.ok) {
+          const requiresAuthentication = await requiresRiderAuthentication(response);
+          if (!isCurrentRequest()) return;
+          if (requiresAuthentication) {
             endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
           }
-          if (!disposed)
-            setOffersError("No se han podido sincronizar los pedidos");
+          setOffersError("No se han podido sincronizar los pedidos");
           return;
         }
         const data = (await response.json()) as { offers?: RiderOffer[] };
-        if (disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
+        if (!isCurrentRequest()) return;
         const nextOffers = Array.isArray(data.offers) ? data.offers : [];
         assignedOrderRef.current = nextOffers.some(
           (offer) => offer.assignmentState === "assigned",
@@ -724,7 +733,7 @@ function RiderWorkspace() {
           setToast("Nuevo reparto asignado. Revisa tus ofertas.");
         }
       } catch {
-        if (!disposed)
+        if (isCurrentRequest())
           setOffersError("La red no está disponible temporalmente");
       } finally {
         if (!disposed && initialSync) setOffersLoading(false);
@@ -747,7 +756,7 @@ function RiderWorkspace() {
   }, [apiToken, riderId, playAssignmentAlert, endRiderSession]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
-    return connectPikiRealtime({
+    const disconnectRealtime = connectPikiRealtime({
       apiOrigin,
       token: apiToken,
       surface: "rider",
@@ -775,12 +784,15 @@ function RiderWorkspace() {
         }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         if (document.visibilityState !== "visible") return;
+        const requestGeneration = ++offersRequestGenerationRef.current;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
+          cache: "no-store",
         })
           .then(async (response) => {
-            if (!response.ok || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
+            if (!response.ok || requestGeneration !== offersRequestGenerationRef.current || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
             const data = (await response.json()) as { offers?: RiderOffer[] };
+            if (requestGeneration !== offersRequestGenerationRef.current || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
             const nextOffers = Array.isArray(data.offers) ? data.offers : [];
             const previousOfferIds = knownOfferIdsRef.current;
             const isNewPendingOffer = event.type === "order.rider_offer" && previousOfferIds !== null
@@ -798,6 +810,10 @@ function RiderWorkspace() {
           .catch(() => undefined);
       },
     });
+    return () => {
+      offersRequestGenerationRef.current += 1;
+      disconnectRealtime();
+    };
   }, [apiToken, riderId, loadRiderData, playAssignmentAlert, endRiderSession]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
@@ -1781,7 +1797,7 @@ function RiderWorkspace() {
                         <article className={`assignment-card assignment-card-incoming ${collapsedOfferIds.has(offer._id) ? "is-collapsed" : ""}`} key={offer._id}>
                           <div className="assignment-card-topline">
                             <span className="assignment-kicker"><Bell size={14} /> NUEVO PEDIDO</span>
-                            <span className="assignment-countdown"><Clock3 size={14} /> 60 s</span>
+                            <span className="assignment-countdown"><Clock3 size={14} /> <OfferCountdown expiresAt={offer.assignmentExpiresAt} /></span>
                           </div>
                           <button type="button" className="assignment-collapse-button" aria-label={collapsedOfferIds.has(offer._id) ? "Mostrar oferta" : "Ocultar oferta"} aria-expanded={!collapsedOfferIds.has(offer._id)} onClick={() => setCollapsedOfferIds((current) => { const next = new Set(current); if (next.has(offer._id)) next.delete(offer._id); else next.add(offer._id); return next; })}>{collapsedOfferIds.has(offer._id) ? <Plus size={18} /> : <Minus size={18} />}<span>{collapsedOfferIds.has(offer._id) ? "Mostrar" : "Ocultar"}</span></button>
                           <div className="assignment-card-body">

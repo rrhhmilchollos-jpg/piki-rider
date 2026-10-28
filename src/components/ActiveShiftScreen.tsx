@@ -5,6 +5,7 @@ import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
 import { isCustomerDeliveryPhase } from "../orderPaymentInstruction";
 import { orderRiderQueue } from "../orderQueue";
+import { offerSecondsRemaining } from "../orderCountdown";
 import {
   buildDirectionsUrl,
   getRiderNavigationTarget,
@@ -40,8 +41,7 @@ function formatPrice(cents?: number | null) {
 }
 
 function countdownSeconds(order: RiderOffer) {
-  if (!order.assignmentExpiresAt) return 60;
-  return Math.max(0, Math.ceil((new Date(order.assignmentExpiresAt).getTime() - Date.now()) / 1000));
+  return offerSecondsRemaining(order.assignmentExpiresAt);
 }
 
 function restaurantImage(order: RiderOffer) {

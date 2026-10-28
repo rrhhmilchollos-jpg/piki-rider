@@ -1,8 +1,10 @@
 let mapsPromise: Promise<typeof google.maps> | null = null;
+let mapsAuthFailed = false;
 
 type GoogleMapsWindow = Window & { gm_authFailure?: () => void };
 
 export function loadGoogleMaps(): Promise<typeof google.maps> {
+  if (mapsAuthFailed) return Promise.reject(new Error("GOOGLE_MAPS_AUTH_FAILURE"));
   if (window.google?.maps) return Promise.resolve(window.google.maps);
   if (mapsPromise) return mapsPromise;
   const apiKey = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
@@ -12,6 +14,7 @@ export function loadGoogleMaps(): Promise<typeof google.maps> {
     const mapsWindow = window as GoogleMapsWindow;
     const previousAuthFailure = mapsWindow.gm_authFailure;
     let authFailure: (() => void) | null = null;
+    let script: HTMLScriptElement | null = null;
     let settled = false;
     let timeoutId = 0;
 
@@ -24,6 +27,7 @@ export function loadGoogleMaps(): Promise<typeof google.maps> {
       if (settled) return;
       settled = true;
       window.clearTimeout(timeoutId);
+      script?.remove();
       restoreAuthFailure();
       mapsPromise = null;
       reject(error);
@@ -37,16 +41,22 @@ export function loadGoogleMaps(): Promise<typeof google.maps> {
       }
       settled = true;
       window.clearTimeout(timeoutId);
-      restoreAuthFailure();
       resolve(maps);
     };
 
     authFailure = () => {
+      mapsAuthFailed = true;
       try {
         window.dispatchEvent(new Event("piki-google-maps-auth-failure"));
-        previousAuthFailure?.();
+        try { previousAuthFailure?.(); } catch { /* Do not suppress the app's own auth-failure state. */ }
       } finally {
-        fail(new Error("GOOGLE_MAPS_AUTH_FAILURE"));
+        if (settled) {
+          script?.remove();
+          restoreAuthFailure();
+          mapsPromise = null;
+        } else {
+          fail(new Error("GOOGLE_MAPS_AUTH_FAILURE"));
+        }
       }
     };
     mapsWindow.gm_authFailure = authFailure;
@@ -54,11 +64,12 @@ export function loadGoogleMaps(): Promise<typeof google.maps> {
 
     const existing = document.querySelector<HTMLScriptElement>('script[data-piki-google-maps="true"]');
     if (existing) {
+      script = existing;
       existing.addEventListener("load", finish, { once: true });
       existing.addEventListener("error", () => fail(new Error("No se pudo cargar Google Maps")), { once: true });
       return;
     }
-    const script = document.createElement("script");
+    script = document.createElement("script");
     script.dataset.pikiGoogleMaps = "true";
     script.async = true;
     script.defer = true;

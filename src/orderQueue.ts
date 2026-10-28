@@ -19,11 +19,11 @@ function orderTimestamp(order: QueueOrder): number | null {
  * available, oldest requested order wins; otherwise response order is kept.
  */
 export function orderRiderQueue<T extends QueueOrder>(orders: T[]): T[] {
-  return orders
-    .map((order, index) => ({ order, index, timestamp: orderTimestamp(order) }))
-    .sort((left, right) => {
-      if (left.timestamp == null || right.timestamp == null) return left.index - right.index;
-      return left.timestamp - right.timestamp || left.index - right.index;
-    })
+  const timestamped = orders.map((order, index) => ({ order, index, timestamp: orderTimestamp(order) }));
+  // The API's order is authoritative if even one deadline is absent or invalid.
+  // Mixing index and timestamp comparisons makes Array.sort's comparator non-transitive.
+  if (timestamped.some(({ timestamp }) => timestamp == null)) return orders.slice();
+  return timestamped
+    .sort((left, right) => left.timestamp! - right.timestamp! || left.index - right.index)
     .map(({ order }) => order);
 }

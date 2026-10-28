@@ -1,13 +1,14 @@
-# PIKI Riders PWA
+# PIKI Rider
 
-Aplicación web progresiva (PWA) para riders de PIKI. El proyecto es únicamente web: React + Vite + TypeScript. No contiene Android, iOS ni Capacitor.
+Cliente Rider de PIKI construido con React, Vite y TypeScript. El repositorio publica una PWA web y contiene también un shell Android instalable basado en Capacitor. El APK incluye una copia compilada de la interfaz, omite el registro del service worker en la plataforma nativa y no depende de abrir `riders.pikidelivery.com` como PWA para actualizar esa interfaz. Las llamadas operativas siguen necesitando conexión con la API de PIKI.
 
 ## Producción
 
-- Aplicación: `https://riders.pikidelivery.com`
+- PWA: `https://riders.pikidelivery.com`
 - API central: `https://api.pikidelivery.com`
+- Identificador Android: `com.pikidelivery.rider`
 
-## Desarrollo local
+## Desarrollo web
 
 ```bash
 corepack enable
@@ -21,7 +22,9 @@ Para cambiar el backend sin modificar código, crea `.env.local`:
 VITE_API_URL=https://api.pikidelivery.com
 ```
 
-## Build y despliegue
+El mapa requiere `VITE_GOOGLE_MAPS_API_KEY` durante el build. La clave debe estar configurada en el entorno de compilación correspondiente y autorizada por Google Cloud; no la guardes en el repositorio.
+
+## Comprobaciones y build web
 
 ```bash
 pnpm install --frozen-lockfile
@@ -31,14 +34,21 @@ pnpm run lint
 pnpm run build
 ```
 
-El despliegue publica `dist/`. Cada build ejecuta `scripts/prepare-release.mjs`, que genera el `buildId` del commit en `release.json`, `release-meta.ts` y `sw.js`.
+El build publica `dist/`. `scripts/prepare-release.mjs` genera `buildId` en `release.json`, `release-meta.ts` y `sw.js`. Vercel sirve `dist/` conforme a `vercel.json`.
 
-## Instalación en el móvil
+## Android sin depender de PWA
 
-Abre `https://riders.pikidelivery.com` en Chrome y usa **Añadir a pantalla de inicio** o **Instalar aplicación**. La aplicación instalada es la PWA del dominio; no se debe generar ni instalar una APK con PWABuilder para actualizar el contenido web.
+Con Node/pnpm, Java y Android SDK configurados, genera un APK de depuración con:
 
-## Actualizaciones automáticas
+```bash
+pnpm install --frozen-lockfile
+pnpm run android:debug
+```
 
-El service worker se registra con `updateViaCache: "none"`, instala un caché nuevo por `buildId`, elimina los cachés anteriores y activa el nuevo worker con `skipWaiting()` y `clients.claim()`. El hosting debe enviar `/`, `/sw.js`, `/release.json` y `/manifest.json` con `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`.
+El archivo generado es `android/app/build/outputs/apk/debug/app-debug.apk`. Es una build de prueba firmada con la clave debug de Android; no es una release para Google Play. Para distribución pública hace falta una build release firmada con la clave autorizada de PIKI y el canal de actualización que el equipo decida. Los assets de Maps también deben validarse en el origen WebView de la app Android; una clave restringida solo al dominio de la PWA puede no autorizar ese origen.
 
-La configuración equivalente para Vercel está en `vercel.json`. Si el dominio se sirve desde Render, añade esas cuatro reglas en **Render Dashboard → Static Site → Headers**. La guía completa está en [`docs/pwa-deployment.md`](docs/pwa-deployment.md).
+El shell Android usa Capacitor y empaqueta la interfaz compilada dentro de la aplicación. Un APK nuevo actualiza la interfaz nativa; publicar la PWA en Vercel solo actualiza la versión web. El `codemagic.yaml` actual configura un workflow iOS, no un workflow Android firmado.
+
+## Actualizaciones de la PWA
+
+La PWA instala el contenido de `https://riders.pikidelivery.com` y se actualiza mediante el service worker. `updateViaCache: "none"` instala un caché nuevo por `buildId`, elimina cachés anteriores y activa el worker nuevo. El hosting debe enviar `/`, `/sw.js`, `/release.json` y `/manifest.json` con `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`; la configuración para Vercel está en `vercel.json`. Para más detalles, consulta [`docs/pwa-deployment.md`](docs/pwa-deployment.md).

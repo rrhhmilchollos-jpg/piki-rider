@@ -9,7 +9,8 @@
     "check": "tsc -b --pretty false",
     "test": "vitest run",
     "lint": "oxlint --ignore-pattern public/sw.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:debug": "pnpm run build && pnpm exec cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "1.3.1",

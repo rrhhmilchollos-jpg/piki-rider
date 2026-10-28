@@ -1,8 +1,8 @@
-# Despliegue y actualización automática de PIKI Riders PWA
+# Despliegue y actualización automática de PIKI Rider PWA
 
 ## Qué debe publicarse
 
-El build publica el contenido de `dist/`. La aplicación instalada en el móvil debe abrir siempre `https://riders.pikidelivery.com`. No hay un paquete Android o iOS en este proyecto.
+El build web publica el contenido de `dist/`. La versión PWA instalada desde `https://riders.pikidelivery.com` recibe contenido del dominio y utiliza el service worker descrito aquí. El proyecto también contiene un shell Android de Capacitor con el bundle de interfaz dentro del APK; ese paquete no se actualiza mediante el service worker ni por una instalación PWA. Para crear un APK de prueba, consulta `README.md` y ejecuta `pnpm run android:debug` con el SDK de Android instalado.
 
 ## Cabeceras obligatorias
 
