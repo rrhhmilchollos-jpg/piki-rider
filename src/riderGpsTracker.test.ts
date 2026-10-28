@@ -127,4 +127,15 @@ describe("Rider GPS lifecycle", () => {
     expect(f.states.at(-1)?.lastAckAt).toBeUndefined();
     expect(f.diagnose).toHaveBeenCalledWith("send_error");
   });
+
+  it("does not republish an unchanged fix immediately, while preserving the active watcher", async () => {
+    const f = fixture();
+    await f.tracker.start();
+    f.callbacks().onLocation(point);
+    await tick();
+    f.callbacks().onLocation({ ...point, accuracy: 9 });
+    await tick();
+    expect(f.port.publish).toHaveBeenCalledTimes(1);
+    expect(f.states.at(-1)?.state).toBe("tracking");
+  });
 });

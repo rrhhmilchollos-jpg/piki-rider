@@ -41,6 +41,7 @@ import LiveGoogleMap from "./components/LiveGoogleMap";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
 import RiderOrderChatDialog from "./components/RiderOrderChatDialog";
 import OperationalActivation from "./components/OperationalActivation";
+import RiderOfferDemoPreview from "./components/RiderOfferDemoPreview";
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
@@ -75,6 +76,12 @@ import { isRiderGpsStatusBlocked, mayTrackRiderGps } from "./riderGpsPolicy";
 import { RIDER_GPS_START_EVENT, RIDER_GPS_STOP_EVENT, stopRiderDeviceGps } from "./riderGpsSession";
 import { resetRiderGpsState, setRiderGpsMapPoint, setRiderGpsSnapshot } from "./riderGpsState";
 import type { RiderGpsTracker } from "./riderGpsTracker";
+import {
+  defaultRiderAudioPreferences,
+  loadRiderAudioPreferences,
+  saveRiderAudioPreferences,
+  type RiderAudioPreferences,
+} from "./riderAudioPreferences";
 type Status = "checking" | "ready" | "unavailable";
 type CashWallet = {
   availableCents: number;
@@ -313,6 +320,13 @@ function normalizeRiderShift(raw: Record<string, unknown>): Shift {
 }
 
 function App() {
+  if (new URLSearchParams(window.location.search).get("preview") === "ofertas-demo") {
+    return <main className="rider-demo-page"><RiderOfferDemoPreview /></main>;
+  }
+  return <RiderWorkspace />;
+}
+
+function RiderWorkspace() {
   const [section, setSection] = useState(getInitialRiderSection);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("checking");
@@ -325,6 +339,8 @@ function App() {
   const [shiftActive, setShiftActive] = useState(false);
   const [shiftBusy, setShiftBusy] = useState(false);
   const [startConsentOpen, setStartConsentOpen] = useState(false);
+  const [startAudioConsent, setStartAudioConsent] = useState(false);
+  const [audioPreferences, setAudioPreferences] = useState<RiderAudioPreferences>(defaultRiderAudioPreferences);
   const [showOperations, setShowOperations] = useState(false);
   const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
@@ -385,6 +401,10 @@ function App() {
   const loadRiderDataRef = useRef<() => void>(() => undefined);
   const gpsTrackerRef = useRef<RiderGpsTracker | null>(null);
   const riderGpsSessionGenerationRef = useRef(0);
+  const riderSessionEpochRef = useRef(0);
+  const activeTokenRef = useRef(apiToken);
+  const riderIdentityRef = useRef("");
+  const lastAlertAtRef = useRef(0);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
   const hasPersistedOrder = offers.some((offer) => offer.assignmentState === "assigned" || offer.assignmentState === "offered");
 
@@ -393,6 +413,68 @@ function App() {
     stopRiderDeviceGps();
     resetRiderGpsState();
   }, []);
+  const resetRiderScopedState = useCallback(() => {
+    riderIdentityRef.current = "";
+    invalidateRiderGps();
+    knownOfferIdsRef.current = null;
+    assignedOrderRef.current = false;
+    riderRefreshQueuedRef.current = false;
+    lastOfferAtRef.current = 0;
+    lastMobilityAlertRef.current = "";
+    lastAlertAtRef.current = 0;
+    setRiderId("");
+    setRiderOperationalStatus("");
+    setRiderProfile({ name: "", email: "", riderCode: "" });
+    setShiftActive(false);
+    setShiftBusy(false);
+    setCurrentShift({ eligible: false });
+    setShifts([]);
+    setOffers([]);
+    setCollapsedOfferIds(new Set());
+    setOffersLoading(false);
+    setOffersError("");
+    setOrderActionBusy(false);
+    setStats({ completed: 0, cancelled: 0, accepted: 0, rating: "—", distance: "—", dailyDeliveries: [] });
+    setCashWallet({ availableCents: 0, collectedCents: 0, handedOverCents: 0, collectedEntries: 0 });
+    setStartedShiftNotice(false);
+    setShowOperations(false);
+    setStartConsentOpen(false);
+    setStartAudioConsent(false);
+    setAudioPreferences(defaultRiderAudioPreferences);
+    setOrderChatOrder(null);
+    setSupportTicketId("");
+    setSupportTicketNumber("");
+    setSupportTicketStatus("");
+    setSupportAgentName("");
+    setSupportChatMessages([]);
+    setSupportChatDraft("");
+    setSupportChatOpen(false);
+    setSupportChatError("");
+    setUnreadSupportMessages(0);
+    setUnreadCustomerMessages(0);
+  }, [invalidateRiderGps]);
+  const endRiderSession = useCallback((message?: string) => {
+    riderSessionEpochRef.current += 1;
+    activeTokenRef.current = "";
+    resetRiderScopedState();
+    clearStoredToken();
+    setApiToken("");
+    setAuthRequired(true);
+    setStatus("checking");
+    if (message) setToast(message);
+  }, [resetRiderScopedState]);
+  const beginRiderSession = useCallback((token: string) => {
+    riderSessionEpochRef.current += 1;
+    resetRiderScopedState();
+    activeTokenRef.current = token;
+    storeToken(token);
+    setApiToken(token);
+    setAuthRequired(false);
+    setStatus("checking");
+  }, [resetRiderScopedState]);
+  const updateAudioPreferences = useCallback((patch: Partial<RiderAudioPreferences>) => {
+    setAudioPreferences((current) => saveRiderAudioPreferences(riderId, { ...current, ...patch }));
+  }, [riderId]);
 
   useEffect(() => {
     const updateFormEditing = () => {
@@ -425,11 +507,17 @@ function App() {
   }, [activeOrder, applicationStatus, formEditing, orderActionBusy, shiftBusy, startConsentOpen, supportChatBusy, supportFormBusy]);
 
   const playAssignmentAlert = useCallback(() => {
-    playRiderOrderAlert(audioContextRef);
-  }, []);
+    if (!audioPreferences.alertsEnabled) return;
+    const now = Date.now();
+    // Polling and realtime can observe the same offer; one finite alert is enough.
+    if (now - lastAlertAtRef.current < 5_000) return;
+    lastAlertAtRef.current = now;
+    playRiderOrderAlert(audioContextRef, audioPreferences);
+  }, [audioPreferences]);
 
   useEffect(() => {
-    if (!mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive })) {
+    if (!apiToken || !mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive })) {
+      stopRiderDeviceGps();
       resetRiderGpsState();
       return;
     }
@@ -461,36 +549,39 @@ function App() {
       return;
     }
     riderRefreshInFlightRef.current = true;
-    const headers = authHeaders(apiToken);
+    const sessionEpoch = riderSessionEpochRef.current;
+    const token = apiToken;
+    const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current && token === activeTokenRef.current;
+    const headers = authHeaders(token);
     try {
       const sessionResponse = await fetch(
         `${apiOrigin}/api/v1/riders/session`,
         { headers },
       );
+      if (!isCurrentSession()) return;
       if (!sessionResponse.ok) {
         if (await requiresRiderAuthentication(sessionResponse)) {
-          invalidateRiderGps();
-          clearStoredToken();
-          setApiToken("");
-          setAuthRequired(true);
-          setRiderId("");
-          setRiderOperationalStatus("");
-          setShiftActive(false);
-          setOffers([]);
+          endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
         }
         return;
       }
       const sessionData = (await sessionResponse.json()) as {
         rider?: { id?: string; name?: string; email?: string; riderCode?: string; status?: string };
       };
+      if (!isCurrentSession()) return;
       const id = String(sessionData.rider?.id || "");
       const nextRiderStatus = String(sessionData.rider?.status || "");
       if (!id) {
-        invalidateRiderGps();
-        setRiderId("");
-        setRiderOperationalStatus("");
-        setShiftActive(false);
+        resetRiderScopedState();
         return;
+      }
+      const identityChanged = riderIdentityRef.current !== id;
+      if (riderIdentityRef.current && identityChanged) resetRiderScopedState();
+      riderIdentityRef.current = id;
+      if (identityChanged) {
+        const preferences = loadRiderAudioPreferences(id);
+        setAudioPreferences(preferences);
+        setStartAudioConsent(preferences.alertsEnabled);
       }
       markStoredTokenValidated();
       setRiderId(id);
@@ -504,6 +595,7 @@ function App() {
           fetch(`${apiOrigin}/api/v1/riders/${id}/shift`, { headers, cache: "no-store" }),
           fetch(`${apiOrigin}/api/v1/riders/${id}/cash-wallet`, { headers }),
         ]);
+      if (!isCurrentSession() || riderIdentityRef.current !== id) return;
       if (slotResponse.ok) {
         const data = (await slotResponse.json()) as { slots?: Array<Record<string, unknown>> };
         setShifts(Array.isArray(data.slots) ? data.slots.map(normalizeRiderShift) : []);
@@ -527,7 +619,7 @@ function App() {
       }
       setStatus("ready");
     } catch {
-      setStatus("unavailable");
+      if (isCurrentSession()) setStatus("unavailable");
       /* Panels remain usable while the API is unavailable. */
     } finally {
       riderRefreshInFlightRef.current = false;
@@ -536,7 +628,7 @@ function App() {
         window.setTimeout(() => loadRiderDataRef.current(), 0);
       }
     }
-  }, [apiToken, invalidateRiderGps]);
+  }, [apiToken, endRiderSession, invalidateRiderGps, resetRiderScopedState]);
   useEffect(() => {
     loadRiderDataRef.current = () => { void loadRiderData(); };
   }, [loadRiderData]);
@@ -589,7 +681,7 @@ function App() {
     let disposed = false;
     let pollInFlight = false;
     const pollOffers = async () => {
-      if (pollInFlight || disposed) return;
+      if (pollInFlight || disposed || document.visibilityState !== "visible") return;
       pollInFlight = true;
       const initialSync = knownOfferIdsRef.current === null;
       if (!disposed && initialSync) setOffersLoading(true);
@@ -601,20 +693,14 @@ function App() {
         if (!response.ok || disposed) {
           const requiresAuthentication = !disposed && await requiresRiderAuthentication(response);
           if (requiresAuthentication && !disposed) {
-            invalidateRiderGps();
-            clearStoredToken();
-            setApiToken("");
-            setAuthRequired(true);
-            setRiderId("");
-            setRiderOperationalStatus("");
-            setShiftActive(false);
-            setOffers([]);
+            endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
           }
           if (!disposed)
             setOffersError("No se han podido sincronizar los pedidos");
           return;
         }
         const data = (await response.json()) as { offers?: RiderOffer[] };
+        if (disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
         const nextOffers = Array.isArray(data.offers) ? data.offers : [];
         assignedOrderRef.current = nextOffers.some(
           (offer) => offer.assignmentState === "assigned",
@@ -658,7 +744,7 @@ function App() {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, playAssignmentAlert, invalidateRiderGps]);
+  }, [apiToken, riderId, playAssignmentAlert, endRiderSession]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     return connectPikiRealtime({
@@ -666,26 +752,14 @@ function App() {
       token: apiToken,
       surface: "rider",
       onAuthExpired: () => {
-        invalidateRiderGps();
-        clearStoredToken();
-        setApiToken("");
-        setAuthRequired(true);
-        setRiderId("");
-        setRiderOperationalStatus("");
-        setShiftActive(false);
-        setToast("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
+        endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
       },
       onAuthorizationError: () => {
         setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
       },
       onEvent: (event) => {
         if (event.type === "rider.schedule_updated") {
-          void loadRiderData();
-          // Si el navegador ya ha permitido audio durante esta sesión,
-          // avisamos también del nuevo turno; si aplica autoplay, el botón
-          // seguirá apareciendo mediante la consulta periódica del turno.
-          primeRiderOrderAudio(audioContextRef);
-          playRiderShiftStart();
+          if (document.visibilityState === "visible") void loadRiderData();
           setToast("Tus horarios se han actualizado.");
           return;
         }
@@ -700,11 +774,12 @@ function App() {
           return;
         }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
+        if (document.visibilityState !== "visible") return;
         void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
           headers: authHeaders(apiToken),
         })
           .then(async (response) => {
-            if (!response.ok) return;
+            if (!response.ok || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
             const data = (await response.json()) as { offers?: RiderOffer[] };
             const nextOffers = Array.isArray(data.offers) ? data.offers : [];
             const previousOfferIds = knownOfferIdsRef.current;
@@ -723,14 +798,15 @@ function App() {
           .catch(() => undefined);
       },
     });
-  }, [apiToken, riderId, loadRiderData, playAssignmentAlert, invalidateRiderGps]);
+  }, [apiToken, riderId, loadRiderData, playAssignmentAlert, endRiderSession]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     let disposed = false;
     const checkShift = async () => {
+      if (document.visibilityState !== "visible") return;
       try {
         const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift`, { headers: authHeaders(apiToken), cache: "no-store" });
-        if (!response.ok || disposed) return;
+        if (!response.ok || disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
         const data = await response.json() as CurrentShift & { shift?: Record<string, unknown> | null };
         const nextShift = data.shift ? normalizeRiderShift(data.shift) : null;
         if (nextShift?.status === "active" && !isRiderGpsStatusBlocked(riderOperationalStatus)) {
@@ -762,6 +838,7 @@ function App() {
     }
     let disposed = false;
     const pollMobility = async () => {
+      if (document.visibilityState !== "visible") return;
       try {
         const lowActivityMinutes =
           (Date.now() - lastOfferAtRef.current) / 60000;
@@ -770,7 +847,7 @@ function App() {
           riderId,
           lowActivityMinutes,
         );
-        if (disposed || !advice.shouldMove || !advice.targetZone) return;
+        if (disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken || !advice.shouldMove || !advice.targetZone) return;
         const alertKey = `${advice.currentZone?.slug || "unknown"}:${advice.targetZone.slug}`;
         if (lastMobilityAlertRef.current === alertKey) return;
         lastMobilityAlertRef.current = alertKey;
@@ -881,7 +958,7 @@ function App() {
     setOpen(false);
     setProfileOpen(false);
   }
-  async function toggleShift() {
+  async function toggleShift(consentedAudioPreferences = audioPreferences) {
     if (shiftActive) {
       setToast("La jornada se cerrará automáticamente al finalizar tu slot.");
       return;
@@ -990,8 +1067,8 @@ function App() {
       }));
       setShowOperations(false);
       if (!shiftActive) {
-        primeRiderOrderAudio(audioContextRef);
-        playRiderShiftStart();
+        primeRiderOrderAudio(audioContextRef, consentedAudioPreferences);
+        playRiderShiftStart(consentedAudioPreferences);
       }
       setToast("Jornada iniciada. Se cerrará automáticamente al finalizar el slot.");
       await loadRiderData();
@@ -1314,31 +1391,18 @@ function App() {
       message.includes("API 401") ||
       message.includes("AUTHENTICATION_REQUIRED")
     ) {
-      invalidateRiderGps();
-      clearStoredToken();
-      setApiToken("");
-      setRiderId("");
-      setRiderOperationalStatus("");
-      setShiftActive(false);
-      setAuthRequired(false);
-      setToast("Tu sesión ha caducado. Vuelve a iniciar sesión.");
+      endRiderSession("Tu sesión ha caducado. Vuelve a iniciar sesión.");
       return;
     }
     setToast(message);
-  }, [invalidateRiderGps]);
+  }, [endRiderSession]);
 
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
         <EmployeeAuthGate
           apiOrigin={apiOrigin}
-          onAuthenticated={(token) => {
-            storeToken(token);
-            setApiToken(token);
-            setAuthRequired(false);
-            window.dispatchEvent(new Event("piki-authenticated"));
-            setStatus("checking");
-          }}
+          onAuthenticated={(token) => { beginRiderSession(token); window.dispatchEvent(new Event("piki-authenticated")); }}
         />
       </main>
     );
@@ -1468,6 +1532,9 @@ function App() {
                   <button onClick={() => showSection("Cuenta")}>
                     Ver mi cuenta
                   </button>
+                  <button className="profile-logout" onClick={() => endRiderSession("Sesión cerrada. Se han eliminado los datos de esta cuenta del dispositivo.")}>
+                    Cerrar sesión
+                  </button>
                 </div>
               )}
             </div>
@@ -1483,12 +1550,7 @@ function App() {
           {authRequired && (
             <EmployeeAuthGate
               apiOrigin={apiOrigin}
-              onAuthenticated={(token) => {
-                storeToken(token);
-                setApiToken(token);
-                setAuthRequired(false);
-                setStatus("checking");
-              }}
+              onAuthenticated={beginRiderSession}
             />
           )}
           {showApplication ? (
@@ -2145,6 +2207,14 @@ function App() {
                         <button type="button" className="secondary-button" onClick={() => showSection("Soporte")}><LifeBuoy size={16} /> Contactar soporte</button>
                       </div>
                     </article>
+                    <article className="rider-account-card rider-audio-settings">
+                      <span className="rider-account-label">AVISOS PERSONALES</span>
+                      <h2>Sonido de jornada</h2>
+                      <p>Las alertas de pedido y el aviso al empezar solo se reproducen si los autorizas para esta cuenta Rider.</p>
+                      <label className="rider-audio-toggle"><input type="checkbox" checked={audioPreferences.alertsEnabled} onChange={(event) => updateAudioPreferences({ alertsEnabled: event.target.checked })} /><span>Autorizar avisos sonoros y vibración</span></label>
+                      <label className="rider-audio-volume"><span>Volumen de la app <output>{Math.round(audioPreferences.volume * 100)} %</output></span><input type="range" min="0" max="100" step="5" value={Math.round(audioPreferences.volume * 100)} disabled={!audioPreferences.alertsEnabled} onChange={(event) => updateAudioPreferences({ volume: Number(event.target.value) / 100 })} /><small>El ajuste no modifica ni supera los límites de volumen del sistema.</small></label>
+                      <a className="secondary-button rider-demo-link" href="?preview=ofertas-demo">Ver tarjetas de oferta de demostración</a>
+                    </article>
                   </div>
                 </section>
               )}
@@ -2158,8 +2228,12 @@ function App() {
                   {shiftActive && <OperationalActivation
                     active={shiftActive}
                     playTestSound={async () => {
-                      primeRiderOrderAudio(audioContextRef);
-                      playRiderShiftStart();
+                      if (!audioPreferences.alertsEnabled) {
+                        setToast("Los avisos de sonido están desactivados. Puedes activarlos en Cuenta.");
+                        return;
+                      }
+                      primeRiderOrderAudio(audioContextRef, audioPreferences);
+                      playRiderShiftStart(audioPreferences);
                     }}
                   />}
                   <div className="rider-home-control">
@@ -2185,8 +2259,21 @@ function App() {
         </section>
         {startConsentOpen && <section className="rider-start-consent" role="dialog" aria-modal="true" aria-label="Antes de empezar">
           <button type="button" className="rider-consent-close" onClick={() => setStartConsentOpen(false)} aria-label="Cerrar"><X size={30} /></button>
-          <div className="rider-consent-content"><h1>Antes de empezar</h1><p>Recopilaremos y procesaremos tus datos de ubicación en tiempo real para ofrecerte entregas disponibles.</p><p>Revisa y acepta las políticas y los requisitos gubernamentales que se detallan a continuación.</p><ul><li><strong>He leído y entendido la declaración de privacidad</strong><button type="button" onClick={() => { setStartConsentOpen(false); showSection("Soporte"); }}>Más información ↗</button></li><li><strong>Al hacer clic en ACEPTAR Y EMPEZAR, confirmo que estoy usando y usaré el Equipo de Protección Individual (EPI) requerido durante mi trabajo.</strong></li></ul></div>
-          <button type="button" className="rider-consent-accept" onClick={() => void toggleShift()}>Aceptar y empezar</button>
+          <div className="rider-consent-content">
+            <h1>Antes de empezar</h1>
+            <p>Recopilaremos y procesaremos tus datos de ubicación en tiempo real para ofrecerte entregas disponibles.</p>
+            <p>Revisa y acepta las políticas y los requisitos gubernamentales que se detallan a continuación.</p>
+            <ul>
+              <li><strong>He leído y entendido la declaración de privacidad</strong><button type="button" onClick={() => { setStartConsentOpen(false); showSection("Soporte"); }}>Más información ↗</button></li>
+              <li><strong>Al hacer clic en ACEPTAR Y EMPEZAR, confirmo que estoy usando y usaré el Equipo de Protección Individual (EPI) requerido durante mi trabajo.</strong></li>
+            </ul>
+            <label className="rider-consent-audio"><input type="checkbox" checked={startAudioConsent} onChange={(event) => setStartAudioConsent(event.target.checked)} /><span><strong>Quiero recibir avisos sonoros y vibración para ofertas y comienzo de jornada.</strong><small>Opcional. Puedes cambiarlo y ajustar el volumen después en Cuenta.</small></span></label>
+          </div>
+          <button type="button" className="rider-consent-accept" onClick={() => {
+            const preferences = saveRiderAudioPreferences(riderId, { ...audioPreferences, alertsEnabled: startAudioConsent });
+            setAudioPreferences(preferences);
+            void toggleShift(preferences);
+          }}>Aceptar y empezar</button>
         </section>}
       </main>
     </div>

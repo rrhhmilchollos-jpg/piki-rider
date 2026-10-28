@@ -22,6 +22,7 @@ export function clearStoredToken(): void {
   localStorage.removeItem(tokenKey);
   sessionStorage.removeItem(tokenKey);
   sessionStorage.removeItem(validationKey);
+  localStorage.removeItem(emailKey);
 }
 
 export function getStoredEmail(): string {

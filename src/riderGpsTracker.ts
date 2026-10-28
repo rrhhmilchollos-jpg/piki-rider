@@ -1,4 +1,8 @@
-import { validGpsPoint, type GpsPoint } from "./riderGpsPolicy";
+import {
+  shouldPublishRiderGpsFix,
+  validGpsPoint,
+  type GpsPoint,
+} from "./riderGpsPolicy";
 
 export type RiderGpsDiagnosticEvent = "watch_start" | "watch_stop" | "fix_received" | "send_ack" | "send_error";
 
@@ -34,6 +38,9 @@ export class RiderGpsTracker {
   private watcher: string | null = null;
   private readonly pendingRemoval = new Set<string>();
   private inFlight: Promise<void> | null = null;
+  private pendingPoint: GpsPoint | null = null;
+  private lastPublishedPoint: GpsPoint | null = null;
+  private lastPublishedAt = 0;
   private removal: Promise<void> = Promise.resolve();
   private readonly port: GpsPort;
   private readonly onChange: (state: RiderGpsSnapshot) => void;
@@ -60,6 +67,10 @@ export class RiderGpsTracker {
 
   async start() {
     const generation = ++this.generation;
+    this.inFlight = null;
+    this.pendingPoint = null;
+    this.lastPublishedPoint = null;
+    this.lastPublishedAt = 0;
     try {
       await this.removeCurrentWatcher();
       if (generation !== this.generation) return;
@@ -105,6 +116,10 @@ export class RiderGpsTracker {
 
   stop() {
     ++this.generation;
+    this.inFlight = null;
+    this.pendingPoint = null;
+    this.lastPublishedPoint = null;
+    this.lastPublishedAt = 0;
     this.snapshot = {
       state: "idle",
       detail: "Seguimiento detenido. No se enviarán nuevas posiciones.",
@@ -149,30 +164,54 @@ export class RiderGpsTracker {
     }
     this.onFix?.(point);
     this.emit({ lastFixAt: Date.now(), accuracy: point.accuracy });
-    if (this.inFlight) return;
-    const request = (async () => {
-      try {
-        await this.port.publish(point);
-        if (generation === this.generation) {
-          this.diagnose("send_ack");
-          this.emit({
-            state: "tracking",
-            detail: "La API ha confirmado la ubicación de este dispositivo.",
-            lastAckAt: Date.now(),
-          });
+    if (this.inFlight) {
+      // Preserve only the newest valid fix while the network request is active.
+      this.pendingPoint = point;
+      return;
+    }
+    await this.flushPendingFixes(point, generation);
+  }
+
+  private async flushPendingFixes(firstPoint: GpsPoint, generation: number) {
+    let point: GpsPoint | null = firstPoint;
+    while (point && generation === this.generation) {
+      if (!shouldPublishRiderGpsFix(point, this.lastPublishedPoint, this.lastPublishedAt)) {
+        if (this.snapshot.state === "tracking") {
+          this.emit({ detail: "Posición recibida sin desplazamiento relevante; el GPS sigue activo." });
         }
-      } catch (error) {
-        if (generation !== this.generation) return;
-        this.diagnose("send_error");
-        if (error instanceof RiderGpsAuthorizationError) this.stop();
+      } else {
+        const request = this.publish(point, generation);
+        this.inFlight = request;
+        await request;
+        if (this.inFlight === request) this.inFlight = null;
+      }
+      if (generation !== this.generation) return;
+      point = this.pendingPoint;
+      this.pendingPoint = null;
+    }
+  }
+
+  private async publish(point: GpsPoint, generation: number) {
+    try {
+      await this.port.publish(point);
+      if (generation === this.generation) {
+        this.lastPublishedPoint = point;
+        this.lastPublishedAt = Date.now();
+        this.diagnose("send_ack");
         this.emit({
-          state: "error",
-          detail: error instanceof Error ? error.message : "No se pudo enviar la ubicación.",
+          state: "tracking",
+          detail: "La API ha confirmado la ubicación de este dispositivo.",
+          lastAckAt: Date.now(),
         });
       }
-    })();
-    this.inFlight = request;
-    await request;
-    if (this.inFlight === request) this.inFlight = null;
+    } catch (error) {
+      if (generation !== this.generation) return;
+      this.diagnose("send_error");
+      if (error instanceof RiderGpsAuthorizationError) this.stop();
+      this.emit({
+        state: "error",
+        detail: error instanceof Error ? error.message : "No se pudo enviar la ubicación.",
+      });
+    }
   }
 }

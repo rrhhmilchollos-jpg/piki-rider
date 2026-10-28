@@ -3,7 +3,6 @@ import { useState, type FormEvent } from "react";
 import { getStoredEmail, storeEmail } from "./authStorage";
 import { buildRiderEmployeeLoginPayload } from "./employeeLogin";
 import "./RiderAccess.css";
-import { playPikiUiSound } from "./uiSounds";
 
 type Props = { apiOrigin: string; onAuthenticated: (token: string) => void };
 type AuthMode = "login" | "change" | "request" | "reset";
@@ -37,10 +36,10 @@ export default function EmployeeAuthGate({ apiOrigin, onAuthenticated }: Props) 
       if (mode === "login") {
         const normalizedIdentifier = email.trim().toLowerCase();
         const response = await fetch(`${apiOrigin}/api/v1/auth/employee/login`, { method: "POST", headers: { "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify(buildRiderEmployeeLoginPayload(normalizedIdentifier, currentPassword)) });
-        const data = await response.json(); if (!response.ok) throw new Error(data.message || data.error || "No se pudo iniciar sesión"); if (normalizedIdentifier.includes("@")) storeEmail(normalizedIdentifier); setToken(data.accessToken); if (data.requiresPasswordChange) setMode("change"); else { playPikiUiSound("/sounds/piki-alert-15s.mp3"); onAuthenticated(data.accessToken); } return;
+        const data = await response.json(); if (!response.ok) throw new Error(data.message || data.error || "No se pudo iniciar sesión"); if (normalizedIdentifier.includes("@")) storeEmail(normalizedIdentifier); setToken(data.accessToken); if (data.requiresPasswordChange) setMode("change"); else { onAuthenticated(data.accessToken); } return;
       }
       const response = await fetch(`${apiOrigin}/api/v1/auth/employee/change-password`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-PIKI-Surface": "rider" }, body: JSON.stringify({ currentPassword, newPassword: password }) });
-      const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.message || data.error || "No se pudo cambiar la contraseña"); playPikiUiSound("/sounds/piki-alert-15s.mp3"); onAuthenticated(token);
+      const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.message || data.error || "No se pudo cambiar la contraseña"); onAuthenticated(token);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No se pudo completar el acceso"); } finally { setBusy(false); }
   }
   const resetFlow = mode === "reset" || mode === "request";
