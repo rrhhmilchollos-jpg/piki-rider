@@ -1,6 +1,78 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const COOKIE_CONSENT_KEY = "piki-cookie-consent-v1";
-const panel = { position: "fixed" as const, left: 12, right: 12, bottom: 12, zIndex: 80, maxWidth: 680, margin: "0 auto", padding: 16, borderRadius: 16, background: "#171715", color: "#fff", boxShadow: "0 18px 45px rgba(0,0,0,.24)" };
-const button = { border: "1px solid rgba(255,255,255,.3)", borderRadius: 999, padding: "9px 14px", fontWeight: 700, cursor: "pointer" };
-export default function CookieConsent() { const [visible, setVisible] = useState(false); useEffect(() => { setVisible(!["accepted", "rejected"].includes(window.localStorage.getItem(COOKIE_CONSENT_KEY) || "")); }, []); const choose = (value: "accepted" | "rejected") => { window.localStorage.setItem(COOKIE_CONSENT_KEY, value); setVisible(false); }; if (!visible) return null; return <aside style={panel} role="dialog" aria-label="Preferencias de cookies"><strong>Cookies y privacidad</strong><p style={{margin:"6px 0 12px",opacity:.78,fontSize:12,lineHeight:1.5}}>Usamos cookies técnicas para mantener tu sesión y la operativa de entregas. No activamos publicidad personalizada sin permiso.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" onClick={() => choose("rejected")} style={{...button,background:"transparent",color:"#fff"}}>Rechazar opcionales</button><button type="button" onClick={() => choose("accepted")} style={{...button,background:"#FFD72E",color:"#171715",borderColor:"#FFD72E"}}>Aceptar cookies</button></div></aside>; }
+const SAVED_CONSENT_VALUES = ["accepted", "rejected"];
+
+const panel = {
+  position: "fixed" as const,
+  left: 12,
+  right: 12,
+  bottom: 12,
+  zIndex: 80,
+  maxWidth: 680,
+  margin: "0 auto",
+  padding: 16,
+  borderRadius: 16,
+  background: "#171715",
+  color: "#fff",
+  boxShadow: "0 18px 45px rgba(0,0,0,.24)",
+};
+
+const button = {
+  border: "1px solid rgba(255,255,255,.3)",
+  borderRadius: 999,
+  padding: "9px 14px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+function hasSavedConsent() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return SAVED_CONSENT_VALUES.includes(window.localStorage.getItem(COOKIE_CONSENT_KEY) ?? "");
+  } catch {
+    return false;
+  }
+}
+
+export default function CookieConsent() {
+  const [visible, setVisible] = useState(() => !hasSavedConsent());
+
+  const choose = (value: "accepted" | "rejected") => {
+    try {
+      window.localStorage.setItem(COOKIE_CONSENT_KEY, value);
+    } catch {
+      // Keep the banner usable when browser storage is disabled.
+    }
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <aside style={panel} role="dialog" aria-label="Preferencias de cookies">
+      <strong>Cookies y privacidad</strong>
+      <p style={{ margin: "6px 0 12px", opacity: 0.78, fontSize: 12, lineHeight: 1.5 }}>
+        Usamos cookies técnicas para mantener tu sesión y la operativa de entregas. No activamos
+        publicidad personalizada sin permiso.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => choose("rejected")}
+          style={{ ...button, background: "transparent", color: "#fff" }}
+        >
+          Rechazar opcionales
+        </button>
+        <button
+          type="button"
+          onClick={() => choose("accepted")}
+          style={{ ...button, background: "#FFD72E", color: "#171715", borderColor: "#FFD72E" }}
+        >
+          Aceptar cookies
+        </button>
+      </div>
+    </aside>
+  );
+}
