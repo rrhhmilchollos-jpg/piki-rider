@@ -13,9 +13,9 @@ type InboxItem = {
 };
 
 type InboxResponse = { notifications?: InboxItem[]; unreadCount?: number };
-type Props = { apiOrigin: string; token: string; surface: "partner" | "fleet" | "admin" | "rider"; onUnreadChange?: (summary: { support: number; customer: number }) => void };
+type Props = { apiOrigin: string; token: string; surface: "partner" | "fleet" | "admin" | "rider"; onUnreadChange?: (summary: { support: number; customer: number }) => void; onUnauthorized?: () => void };
 
-export default function NotificationCenter({ apiOrigin, token, surface, onUnreadChange }: Props) {
+export default function NotificationCenter({ apiOrigin, token, surface, onUnreadChange, onUnauthorized }: Props) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<InboxItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -36,7 +36,8 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
           credentials: "include",
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
-        if (!response.ok) throw new Error(response.status === 401 ? "Vuelve a iniciar sesión para ver tus avisos." : "No se pudieron cargar los avisos.");
+        if (response.status === 401) { onUnauthorized?.(); return; }
+        if (!response.ok) throw new Error("No se pudieron cargar los avisos.");
         const payload = await response.json() as InboxResponse;
         setItems(Array.isArray(payload.notifications) ? payload.notifications : []);
         setUnreadCount(Math.max(0, Number(payload.unreadCount || 0)));
@@ -53,7 +54,7 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
       if (requestInFlight.current === request) requestInFlight.current = null;
     });
     return request;
-  }, [apiOrigin, surface, token]);
+  }, [apiOrigin, onUnauthorized, surface, token]);
 
   useEffect(() => {
     const unread = items.filter((item) => !item.readAt);
@@ -92,6 +93,7 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
         credentials: "include",
         headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
       });
+      if (response.status === 401) { onUnauthorized?.(); return; }
       if (!response.ok) throw new Error("No se pudieron marcar como leídos.");
       const readAt = new Date().toISOString();
       setItems((current) => current.map((item) => item.readAt ? item : { ...item, readAt }));
@@ -105,11 +107,12 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
   const openNotification = async (item: InboxItem) => {
     if (!item.readAt) {
       try {
-        await fetch(`${apiOrigin}/api/v1/notifications/${encodeURIComponent(item.id)}/read`, {
+        const response = await fetch(`${apiOrigin}/api/v1/notifications/${encodeURIComponent(item.id)}/read`, {
           method: "PATCH",
           credentials: "include",
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
+        if (response.status === 401) { onUnauthorized?.(); return; }
       } catch { /* Opening a saved notification must not depend on a read-receipt response. */ }
       const readAt = new Date().toISOString();
       setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate));

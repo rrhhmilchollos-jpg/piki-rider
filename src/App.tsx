@@ -1525,6 +1525,7 @@ function RiderWorkspace() {
               apiOrigin={apiOrigin}
               token={apiToken}
               surface="rider"
+              onUnauthorized={() => endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para ver tus avisos.")}
               onUnreadChange={({ support, customer }) => {
                 setUnreadSupportMessages(support);
                 setUnreadCustomerMessages(customer);
