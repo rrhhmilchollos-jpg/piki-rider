@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { resolvePikiApiOrigin } from "./apiOrigin";
 import CookieConsent from "./components/CookieConsent";
 import {
   Activity,
@@ -156,9 +157,7 @@ function orderStepIndex(status: RiderOffer["status"]) {
   if (status === "picked_up") return 1;
   return 0;
 }
-const apiOrigin = (
-  import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com"
-).replace(/\/$/, "");
+const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 function authHeaders(token: string): Record<string, string> {
   return token.trim() ? { Authorization: `Bearer ${token.trim()}` } : {};
 }

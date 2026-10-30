@@ -1,4 +1,5 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { resolvePikiApiOrigin } from "../apiOrigin";
 
 export type GeoCoordinate = { latitude: number; longitude: number; accuracy?: number };
 export type OperationalZone = {
@@ -20,7 +21,7 @@ export type MobilityAdvice = {
   cooldownMinutes: number;
 };
 
-const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
+const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 
 export function apiUrl(path: string) {
   return `${apiOrigin}${path.startsWith("/") ? path : `/${path}`}`;

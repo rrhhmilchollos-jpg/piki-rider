@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PIKI_RELEASE } from "./release-meta";
+import { resolvePikiApiOrigin } from "./apiOrigin";
 import { shouldShowPushConsent } from "./pushConsentPolicy";
 import { getPwaOperationSafety, subscribePwaOperationSafety } from "./pwaOperationSafety";
 import {
@@ -23,7 +24,7 @@ import {
 
 type GateState = "checking" | "ready" | "required" | "error";
 
-const apiOrigin = (import.meta.env.VITE_API_URL ?? "https://api.pikidelivery.com").replace(/\/$/, "");
+const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
 const workerActivationTimeoutMs = 10_000;
