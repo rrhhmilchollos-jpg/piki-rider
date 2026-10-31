@@ -1,4 +1,4 @@
-const BUILD_ID = "2a379918312c";
+const BUILD_ID = "5e89d9a0b790";
 const CACHE_PREFIX = "piki-rider-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const APP_SHELL = ["/","/manifest.json","/piki-mascot-192.png","/piki-mascot-512.png"];
@@ -69,23 +69,42 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   let payload = {};
-  try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data?.text() || "" }; }
+  try {
+    const parsed = event.data ? event.data.json() : {};
+    payload = parsed && typeof parsed === "object" ? parsed : {};
+  } catch { payload = { body: event.data?.text() || "" }; }
   const title = typeof payload.title === "string" ? payload.title : "PIKI Riders";
   const body = typeof payload.body === "string" ? payload.body : "Tienes una actualización.";
-  const path = typeof payload.url === "string" && payload.url.startsWith("/") ? payload.url : "/";
+  const category = typeof payload.category === "string"
+    ? payload.category.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    : "";
+  const urgentAssignment = Boolean(payload.urgent) || /(^|[._-])(assignment|offer|rider_offer|pedido|asignacion|asignado|asignada)([._-]|$)/i.test(category);
+  let path = "/";
+  if (typeof payload.url === "string") {
+    try {
+      const destination = new URL(payload.url, self.location.origin);
+      if (destination.origin === self.location.origin) path = `${destination.pathname}${destination.search}${destination.hash}`;
+    } catch { /* Invalid notification paths fall back to the app home. */ }
+  }
+  const tag = typeof payload.tag === "string" ? payload.tag : typeof payload.id === "string" ? `piki-${payload.id}` : "";
   event.waitUntil(self.registration.showNotification(title, {
     body,
     icon: "/piki-mascot-192.png",
     badge: "/piki-mascot-192.png",
-    tag: typeof payload.tag === "string" ? payload.tag : "piki-riders-notification",
-    renotify: Boolean(payload.renotify),
-    data: { path },
+    ...(tag ? { tag, renotify: Boolean(payload.renotify) } : {}),
+    timestamp: Number.isFinite(Number(payload.timestamp)) ? Number(payload.timestamp) : Date.now(),
+    requireInteraction: Boolean(payload.requireInteraction) || urgentAssignment,
+    ...(urgentAssignment ? { vibrate: [180, 100, 180, 100, 180] } : {}),
+    actions: [{ action: "open", title: "Abrir aviso" }],
+    data: { path, category, id: typeof payload.id === "string" ? payload.id : undefined },
   }));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.path || "/", self.location.origin).href;
+  const path = event.notification.data?.path || "/";
+  const targetUrl = new URL(path, self.location.origin);
+  const target = (targetUrl.origin === self.location.origin ? targetUrl : new URL("/", self.location.origin)).href;
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const existing = clients.find((client) => client.url.startsWith(self.location.origin));

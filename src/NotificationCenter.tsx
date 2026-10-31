@@ -1,28 +1,74 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, CheckCheck, X } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  CheckCheck,
+  CircleHelp,
+  Gift,
+  MessageCircle,
+  PackageCheck,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+import { classifyNotificationCategory, notificationCategoryLabel, notificationGroups, type NotificationGroupId } from "./notificationCategories";
 import "./NotificationCenter.css";
 
 type InboxItem = {
   id: string;
-  category: string;
+  category?: string;
   title: string;
   body: string;
-  url: string;
+  url?: string;
   readAt: string | null;
   createdAt: string;
 };
 
 type InboxResponse = { notifications?: InboxItem[]; unreadCount?: number };
-type Props = { apiOrigin: string; token: string; surface: "partner" | "fleet" | "admin" | "rider"; onUnreadChange?: (summary: { support: number; customer: number }) => void; onUnauthorized?: () => void };
+type Props = {
+  apiOrigin: string;
+  token: string;
+  surface: "partner" | "fleet" | "admin" | "rider";
+  onUnreadChange?: (summary: { support: number; customer: number }) => void;
+  onUnauthorized?: () => void;
+};
+type Filter = "all" | NotificationGroupId;
+
+const icons: Record<NotificationGroupId, typeof Bell> = {
+  orders: PackageCheck,
+  planning: CalendarDays,
+  incentives: Gift,
+  communication: MessageCircle,
+  account: ShieldCheck,
+  other: CircleHelp,
+};
+
+function safeDestination(url?: string) {
+  if (!url || !url.startsWith("/") || url.startsWith("//")) return "/";
+  try {
+    const destination = new URL(url, window.location.origin);
+    return destination.origin === window.location.origin ? `${destination.pathname}${destination.search}${destination.hash}` : "/";
+  } catch {
+    return "/";
+  }
+}
+
+function formatCreatedAt(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Fecha no disponible"
+    : date.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+}
 
 export default function NotificationCenter({ apiOrigin, token, surface, onUnreadChange, onUnauthorized }: Props) {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const [items, setItems] = useState<InboxItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestInFlight = useRef<Promise<void> | null>(null);
   const lastLoadedAt = useRef(0);
+
   const load = useCallback(async (force = false) => {
     if (!token) return;
     const now = Date.now();
@@ -59,8 +105,8 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
   useEffect(() => {
     const unread = items.filter((item) => !item.readAt);
     onUnreadChange?.({
-      support: unread.filter((item) => item.category === "support").length,
-      customer: unread.filter((item) => item.category === "message").length,
+      support: unread.filter((item) => classifyNotificationCategory(item.category) === "communication" && /support/i.test(item.category || "")).length,
+      customer: unread.filter((item) => classifyNotificationCategory(item.category) === "communication" && /message|chat/i.test(item.category || "")).length,
     });
   }, [items, onUnreadChange]);
 
@@ -71,7 +117,8 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
     }, 60_000);
     const refresh = (event: Event) => {
       const type = (event as CustomEvent<{ type?: string }>).detail?.type || "";
-      const relevant = type.startsWith("order.") || type.startsWith("support.") || type.startsWith("onboarding.") || type.startsWith("employee.");
+      const relevant = ["order.", "support.", "onboarding.", "employee.", "rider.", "profile.", "document.", "compliance.", "incentive.", "quest.", "account."]
+        .some((prefix) => type.startsWith(prefix));
       if (relevant) void load(true);
     };
     const onFocus = () => { if (document.visibilityState === "visible") void load(); };
@@ -113,15 +160,20 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
         if (response.status === 401) { onUnauthorized?.(); return; }
+        if (response.ok) {
+          const readAt = new Date().toISOString();
+          setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate));
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
       } catch { /* Opening a saved notification must not depend on a read-receipt response. */ }
-      const readAt = new Date().toISOString();
-      setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate));
-      setUnreadCount((count) => Math.max(0, count - 1));
     }
     setOpen(false);
-    const destination = item.url.startsWith("/") && !item.url.startsWith("//") ? item.url : "/";
-    window.location.assign(destination);
+    window.location.assign(safeDestination(item.url));
   };
+
+  const visibleItems = filter === "all" ? items : items.filter((item) => classifyNotificationCategory(item.category) === filter);
+  const unreadIn = (group?: NotificationGroupId) => items.filter((item) => !item.readAt && (!group || classifyNotificationCategory(item.category) === group)).length;
+  const activeLabel = filter === "all" ? "notificaciones" : notificationCategoryLabel(filter).toLowerCase();
 
   return (
     <div className="piki-notification-center">
@@ -145,15 +197,26 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
               <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar notificaciones"><X size={18} /></button>
             </div>
           </header>
-          <div className="piki-notification-list" aria-busy={loading}>
-            {loading && items.length === 0 && <p className="piki-notification-empty">Cargando avisos…</p>}
-            {!loading && items.length === 0 && <p className="piki-notification-empty">No tienes notificaciones nuevas.</p>}
-            {items.map((item) => (
-              <button type="button" className={`piki-notification-item ${item.readAt ? "is-read" : "is-unread"}`} key={item.id} onClick={() => void openNotification(item)}>
-                <span className="piki-notification-dot" aria-hidden="true" />
-                <span className="piki-notification-copy"><strong>{item.title}</strong><span>{item.body}</span><small>{new Date(item.createdAt).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })}</small></span>
+          <div className="piki-notification-filters" role="tablist" aria-label="Filtrar notificaciones">
+            <button type="button" role="tab" aria-selected={filter === "all"} className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}>Todas{unreadCount > 0 && <b>{unreadCount > 99 ? "99+" : unreadCount}</b>}</button>
+            {notificationGroups.map((group) => (
+              <button key={group.id} type="button" role="tab" aria-selected={filter === group.id} className={filter === group.id ? "is-active" : ""} onClick={() => setFilter(group.id)}>
+                {group.label}{unreadIn(group.id) > 0 && <b>{unreadIn(group.id) > 99 ? "99+" : unreadIn(group.id)}</b>}
               </button>
             ))}
+          </div>
+          <div className="piki-notification-list" aria-busy={loading}>
+            {loading && items.length === 0 && <p className="piki-notification-empty">Cargando avisos…</p>}
+            {!loading && visibleItems.length === 0 && <p className="piki-notification-empty">{items.length ? `No hay avisos de ${activeLabel}.` : "No tienes notificaciones nuevas."}</p>}
+            {visibleItems.map((item) => {
+              const group = classifyNotificationCategory(item.category);
+              const Icon = icons[group];
+              return <button type="button" className={`piki-notification-item is-${group} ${item.readAt ? "is-read" : "is-unread"}`} key={item.id} onClick={() => void openNotification(item)}>
+                <span className="piki-notification-icon" aria-hidden="true"><Icon size={17} /></span>
+                <span className="piki-notification-copy"><small className="piki-notification-category">{notificationCategoryLabel(group)}</small><strong>{item.title}</strong><span>{item.body}</span><small className="piki-notification-time">{formatCreatedAt(item.createdAt)}</small></span>
+                {!item.readAt && <span className="piki-notification-dot" aria-label="Sin leer" />}
+              </button>;
+            })}
           </div>
           {error && <p className="piki-notification-error" role="status">{error}</p>}
         </section>

@@ -43,6 +43,7 @@ import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./componen
 import RiderOrderChatDialog from "./components/RiderOrderChatDialog";
 import OperationalActivation from "./components/OperationalActivation";
 import RiderOfferDemoPreview from "./components/RiderOfferDemoPreview";
+import OfferCountdown from "./components/OfferCountdown";
 import { connectPikiRealtime } from "./realtime";
 import {
   playRiderOrderAlert,
@@ -1431,6 +1432,10 @@ function RiderWorkspace() {
     return (
       <>
         <ActiveShiftScreen
+          apiOrigin={apiOrigin}
+          token={apiToken}
+          onUnauthorized={() => endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para ver tus avisos.")}
+          onUnreadChange={({ support, customer }) => { setUnreadSupportMessages(support); setUnreadCustomerMessages(customer); }}
           currentShift={currentShift}
           offers={offers}
           offersLoading={offersLoading}
@@ -1803,7 +1808,7 @@ function RiderWorkspace() {
                         <article className={`assignment-card assignment-card-incoming ${collapsedOfferIds.has(offer._id) ? "is-collapsed" : ""}`} key={offer._id}>
                           <div className="assignment-card-topline">
                             <span className="assignment-kicker"><Bell size={14} /> NUEVO PEDIDO</span>
-                            <span className="assignment-countdown"><Clock3 size={14} /> 60 s</span>
+                            <OfferCountdown deadline={offer.assignmentExpiresAt} serverNow={currentShift.serverClock?.iso ?? currentShift.now?.iso} />
                           </div>
                           <button type="button" className="assignment-collapse-button" aria-label={collapsedOfferIds.has(offer._id) ? "Mostrar oferta" : "Ocultar oferta"} aria-expanded={!collapsedOfferIds.has(offer._id)} onClick={() => setCollapsedOfferIds((current) => { const next = new Set(current); if (next.has(offer._id)) next.delete(offer._id); else next.add(offer._id); return next; })}>{collapsedOfferIds.has(offer._id) ? <Plus size={18} /> : <Minus size={18} />}<span>{collapsedOfferIds.has(offer._id) ? "Mostrar" : "Ocultar"}</span></button>
                           <div className="assignment-card-body">
