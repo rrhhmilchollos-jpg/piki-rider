@@ -199,7 +199,7 @@ function PushConsentControl() {
   return <aside aria-live="polite" style={{ position: "fixed", right: "16px", bottom: "16px", zIndex: 9999, maxWidth: "320px", padding: "12px", borderRadius: "12px", background: "#111827", color: "white", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
     <button type="button" onClick={() => setVisible(false)} aria-label="Cerrar aviso de PIKI" style={{ float: "right", border: 0, background: "transparent", color: "white", fontSize: "20px", lineHeight: 1, cursor: "pointer" }}>×</button>
     <strong style={{ display: "block", marginBottom: "6px" }}>Avisos de PIKI</strong>
-    <p style={{ fontSize: "13px", margin: "0 24px 10px 0" }}>Activa notificaciones para recibir avisos operativos y de pedidos en este dispositivo.</p>
+    <p style={{ fontSize: "13px", margin: "0 24px 10px 0" }}>Activa avisos de pedidos, turnos, incentivos, soporte y cuenta en este dispositivo. La ubicación solo se solicita al iniciar una jornada; no es un requisito para las notificaciones.</p>
     <button type="button" onClick={() => void enable()} disabled={busy} style={{ padding: "8px 10px", borderRadius: "8px", border: 0, fontWeight: 700, cursor: "pointer" }}>{busy ? "Activando…" : "Activar avisos"}</button>
     {message && <p style={{ fontSize: "12px", margin: "8px 0 0" }}>{message}</p>}
   </aside>;

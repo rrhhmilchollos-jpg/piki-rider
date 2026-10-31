@@ -5,6 +5,7 @@ import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
 import { isCustomerDeliveryPhase } from "../orderPaymentInstruction";
 import { orderRiderQueue } from "../orderQueue";
+import OfferCountdown from "./OfferCountdown";
 import {
   buildDirectionsUrl,
   getRiderNavigationTarget,
@@ -39,11 +40,6 @@ function formatPrice(cents?: number | null) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
-function countdownSeconds(order: RiderOffer) {
-  if (!order.assignmentExpiresAt) return 60;
-  return Math.max(0, Math.ceil((new Date(order.assignmentExpiresAt).getTime() - Date.now()) / 1000));
-}
-
 function restaurantImage(order: RiderOffer) {
   return order.restaurant?.imageUrl || "";
 }
@@ -61,15 +57,10 @@ function OrderItems({ order }: { order: RiderOffer }) {
 }
 
 function IncomingOrderCard({ order }: { order: RiderOffer }) {
-  const [seconds, setSeconds] = useState(() => countdownSeconds(order));
-  useEffect(() => {
-    const timer = window.setInterval(() => setSeconds(countdownSeconds(order)), 1000);
-    return () => window.clearInterval(timer);
-  }, [order]);
   const pickupMinutes = order.restaurant?.etaMinutes?.[0] ?? order.preparationMinutes ?? null;
   const deliveryMinutes = order.etaMinutes ?? null;
   return <div className="exact-card-content exact-incoming-card">
-    <div className="exact-card-title-row"><div className="exact-alert-icon"><BellRing size={29}/></div><div><h2>NUEVO PEDIDO</h2><p>Un nuevo pedido te está esperando</p></div><div className="exact-countdown"><b>{seconds}</b><span>seg</span></div></div>
+    <div className="exact-card-title-row"><div className="exact-alert-icon"><BellRing size={29}/></div><div><h2>NUEVO PEDIDO</h2><p>Un nuevo pedido te está esperando</p></div><OfferCountdown deadline={order.assignmentExpiresAt} mode="hero" /></div>
     <div className="exact-divider" />
     <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{order.restaurant?.name || "Establecimiento Partner"}</h3><p>{order.restaurant?.address || "Dirección del Partner no disponible"}</p></div></div>
     <div className="exact-facts">

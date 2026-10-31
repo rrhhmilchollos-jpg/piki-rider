@@ -17,6 +17,14 @@ Reconstruir la experiencia de PIKI Rider sobre el backend y contratos existentes
 - **Soporte**: categorías contextuales, FAQ y chat/incidencia.
 - **Cuenta**: perfil, vehículo, conexión, permisos y seguridad.
 
+## Notificaciones Rider
+
+- Clasificar el inbox en pedidos, turnos, incentivos, chat/soporte y cuenta/documentación; permitir filtrar por grupo, mostrar estado de lectura y navegar a destinos internos.
+- Mostrar la cuenta atrás de una oferta usando `assignmentExpiresAt` del servidor; si la API no envía un vencimiento válido, indicar que el plazo no está disponible en vez de inventar un valor.
+- Mostrar push del navegador con destino interno seguro, vibración del sistema para categorías de asignación y `requireInteraction` cuando una oferta lo requiera. El sonido personalizado en segundo plano depende del sistema operativo/navegador y no lo controla una PWA.
+- Refrescar el inbox al recibir eventos de pedidos, turnos, soporte, incentivos y cuenta.
+- Los recordatorios programados y la generación/emisión de avisos de agenda, multiplicadores, retos y cumplimiento requieren que la API emita las notificaciones; este repositorio solo contiene el cliente PWA.
+
 ## Diseño
 
 - **Movimiento**: Neo-utility editorial con lenguaje de dashboard de movilidad: negro azul profundo, superficies marfil, lima eléctrica para acción y coral para riesgo.
