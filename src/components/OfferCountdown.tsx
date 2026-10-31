@@ -1,16 +1,10 @@
-import { useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
-import { assignmentCountdownSeconds } from "../offerCountdown";
+import { useOfferCountdown } from "../useOfferCountdown";
 
-type Props = { deadline?: string | null; mode?: "list" | "hero" };
+type Props = { deadline?: string | null; serverNow?: string | null; mode?: "list" | "hero" };
 
-export default function OfferCountdown({ deadline, mode = "list" }: Props) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const seconds = assignmentCountdownSeconds(deadline, now);
+export default function OfferCountdown({ deadline, serverNow, mode = "list" }: Props) {
+  const seconds = useOfferCountdown(deadline, serverNow);
   const text = seconds === null ? "Plazo no disponible" : `${seconds} segundos para responder`;
 
   if (mode === "hero") {

@@ -222,6 +222,9 @@
 .active-shift-shell .active-help-button { right: 144px; }
 .active-shift-shell .active-support-call-button { right: 186px; }
 .active-shift-shell .active-chat-header-button { right: 102px; }
+.active-shift-shell .active-notification-center { position:absolute; z-index:8; top:96px; right:60px; }
+.active-shift-shell .active-notification-center .piki-notification-trigger { width:42px; height:42px; border:0; border-radius:50%; background:rgba(255,255,255,.82); color:#12284d; }
+.active-shift-shell .active-notification-center .piki-notification-trigger:hover { background:#fff; }
 .active-shift-shell .active-support-call-button {
   position: absolute;
   z-index: 7;
@@ -247,4 +250,5 @@
   .active-shift-shell .active-support-call-button { right: 154px; top: 96px; }
   .active-shift-shell .active-help-button { right: 112px; top: 96px; }
   .active-shift-shell .active-chat-header-button { right: 70px; top: 96px; }
+  .active-shift-shell .active-notification-center { right:28px; top:96px; }
 }

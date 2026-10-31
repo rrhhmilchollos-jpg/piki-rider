@@ -6,6 +6,8 @@ import type { CurrentShift, RiderOffer } from "../types/rider";
 import { isCustomerDeliveryPhase } from "../orderPaymentInstruction";
 import { orderRiderQueue } from "../orderQueue";
 import OfferCountdown from "./OfferCountdown";
+import NotificationCenter from "../NotificationCenter";
+import { useOfferCountdown } from "../useOfferCountdown";
 import {
   buildDirectionsUrl,
   getRiderNavigationTarget,
@@ -14,6 +16,10 @@ import "../ActiveShiftScreen.css";
 import "../rider-card-payment-delay.css";
 
 type Props = {
+  apiOrigin: string;
+  token: string;
+  onUnauthorized: () => void;
+  onUnreadChange: (summary: { support: number; customer: number }) => void;
   currentShift: CurrentShift;
   offers: RiderOffer[];
   offersLoading: boolean;
@@ -56,11 +62,11 @@ function OrderItems({ order }: { order: RiderOffer }) {
   </>;
 }
 
-function IncomingOrderCard({ order }: { order: RiderOffer }) {
+function IncomingOrderCard({ order, serverNow }: { order: RiderOffer; serverNow?: string | null }) {
   const pickupMinutes = order.restaurant?.etaMinutes?.[0] ?? order.preparationMinutes ?? null;
   const deliveryMinutes = order.etaMinutes ?? null;
   return <div className="exact-card-content exact-incoming-card">
-    <div className="exact-card-title-row"><div className="exact-alert-icon"><BellRing size={29}/></div><div><h2>NUEVO PEDIDO</h2><p>Un nuevo pedido te está esperando</p></div><OfferCountdown deadline={order.assignmentExpiresAt} mode="hero" /></div>
+    <div className="exact-card-title-row"><div className="exact-alert-icon"><BellRing size={29}/></div><div><h2>NUEVO PEDIDO</h2><p>Un nuevo pedido te está esperando</p></div><OfferCountdown deadline={order.assignmentExpiresAt} serverNow={serverNow} mode="hero" /></div>
     <div className="exact-divider" />
     <div className="exact-restaurant-row">{restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{order.restaurant?.name || "Establecimiento Partner"}</h3><p>{order.restaurant?.address || "Dirección del Partner no disponible"}</p></div></div>
     <div className="exact-facts">
@@ -114,7 +120,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
-export default function ActiveShiftScreen({ currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ apiOrigin, token, onUnauthorized, onUnreadChange, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
@@ -198,6 +204,10 @@ export default function ActiveShiftScreen({ currentShift, offers, offersLoading,
   const selectedOrder = liveOrders.find((order) => order._id === selectedOrderId) || liveOrder;
   const navigation = liveOrder ? getRiderNavigationTarget(liveOrder) : null;
   const subtitle = currentShift.shift?.zone ? `Zona ${currentShift.shift.zone}` : "Xàtiva";
+  const serverNow = currentShift.serverClock?.iso ?? currentShift.now?.iso;
+  const offerSeconds = useOfferCountdown(liveOrder?.assignmentExpiresAt, serverNow);
+  const hasServerClock = Boolean(serverNow && Number.isFinite(Date.parse(serverNow)));
+  const offerExpired = liveOrder?.assignmentState === "offered" && hasServerClock && offerSeconds === 0;
 
   useEffect(() => {
     if (!liveOrder || lastSeenOrderIdRef.current === liveOrder._id) return;
@@ -249,6 +259,7 @@ export default function ActiveShiftScreen({ currentShift, offers, offersLoading,
         <strong>PIKI <em>Rider</em></strong>
       </header>
       <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
+      <div className="active-notification-center"><NotificationCenter apiOrigin={apiOrigin} token={token} surface="rider" onUnauthorized={onUnauthorized} onUnreadChange={onUnreadChange}/></div>
       <button type="button" className="active-support-call-button" onClick={onCallSupport} aria-label="Llamada directa al soporte" title="Llamada directa al soporte"><Phone size={22}/></button>
       <button type="button" className="active-help-button active-help-message-button" onClick={onOpenSupport} aria-label={unreadMessageCount ? `Abrir mensajes y soporte: ${unreadMessageCount} sin leer` : "Abrir soporte"}><Headphones size={24}/>{unreadMessageCount > 0 && <b className="active-message-badge" aria-hidden="true">{unreadMessageCount > 9 ? "9+" : unreadMessageCount}</b>}</button>
       {liveOrder && <button type="button" className="active-chat-header-button" onClick={() => onOpenOrderChat(liveOrder)} aria-label="Abrir chat con el cliente" title="Chat con el cliente"><MessageCircle size={24}/></button>}
@@ -264,8 +275,8 @@ export default function ActiveShiftScreen({ currentShift, offers, offersLoading,
         <div className="active-sheet-expanded-content" aria-hidden={Boolean(sheetCollapsed && liveOrder)}>
           {offersLoading && !liveOrder ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Conectando con pedidos…</h1><p>Sincronizando tus ofertas de reparto en {subtitle}.</p></> : offersError ? <><p className="active-eyebrow">PIKI · JORNADA INICIADA</p><h1>Sin conexión temporal</h1><p>{offersError}. Tu jornada sigue activa; vuelve a sincronizar para recibir las ofertas pendientes.</p><button type="button" className="active-retry-button" onClick={onRefreshOffers}><RefreshCw size={16}/> Reintentar</button></> : liveOrder ? <>
             <p className="active-eyebrow">PIKI · {liveOrders.length === 1 ? "1 PEDIDO ACTIVO" : `${liveOrders.length} PEDIDOS ACTIVOS`}</p>
-            <section className={`active-order-stack-item ${navigation?.phase === "customer" ? "phase-customer" : "phase-partner"} ${liveOrder.assignmentState === "offered" ? "is-offered" : "is-assigned"}`} key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}>{liveOrder.assignmentState === "offered" ? <IncomingOrderCard order={liveOrder}/> : <ActiveOrderCard order={liveOrder}/>}
-              {liveOrder.assignmentState === "offered" && <><p className="active-assignment-note">Este pedido debe aceptarse, recogerse en el Partner y entregarse al cliente final. PIKI verificará cada paso con GPS y QR/PIN.</p><button type="button" className="active-order-button exact-accept-button" disabled={actionBusy} onClick={() => onAcceptOffer(liveOrder._id)}>ACEPTAR PEDIDO</button></>}
+            <section className={`active-order-stack-item ${navigation?.phase === "customer" ? "phase-customer" : "phase-partner"} ${liveOrder.assignmentState === "offered" ? "is-offered" : "is-assigned"}`} key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}>{liveOrder.assignmentState === "offered" ? <IncomingOrderCard order={liveOrder} serverNow={serverNow}/> : <ActiveOrderCard order={liveOrder}/>}
+              {liveOrder.assignmentState === "offered" && <><p className="active-assignment-note">{offerExpired ? "La oferta ha vencido según la hora del servidor; sincronizando el estado del pedido." : "Este pedido debe aceptarse, recogerse en el Partner y entregarse al cliente final. PIKI verificará cada paso con GPS y QR/PIN."}</p><button type="button" className="active-order-button exact-accept-button" disabled={actionBusy || offerExpired} onClick={() => onAcceptOffer(liveOrder._id)}>{offerExpired ? "OFERTA VENCIDA" : "ACEPTAR PEDIDO"}</button></>}
               {liveOrder.assignmentState === "assigned" && !isCustomerDeliveryPhase(liveOrder.status) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">El Partner está preparando el pedido. Podrás confirmar la recogida al estar a una manzana o menos cuando marque «Listo».</p>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => onConfirmPickup(liveOrder._id)}><CheckCircle2 size={18}/> CONFIRMAR RETIRO</button>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button exact-pickup-button" disabled={actionBusy} onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={18}/> INICIAR RUTA AL CLIENTE</button>}
