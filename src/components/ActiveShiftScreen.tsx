@@ -19,6 +19,7 @@ type Props = {
   offersError: string;
   startedShiftNotice: boolean;
   toast: string;
+  tipNotification: string;
   onDismissStartNotice: () => void;
   onOpenOperations: () => void;
   onCallSupport: () => void;
@@ -56,7 +57,7 @@ function OrderItems({ order }: { order: RiderOffer }) {
   const items = order.items || [];
   return <>
     <div className="exact-items-heading"><strong>Productos del pedido</strong><span>{items.length || 1} {items.length === 1 ? "producto" : "productos"}</span></div>
-    <div className="exact-items-list exact-items-list-visible">{items.length ? items.map((item, index) => <div key={`${item.name || "producto"}-${index}`}><span><b>{item.quantity || 1}×</b> {item.name || "Producto"}{item.modifiers?.length ? <small>{item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span><b>{formatPrice(item.totalCents ?? item.priceCents) || "—"}</b></div>) : <span>Detalle pendiente de sincronización</span>}</div>
+    <div className="exact-items-list exact-items-list-visible">{items.length ? items.map((item, index) => <div key={`${item.name || "producto"}-${index}`}><span><b>{item.quantity || 1}×</b> {item.name || "Producto"}{item.modifiers?.length ? <small>{item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span></div>) : <span>Detalle pendiente de sincronización</span>}</div>
   </>;
 }
 
@@ -117,13 +118,13 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
       {!deliveryPhase && order.status !== "ready_for_pickup" && <div><Clock3 size={28}/><span><b>Estará listo en</b>{`${Math.min(10, Math.max(4, order.preparationMinutes ?? order.restaurant?.etaMinutes?.[0] ?? 4))} min`}</span></div>}
     </div>
     {!deliveryPhase && order.status === "ready_for_pickup" && <PickupDeadlineFact deadline={order.pickupDeadlineAt}/>}
-    {deliveryPhase && (order.paymentMethod === "cash" ? <div className="exact-cash-due"><Coins size={30}/><span>COBRA AL CLIENTE</span><strong>{formatPrice(order.totalCents) || "Importe no disponible"}</strong><small>Contrarreembolso autorizado · confírmalo al entregar</small></div> : <div className="exact-online-paid"><CheckCircle2 size={22}/><span>PAGO ONLINE CONFIRMADO · NO COBRES AL CLIENTE</span></div>)}
+    {deliveryPhase && (order.paymentMethod === "cash" ? <div className="exact-cash-due"><Coins size={30}/><span>IMPORTE TOTAL A COBRAR AL CLIENTE</span><strong>{formatPrice(order.totalCents) || "Importe no disponible"}</strong><small>Contrarreembolso autorizado · confírmalo al entregar</small></div> : <div className="exact-online-paid"><CheckCircle2 size={22}/><span>PAGO ONLINE CONFIRMADO · NO COBRES AL CLIENTE</span></div>)}
     <div className="exact-progress" aria-label="Progreso del pedido"><span className="done"><i>✓</i><b>Recoger</b></span><span className={deliveryPhase ? "current" : ""}><i>○</i><b>En camino</b></span><span><i>○</i><b>Entregado</b></span></div>
     <OrderItems order={order}/>
   </div>;
 }
 
-export default function ActiveShiftScreen({ currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, tipNotification, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const [qrValue, setQrValue] = useState("");
@@ -252,6 +253,7 @@ export default function ActiveShiftScreen({ currentShift, offers, offersLoading,
   };
 
   return <main className="active-shift-shell" aria-label="Jornada activa PIKI Rider">
+    {tipNotification && <div className="rider-tip-bubble" role="status" aria-live="assertive"><span className="rider-tip-bubble-icon">€</span><span>{tipNotification}</span></div>}
     <section className="active-map real-google-map-section">
       <LiveGoogleMap active />
       <header className="active-brand-header" aria-label="PIKI Rider">

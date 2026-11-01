@@ -349,6 +349,7 @@ function RiderWorkspace() {
     eligible: false,
   });
   const [toast, setToast] = useState("");
+  const [tipNotification, setTipNotification] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [stats, setStats] = useState<Stats>({
     completed: 0,
@@ -687,6 +688,11 @@ function RiderWorkspace() {
     return () => window.clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
+    if (!tipNotification) return;
+    const timer = window.setTimeout(() => setTipNotification(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [tipNotification]);
+  useEffect(() => {
     // Las ofertas son estado persistido del pedido, no un estado volátil del turno.
     if (!apiToken || !riderId) {
       knownOfferIdsRef.current = null; // oxlint-disable-next-line react/set-state-in-effect
@@ -790,7 +796,7 @@ function RiderWorkspace() {
           return;
         }
         if (event.type === "order.tip_added") {
-          setToast(typeof event.payload.message === "string" ? event.payload.message : "Has recibido una propina del cliente.");
+          setTipNotification(typeof event.payload.message === "string" ? event.payload.message : "Has recibido una propina del cliente.");
           return;
         }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
@@ -1437,6 +1443,7 @@ function RiderWorkspace() {
           offersError={offersError}
           startedShiftNotice={startedShiftNotice}
           toast={toast}
+          tipNotification={tipNotification}
           onDismissStartNotice={() => setStartedShiftNotice(false)}
           onOpenOperations={() => setShowOperations(true)}
           onCallSupport={callSupport}

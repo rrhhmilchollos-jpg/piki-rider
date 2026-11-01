@@ -248,3 +248,10 @@
   .active-shift-shell .active-help-button { right: 112px; top: 96px; }
   .active-shift-shell .active-chat-header-button { right: 70px; top: 96px; }
 }
+
+/* Propina Rider: aviso efímero, visible exactamente durante 3 segundos. */
+.rider-tip-bubble { position: fixed; z-index: 120; top: calc(82px + env(safe-area-inset-top)); left: 50%; display: flex; align-items: center; gap: 10px; width: min(390px, calc(100vw - 28px)); transform: translateX(-50%); padding: 14px 18px; border: 1px solid rgba(255,255,255,.34); border-radius: 18px; background: linear-gradient(135deg, #173b63, #22a366); color: #fff; box-shadow: 0 16px 34px rgba(8,31,54,.28); font: 800 14px/1.25 'DM Sans', system-ui, sans-serif; animation: rider-tip-bubble-in 180ms cubic-bezier(.23,1,.32,1) both; }
+.rider-tip-bubble-icon { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #ffdc18; color: #173b63; font: 900 20px/1 'Space Grotesk', sans-serif; }
+@keyframes rider-tip-bubble-in { from { opacity: 0; transform: translate(-50%, -8px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@media (max-width: 580px) { .rider-tip-bubble { top: calc(74px + env(safe-area-inset-top)); width: calc(100vw - 22px); } }
+@media (prefers-reduced-motion: reduce) { .rider-tip-bubble { animation: none; } }
