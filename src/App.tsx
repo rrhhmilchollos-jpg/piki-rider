@@ -153,8 +153,12 @@ function orderDestination(offer: RiderOffer) {
     : offer.deliveryAddress || "Dirección del cliente";
 }
 function orderStepIndex(status: RiderOffer["status"]) {
-  if (status === "on_the_way") return 2;
-  if (status === "picked_up") return 1;
+  // El API pasa de ready_for_pickup a on_the_way en una sola transicion, asi que
+  // solo existen tres estados reales de progreso: recogida pendiente, ruta al
+  // cliente y entregado. Marcar on_the_way como 2 encendia tambien "Entregado" y
+  // dejaba la tarjeta clavada sin avanzar de Recoger a En camino.
+  if (status === "delivered") return 2;
+  if (status === "on_the_way" || status === "picked_up") return 1;
   return 0;
 }
 const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
