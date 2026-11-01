@@ -57,7 +57,7 @@ function OrderItems({ order }: { order: RiderOffer }) {
   const items = order.items || [];
   return <>
     <div className="exact-items-heading"><strong>Productos del pedido</strong><span>{items.length || 1} {items.length === 1 ? "producto" : "productos"}</span></div>
-    <div className="exact-items-list exact-items-list-visible">{items.length ? items.map((item, index) => <div key={`${item.name || "producto"}-${index}`}><span><b>{item.quantity || 1}×</b> {item.name || "Producto"}{item.modifiers?.length ? <small>{item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span></div>) : <span>Detalle pendiente de sincronización</span>}</div>
+    <div className="exact-items-list exact-items-list-visible">{items.length ? items.map((item, index) => <div key={`${item.name || "producto"}-${index}`}><span><b>{item.quantity || 1}×</b> {item.name || "Producto"}{item.modifiers?.length ? <small>{item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span><b>{formatPrice(item.totalCents ?? item.priceCents) || "—"}</b></div>) : <span>Detalle pendiente de sincronización</span>}</div>
   </>;
 }
 
