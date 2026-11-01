@@ -4,6 +4,7 @@ import type { IScannerControls } from "@zxing/browser";
 import LiveGoogleMap from "./LiveGoogleMap";
 import type { CurrentShift, RiderOffer } from "../types/rider";
 import { isCustomerDeliveryPhase } from "../orderPaymentInstruction";
+import { getRiderOrderProgress, riderOrderProgressSteps } from "../orderProgress";
 import { orderRiderQueue } from "../orderQueue";
 import {
   buildDirectionsUrl,
@@ -101,6 +102,7 @@ function PickupDeadlineFact({ deadline }: { deadline?: string | null }) {
 function ActiveOrderCard({ order }: { order: RiderOffer }) {
   const deliveryPhase = isCustomerDeliveryPhase(order.status);
   const customerName = order.customerName || "Cliente final";
+  const orderProgress = getRiderOrderProgress(order.status);
   return <div className="exact-card-content exact-active-card">
     <div className="exact-active-label"><span>{deliveryPhase ? "ENTREGA AL CLIENTE" : "RECOGIDA EN PARTNER"}<small>Pedido #{order.displayCode || order.publicCode || order._id.slice(-6).toUpperCase()}</small></span><span className="exact-bee-mark">●</span></div>
     <div className="exact-restaurant-row">{!deliveryPhase && restaurantImage(order) && <img src={restaurantImage(order)} alt="" aria-hidden="true"/>}<div><h3>{deliveryPhase ? customerName : order.restaurant?.name || "Establecimiento Partner"}</h3><span className="exact-confirmed"><CheckCircle2 size={18}/> {deliveryPhase ? "Recogida confirmada · ruta al cliente" : "Recogida GPS disponible al estar dentro de una manzana"}</span></div></div>
@@ -119,7 +121,10 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
     </div>
     {!deliveryPhase && order.status === "ready_for_pickup" && <PickupDeadlineFact deadline={order.pickupDeadlineAt}/>}
     {deliveryPhase && (order.paymentMethod === "cash" ? <div className="exact-cash-due"><Coins size={30}/><span>IMPORTE TOTAL A COBRAR AL CLIENTE</span><strong>{formatPrice(order.totalCents) || "Importe no disponible"}</strong><small>Contrarreembolso autorizado · confírmalo al entregar</small></div> : <div className="exact-online-paid"><CheckCircle2 size={22}/><span>PAGO ONLINE CONFIRMADO · NO COBRES AL CLIENTE</span></div>)}
-    <div className="exact-progress" aria-label="Progreso del pedido"><span className="done"><i>✓</i><b>Recoger</b></span><span className={deliveryPhase ? "current" : ""}><i>○</i><b>En camino</b></span><span><i>○</i><b>Entregado</b></span></div>
+    <div className="exact-progress" aria-label="Progreso del pedido">{riderOrderProgressSteps.map(({ key, label }, index) => {
+      const state = orderProgress[key];
+      return <span className={state === "upcoming" ? "" : state} aria-current={state === "current" ? "step" : undefined} key={key}><i>{state === "done" ? "✓" : index + 1}</i><b>{label}</b></span>;
+    })}</div>
     <OrderItems order={order}/>
   </div>;
 }

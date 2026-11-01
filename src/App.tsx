@@ -59,6 +59,7 @@ import {
 import type { CurrentShift, RiderOffer, Shift } from "./types/rider";
 import { visibleOrderReference } from "./orderReference";
 import { orderRiderQueue } from "./orderQueue";
+import { getRiderOrderProgress, riderOrderProgressSteps } from "./orderProgress";
 import {
   clearStoredToken,
   getStoredToken,
@@ -151,15 +152,6 @@ function orderDestination(offer: RiderOffer) {
   return isPickupPhase(offer.status)
     ? offer.restaurant?.address || offer.restaurant?.name || "Dirección del Partner"
     : offer.deliveryAddress || "Dirección del cliente";
-}
-function orderStepIndex(status: RiderOffer["status"]) {
-  // El API pasa de ready_for_pickup a on_the_way en una sola transicion, asi que
-  // solo existen tres estados reales de progreso: recogida pendiente, ruta al
-  // cliente y entregado. Marcar on_the_way como 2 encendia tambien "Entregado" y
-  // dejaba la tarjeta clavada sin avanzar de Recoger a En camino.
-  if (status === "delivered") return 2;
-  if (status === "on_the_way" || status === "picked_up") return 1;
-  return 0;
 }
 const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 function authHeaders(token: string): Record<string, string> {
@@ -412,7 +404,7 @@ function RiderWorkspace() {
   const activeTokenRef = useRef(apiToken);
   const riderIdentityRef = useRef("");
   const lastAlertAtRef = useRef(0);
-  const orderStatusRank = (status: RiderOffer["status"]) => ({ pending: 0, accepted: 1, preparing: 2, ready_for_pickup: 3, picked_up: 4, on_the_way: 5, delivered: 6, cancelled: 6 }[status] ?? 0);
+  const orderStatusRank = (status: RiderOffer["status"]) => ({ pending: 0, accepted: 1, preparing: 2, ready_for_pickup: 3, picked_up: 4, on_the_way: 5 }[status] ?? 0);
   const reconcileOfferSnapshot = useCallback((snapshot: RiderOffer[]) => {
     const now = Date.now();
     const next = snapshot.map((offer) => {
@@ -1267,7 +1259,7 @@ function RiderWorkspace() {
       const confirmedOrder = data.order as RiderOffer | undefined;
       if (confirmedOrder) {
         setOffers((previous) => previous.map((offer) => offer._id === orderId
-          ? { ...offer, ...confirmedOrder, status: confirmedOrder.status || "on_the_way", riderArrivedAt: confirmedOrder.riderArrivedAt || offer.riderArrivedAt }
+          ? { ...offer, ...confirmedOrder, status: "on_the_way", riderArrivedAt: confirmedOrder.riderArrivedAt || offer.riderArrivedAt }
           : offer));
       } else {
         setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "on_the_way" } : offer));
@@ -1281,7 +1273,7 @@ function RiderWorkspace() {
       // reconciliación REST llega desde una réplica con unos milisegundos de
       // retraso, no debemos volver a pintar la tarjeta de Partner.
       setOffers((previous) => previous.map((offer) => offer._id === orderId
-        ? { ...offer, ...(confirmedOrder || {}), status: confirmedOrder?.status || "on_the_way" }
+        ? { ...offer, ...(confirmedOrder || {}), status: "on_the_way" }
         : offer));
     } catch {
       setToast(
@@ -1878,7 +1870,10 @@ function RiderWorkspace() {
                               <span className="assignment-live-pill">EN DIRECTO</span>
                             </div>
                             <div className="assignment-stepper" aria-label="Progreso del pedido">
-                              {["Recoger", "En camino", "Entregado"].map((label, index) => <span className={index <= orderStepIndex(offer.status) ? "is-done" : ""} key={label}><i>{index + 1}</i>{label}</span>)}
+                              {riderOrderProgressSteps.map(({ key, label }, index) => {
+                                const state = getRiderOrderProgress(offer.status)[key];
+                                return <span className={state === "done" ? "is-done" : state === "current" ? "is-current" : ""} aria-current={state === "current" ? "step" : undefined} key={key}><i>{state === "done" ? "✓" : index + 1}</i>{label}</span>;
+                              })}
                             </div>
                             <div className="assignment-facts">
                               <span><MapPinned size={16} /><b>Destino</b> {offer.etaMinutes || 18} min</span>
