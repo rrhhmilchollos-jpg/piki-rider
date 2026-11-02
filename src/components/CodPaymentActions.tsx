@@ -40,6 +40,8 @@ export default function CodPaymentActions({
   disabled,
 }: CodPaymentActionsProps) {
   const [pending, setPending] = useState<Pending>(null);
+  // El cobro en efectivo no se registra de un toque: primero se confirma el importe.
+  const [confirmingRelease, setConfirmingRelease] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState<Pending>(null);
 
@@ -111,10 +113,10 @@ export default function CodPaymentActions({
       <button
         type="button"
         className="cod-actions__button cod-actions__button--cash"
-        onClick={() => void call("release")}
+        onClick={() => setConfirmingRelease(true)}
         disabled={disabled || pending !== null}
       >
-        {pending === "release" ? "Registrando…" : "Cobrado en efectivo"}
+        Cobrado en efectivo
       </button>
 
       <button
@@ -125,6 +127,43 @@ export default function CodPaymentActions({
       >
         {pending === "capture" ? "Cobrando…" : "No pudo pagar · cobrar tarjeta"}
       </button>
+
+      {confirmingRelease && (
+        <div
+          className="cod-actions__confirm-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cod-confirm-title"
+        >
+          <div className="cod-actions__confirm-card">
+            <p className="cod-actions__confirm-eyebrow">CONFIRMAR COBRO</p>
+            <h3 id="cod-confirm-title">{formatEuros(totalCents)} en efectivo</h3>
+            <p className="cod-actions__confirm-copy">
+              ¿Has recibido <strong>{formatEuros(totalCents)}</strong> en efectivo del cliente?
+              Al confirmar se libera su retención y el pedido queda cobrado por ese importe.
+            </p>
+            <button
+              type="button"
+              className="cod-actions__button cod-actions__button--cash"
+              onClick={() => {
+                setConfirmingRelease(false);
+                void call("release");
+              }}
+              disabled={pending !== null}
+            >
+              {pending === "release" ? "Registrando…" : `Sí, he cobrado ${formatEuros(totalCents)}`}
+            </button>
+            <button
+              type="button"
+              className="cod-actions__button cod-actions__button--cancel"
+              onClick={() => setConfirmingRelease(false)}
+              disabled={pending !== null}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p className="cod-actions__error" role="alert">

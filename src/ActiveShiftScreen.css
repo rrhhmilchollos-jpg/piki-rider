@@ -267,3 +267,9 @@
 .cod-actions__button--capture{background:#1d231d;color:#fff}
 .cod-actions__error{margin:0;font-size:.8rem;font-weight:700;color:#b3261e}
 .cod-actions--done{padding:.85rem 1rem;border-radius:1rem;background:#eef9ec;border:1px solid #cfe3cd;color:#2f6b38;font-size:.85rem;font-weight:700}
+.cod-actions__button--cancel{background:#f2f1ea;color:#3d4a42}
+.cod-actions__confirm-overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1.1rem;background:rgba(18,26,22,.55);backdrop-filter:blur(2px)}
+.cod-actions__confirm-card{width:min(26rem,100%);display:flex;flex-direction:column;gap:.6rem;background:#fff;border-radius:1.35rem;padding:1.35rem;box-shadow:0 24px 60px rgba(12,20,16,.28)}
+.cod-actions__confirm-card h3{margin:0;font-size:1.5rem;color:#12211a}
+.cod-actions__confirm-eyebrow{margin:0;font-size:.7rem;letter-spacing:.14em;font-weight:800;color:#6f7b73}
+.cod-actions__confirm-copy{margin:0 0 .4rem;font-size:.92rem;line-height:1.4;color:#3d4a42}
