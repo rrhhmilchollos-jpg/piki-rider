@@ -4,7 +4,7 @@ android {
     namespace = "com.pikidelivery.rider"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.pikidelivery.rider"
+        applicationId "com.pikidelivery.riders"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 9

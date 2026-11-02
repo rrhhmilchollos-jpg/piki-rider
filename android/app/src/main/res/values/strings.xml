@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">PIKI Riders</string>
     <string name="title_activity_main">PIKI Riders</string>
-    <string name="package_name">com.pikidelivery.rider</string>
-    <string name="custom_url_scheme">com.pikidelivery.rider</string>
+    <string name="package_name">com.pikidelivery.riders</string>
+    <string name="custom_url_scheme">com.pikidelivery.riders</string>
     <string name="capacitor_background_geolocation_notification_channel_name">Seguimiento de jornada</string>
 </resources>

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.pikidelivery.rider",
+  appId: "com.pikidelivery.riders",
   appName: "PIKI Riders",
   webDir: "dist",
   android: {

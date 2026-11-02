@@ -77,6 +77,7 @@ import { createRiderGpsTracker } from "./riderGpsNative";
 import { isRiderGpsStatusBlocked, mayTrackRiderGps } from "./riderGpsPolicy";
 import { RIDER_GPS_START_EVENT, RIDER_GPS_STOP_EVENT, stopRiderDeviceGps } from "./riderGpsSession";
 import { resetRiderGpsState, setRiderGpsMapPoint, setRiderGpsSnapshot } from "./riderGpsState";
+import { useRiderLocationPing } from "./useRiderLocationPing";
 import type { RiderGpsTracker } from "./riderGpsTracker";
 import {
   defaultRiderAudioPreferences,
@@ -419,6 +420,12 @@ function RiderWorkspace() {
     return next;
   }, []);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+  useRiderLocationPing({
+    apiOrigin,
+    token: apiToken,
+    publicCode: activeOrder?.publicCode ?? null,
+    enabled: Boolean(activeOrder) && activeOrder?.status === "on_the_way",
+  });
   const hasPersistedOrder = offers.some((offer) => offer.assignmentState === "assigned" || offer.assignmentState === "offered");
 
   const invalidateRiderGps = useCallback(() => {
