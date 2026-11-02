@@ -34,8 +34,14 @@ jobs:
       - run: pnpm run build
       - run: pnpm exec cap sync android
       - run: ./android/gradlew -p android bundleRelease --no-daemon
+      - run: ./android/gradlew -p android assembleRelease --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: piki-rider-unsigned-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: piki-rider-unsigned-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
