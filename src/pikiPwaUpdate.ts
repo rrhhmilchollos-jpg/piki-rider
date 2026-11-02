@@ -41,7 +41,7 @@ export type PikiWorkerContainerPort = {
   removeEventListener(type: string, listener: EventListener): void;
 };
 
-export type PikiStoragePort = Pick<Storage, "getItem" | "setItem">;
+export type PikiStoragePort = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export const PIKI_FOCUS_REFRESH_MS = 60_000;
 export const PIKI_PERIODIC_REFRESH_MS = 5 * 60_000;
@@ -136,6 +136,21 @@ export function markPikiTargetNavigation(storage: PikiStoragePort, surface: stri
 export function pikiTargetNavigationUrl(href: string, targetBuildId: string): string {
   const url = new URL(href);
   url.searchParams.set("piki_build", targetBuildId);
+  return url.toString();
+}
+
+/** Borra la marca que bloquea reintentar el mismo build. */
+export function clearPikiTargetNavigation(storage: PikiStoragePort, surface: string, targetBuildId: string): void {
+  storage.removeItem(pikiReloadMarker(surface, targetBuildId));
+}
+
+/**
+ * URL de último recurso: rompe la caché del navegador y del service worker
+ * cuando la actualización normal se queda en bucle sobre el build viejo.
+ */
+export function pikiForcedReloadUrl(href: string, stamp: string): string {
+  const url = new URL(href);
+  url.searchParams.set("piki_refresh", stamp);
   return url.toString();
 }
 
