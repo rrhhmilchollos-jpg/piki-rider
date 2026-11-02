@@ -10,6 +10,7 @@ import {
   Bike,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   ClipboardList,
@@ -69,6 +70,12 @@ import {
 import { requiresRiderAuthentication } from "./apiAuthPolicy";
 import { deliveryProofPayload, normalizeDeliveryProof } from "./deliveryProof";
 import { publishPwaOperationSafety } from "./pwaOperationSafety";
+import {
+  buildMadridScheduleWeek,
+  formatScheduleWeekRange,
+  madridDateKey,
+  normalizeScheduleDate,
+} from "./scheduleCalendar";
 import {
   shouldShowOperationalMap,
   shouldTrackLocationOnOperationalMap,
@@ -184,15 +191,6 @@ function getInitialRiderSection(): string {
   }
   return "Inicio";
 }
-const weekdayNames = [
-  "Lunes",
-  "Martes",
-  "Miércoles",
-  "Jueves",
-  "Viernes",
-  "Sábado",
-  "Domingo",
-];
 const supportTopics = [
   {
     id: "order",
@@ -301,11 +299,8 @@ const manychatWhatsAppUrl = String(
 const SUPPORT_PHONE = "+34634038662";
 const SUPPORT_PHONE_LABEL = "634 03 86 62";
 function normalizeRiderShift(raw: Record<string, unknown>): Shift {
-  const date = String(raw.date || "");
-  const weekday = date
-    ? new Intl.DateTimeFormat("es-ES", { weekday: "long", timeZone: "Europe/Madrid" }).format(new Date(`${date}T12:00:00Z`))
-    : "";
-  const rawDay = String(raw.day || weekday);
+  const date = normalizeScheduleDate(String(raw.date || ""));
+  const rawDay = String(raw.day || "");
   return {
     day: rawDay ? `${rawDay.slice(0, 1).toUpperCase()}${rawDay.slice(1)}` : "",
     date,
@@ -349,6 +344,8 @@ function RiderWorkspace() {
   const [toast, setToast] = useState("");
   const [tipNotification, setTipNotification] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [scheduleWeekOffset, setScheduleWeekOffset] = useState(0);
+  const [scheduleNow, setScheduleNow] = useState(() => new Date());
   const [stats, setStats] = useState<Stats>({
     completed: 0,
     cancelled: 0,
@@ -496,6 +493,11 @@ function RiderWorkspace() {
   const updateAudioPreferences = useCallback((patch: Partial<RiderAudioPreferences>) => {
     setAudioPreferences((current) => saveRiderAudioPreferences(riderId, { ...current, ...patch }));
   }, [riderId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setScheduleNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const updateFormEditing = () => {
@@ -966,24 +968,26 @@ function RiderWorkspace() {
     }
   }
 
-  const activeShifts = useMemo(
-    () =>
-      weekdayNames.map(
-        (day) =>
-          shifts.find((shift) => shift.day === day) ?? {
-            day,
-            date: "",
-            start: "",
-            end: "",
-            zone: "",
-            status: "pending" as const,
-          },
-      ),
-    [shifts],
+  const scheduleWeek = useMemo(
+    () => buildMadridScheduleWeek(scheduleNow, scheduleWeekOffset),
+    [scheduleNow, scheduleWeekOffset],
   );
+  const scheduleDays = useMemo(
+    () => scheduleWeek.days.map((day) => ({
+      ...day,
+      shift: shifts.find((shift) => shift.date === day.date),
+    })),
+    [scheduleWeek, shifts],
+  );
+  const todayShift = useMemo(
+    () => shifts.find((shift) => shift.date === madridDateKey(scheduleNow)),
+    [scheduleNow, shifts],
+  );
+  const isCurrentScheduleWeek = scheduleWeekOffset === 0;
   const showApplication = section === "Solicitar alta";
 
   function showSection(next: string) {
+    if (next === "Horarios") setScheduleWeekOffset(0);
     setSection(next);
     setOpen(false);
     setProfileOpen(false);
@@ -1922,15 +1926,53 @@ function RiderWorkspace() {
                     </div>
                     <span className="zone-chip">Zona Xàtiva</span>
                   </div>
-                  <div className="schedule-grid">
-                    {activeShifts.map((shift) => (
-                      <article
-                        className={`schedule-day ${shift.status}`}
-                        key={shift.day}
+                  <div className="schedule-week-navigation" aria-label="Navegación por semanas">
+                    <button
+                      type="button"
+                      className="secondary-button schedule-week-button"
+                      onClick={() => setScheduleWeekOffset((offset) => offset - 1)}
+                    >
+                      <ChevronLeft size={16} /> Anterior
+                    </button>
+                    <div className="schedule-week-range" aria-live="polite">
+                      <strong>{formatScheduleWeekRange(scheduleWeek)}</strong>
+                      {isCurrentScheduleWeek && <span>Esta semana</span>}
+                    </div>
+                    <div className="schedule-week-actions">
+                      <button
+                        type="button"
+                        className="secondary-button schedule-week-button"
+                        onClick={() => setScheduleWeekOffset(0)}
+                        disabled={isCurrentScheduleWeek}
                       >
-                        <span>{shift.day}</span>
-                        <strong>{shift.date || "Sin fecha"}</strong>
-                        {shift.start ? (
+                        Esta semana
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button schedule-week-button"
+                        onClick={() => setScheduleWeekOffset((offset) => offset + 1)}
+                      >
+                        Siguiente <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <aside className="schedule-today-status" aria-live="polite">
+                    <span>HOY · ESTADO DE JORNADA</span>
+                    <strong>{shiftActive ? "Jornada activa" : todayShift?.start ? `${todayShift.start} – ${todayShift.end}` : "Sin turno asignado"}</strong>
+                    <small>{shiftActive ? "Estás disponible para recibir ofertas." : todayShift?.start ? (todayShift.zone || "Zona asignada") : "Fleet no ha asignado un tramo para hoy."}</small>
+                  </aside>
+                  <div className="schedule-grid">
+                    {scheduleDays.map(({ date, day, displayDate, isToday, shift }) => (
+                      <article
+                        className={`schedule-day ${shift?.status ?? "pending"} ${isToday ? "is-today" : ""}`}
+                        key={date}
+                      >
+                        <div className="schedule-day-header">
+                          <span>{day}</span>
+                          {isToday && <em>HOY</em>}
+                        </div>
+                        <strong>{displayDate}</strong>
+                        {shift?.start ? (
                           <>
                             <b>
                               {shift.start} – {shift.end}
