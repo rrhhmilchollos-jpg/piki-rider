@@ -255,3 +255,15 @@
 @keyframes rider-tip-bubble-in { from { opacity: 0; transform: translate(-50%, -8px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 @media (max-width: 580px) { .rider-tip-bubble { top: calc(74px + env(safe-area-inset-top)); width: calc(100vw - 22px); } }
 @media (prefers-reduced-motion: reduce) { .rider-tip-bubble { animation: none; } }
+
+/* Cobro a contra­rreembolso al entregar */
+.cod-actions{display:flex;flex-direction:column;gap:.6rem;margin-top:.9rem;padding-top:.9rem;border-top:1px dashed #d8d6c8}
+.cod-actions__amount{margin:0;font-size:.9rem;color:#26322b}
+.cod-actions__amount strong{font-size:1.05rem}
+.cod-actions__button{width:100%;border:0;border-radius:999px;padding:.85rem 1rem;font-size:.9rem;font-weight:800;cursor:pointer;transition:filter .12s ease,transform .12s ease}
+.cod-actions__button:hover:not(:disabled){filter:brightness(.96);transform:translateY(-1px)}
+.cod-actions__button:disabled{opacity:.6;cursor:progress}
+.cod-actions__button--cash{background:#ffd72e;color:#111}
+.cod-actions__button--capture{background:#1d231d;color:#fff}
+.cod-actions__error{margin:0;font-size:.8rem;font-weight:700;color:#b3261e}
+.cod-actions--done{padding:.85rem 1rem;border-radius:1rem;background:#eef9ec;border:1px solid #cfe3cd;color:#2f6b38;font-size:.85rem;font-weight:700}
