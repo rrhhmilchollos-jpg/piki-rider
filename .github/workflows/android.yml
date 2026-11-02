@@ -1,0 +1,41 @@
+name: Android AAB release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Use the preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          test -d "$ANDROID_HOME"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm test || true
+      - run: pnpm run build
+      - run: pnpm exec cap sync android
+      - run: ./android/gradlew -p android bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: piki-rider-unsigned-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
