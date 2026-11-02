@@ -78,6 +78,7 @@ import { isRiderGpsStatusBlocked, mayTrackRiderGps } from "./riderGpsPolicy";
 import { RIDER_GPS_START_EVENT, RIDER_GPS_STOP_EVENT, stopRiderDeviceGps } from "./riderGpsSession";
 import { resetRiderGpsState, setRiderGpsMapPoint, setRiderGpsSnapshot } from "./riderGpsState";
 import { useRiderLocationPing } from "./useRiderLocationPing";
+import GpsRequiredGate from "./GpsRequiredGate";
 import type { RiderGpsTracker } from "./riderGpsTracker";
 import {
   defaultRiderAudioPreferences,
@@ -1470,7 +1471,7 @@ function RiderWorkspace() {
       </>
     );
   return (
-    <div className="app-shell"><CookieConsent />
+    <GpsRequiredGate><div className="app-shell"><CookieConsent />
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="brand-block">
           <img className="brand-mark brand-logo" src="/piki-mascot.png" alt="PIKI" />
@@ -2311,7 +2312,7 @@ function RiderWorkspace() {
           }}>Aceptar y empezar</button>
         </section>}
       </main>
-    </div>
+    </div></GpsRequiredGate>
   );
 }
 

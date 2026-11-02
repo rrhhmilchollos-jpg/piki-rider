@@ -25,3 +25,11 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(233, 255, 98, .85); outline-offset: 3px; }
 ::selection { background: var(--piki-lime); color: var(--piki-ink); }
+
+.gps-gate{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#0f172a;padding:24px}
+.gps-gate-card{max-width:420px;background:#fff;border-radius:24px;padding:28px 24px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.gps-gate-icon{font-size:38px}
+.gps-gate-card h1{margin:10px 0 8px;font-size:20px;font-weight:800;color:#1d2a22}
+.gps-gate-card p{font-size:14px;line-height:1.6;color:#54605a;margin:0 0 18px}
+.gps-gate-card .primary-button{width:100%}
+.gps-gate-help{font-size:12px!important;color:#8a948e!important;margin:14px 0 0!important}
