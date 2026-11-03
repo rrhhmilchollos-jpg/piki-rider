@@ -1,0 +1,47 @@
+name: Play publish
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Android AAB release"]
+    types: [completed]
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar credencial
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_JSON" ]; then
+            echo "::error::Falta el secreto PLAY_SERVICE_ACCOUNT_JSON en este repositorio."
+            exit 1
+          fi
+          echo "Credencial presente (${#PLAY_JSON} caracteres)."
+
+      - name: Descargar el AAB
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*aab*"
+          path: aab
+          merge-multiple: true
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Localizar el paquete
+        id: find
+        run: |
+          FILE=$(find aab -name "*.aab" | head -1)
+          if [ -z "$FILE" ]; then echo "::error::No se encontro ningun .aab"; exit 1; fi
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "Encontrado $FILE"
+
+      - name: Subir a Play (borrador en produccion)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.pikidelivery.riders
+          releaseFiles: ${{ steps.find.outputs.file }}
+          track: production
+          status: draft
