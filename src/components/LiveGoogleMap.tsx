@@ -18,6 +18,8 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
   const gps = useRiderGpsSnapshot();
   const [mapState, setMapState] = useState<MapState>("loading");
   const [mapMessage, setMapMessage] = useState("");
+  const [gpsActionMessage, setGpsActionMessage] = useState("");
+  const [gpsActionBusy, setGpsActionBusy] = useState(false);
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
   const mapsApiRef = useRef<typeof google.maps | null>(null);
   const mapRef = useRef<any>(null);
@@ -144,11 +146,25 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
       ? `GPS confirmado por la API${precision}`
       : `Posición GPS propia recibida; esperando confirmación de la API${precision}`;
   const retryGps = () => {
+    setGpsActionBusy(true);
+    setGpsActionMessage("Solicitando permiso y posición GPS…");
     startRiderDeviceGps();
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setGpsActionBusy(false);
+      setGpsActionMessage("Este navegador no ofrece geolocalización. Abre Rider en Chrome o usa el APK nativo.");
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      () => undefined,
-      () => undefined,
+      () => {
+        setGpsActionBusy(false);
+        setGpsActionMessage("Posición recibida. Esperando confirmación del backend…");
+      },
+      (error) => {
+        setGpsActionBusy(false);
+        setGpsActionMessage(error.code === 1
+          ? "Ubicación bloqueada. En Chrome: Configuración de sitios → Ubicación → rider.pikidelivery.com → Permitir."
+          : "No se obtuvo GPS. Activa Ubicación y GPS en Android y vuelve a pulsar el botón." );
+      },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
     );
   };
@@ -156,10 +172,10 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
   return <div className="rider-map-card">
     <div className="rider-map-status" aria-live="polite">{locationMessage}</div>
     {mapState === "loading" && <div className="rider-google-map-loading"><RefreshCw className="spin" size={20} /><span>Cargando Google Maps…</span></div>}
-    {mapState === "ready" && !point && <div className="rider-google-map-placeholder"><MapPin size={26} /><strong>Esperando tu GPS</strong><span>El mapa se habilita solo cuando esta sesión aporta una posición real.</span>{active && <button type="button" className="primary-button" onClick={retryGps}>Activar o reintentar GPS</button>}</div>}
+    {mapState === "ready" && !point && <div className="rider-google-map-placeholder"><MapPin size={26} /><strong>Esperando tu GPS</strong><span>El mapa se habilita solo cuando esta sesión aporta una posición real.</span>{active && <button type="button" className="primary-button" onClick={retryGps} disabled={gpsActionBusy}>{gpsActionBusy ? "Solicitando ubicación…" : "Activar o reintentar GPS"}</button>}{gpsActionMessage && <small role="status">{gpsActionMessage}</small>}</div>}
     <div ref={mapNodeRef} className="rider-google-map-canvas" style={{ display: mapState === "ready" && point ? undefined : "none" }} aria-label="Mapa Google Maps con tu posición GPS propia" />
     {mapState === "unavailable" && point && <iframe className="rider-google-map-canvas rider-map-fallback" title="Mapa de ubicación GPS del Rider" src={fallbackMapUrl} loading="lazy" referrerPolicy="no-referrer" style={{ display: "block", width: "100%", minHeight: "390px", border: 0 }} />}
-    {mapState === "unavailable" && !point && <div className="rider-google-map-placeholder rider-google-map-error"><MapPin size={26} /><strong>Mapa pendiente de GPS</strong><span>{mapMessage} {active ? "Activa la ubicación precisa y solicita una nueva posición; el mapa aparecerá cuando el backend confirme una posición real." : "Activa la jornada para solicitar una posición GPS real."}</span>{active && <button type="button" className="primary-button" onClick={retryGps}>Activar o reintentar GPS</button>}</div>}
+    {mapState === "unavailable" && !point && <div className="rider-google-map-placeholder rider-google-map-error"><MapPin size={26} /><strong>Mapa pendiente de GPS</strong><span>{mapMessage} {active ? "Activa la ubicación precisa y solicita una nueva posición; el mapa aparecerá cuando el backend confirme una posición real." : "Activa la jornada para solicitar una posición GPS real."}</span>{active && <button type="button" className="primary-button" onClick={retryGps} disabled={gpsActionBusy}>{gpsActionBusy ? "Solicitando ubicación…" : "Activar o reintentar GPS"}</button>}{gpsActionMessage && <small role="status">{gpsActionMessage}</small>}</div>}
     {point && <a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${point.lat},${point.lng}`)}`} target="_blank" rel="noreferrer">Abrir mi posición en Google Maps</a>}
   </div>;
 }
