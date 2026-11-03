@@ -122,6 +122,19 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
   const precision = Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
     ? ` · precisión aproximada ±${Math.round(accuracy)} m`
     : " · precisión no disponible";
+  const fallbackMapUrl = point
+    ? (() => {
+        const lat = Number(point.lat);
+        const lng = Number(point.lng);
+        const delta = 0.008;
+        const params = new URLSearchParams({
+          bbox: `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`,
+          layer: "mapnik",
+          marker: `${lat},${lng}`,
+        });
+        return `https://www.openstreetmap.org/export/embed.html?${params.toString()}`;
+      })()
+    : "";
   const locationMessage = !point
     ? active
       ? "GPS activo · esperando la primera posición real de esta sesión"
@@ -135,7 +148,8 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
     {mapState === "loading" && <div className="rider-google-map-loading"><RefreshCw className="spin" size={20} /><span>Cargando Google Maps…</span></div>}
     {mapState === "ready" && !point && <div className="rider-google-map-placeholder"><MapPin size={26} /><strong>Esperando tu GPS</strong><span>El mapa se habilita solo cuando esta sesión aporta una posición real.</span></div>}
     <div ref={mapNodeRef} className="rider-google-map-canvas" style={{ display: mapState === "ready" && point ? undefined : "none" }} aria-label="Mapa Google Maps con tu posición GPS propia" />
-    {mapState === "unavailable" && <div className="rider-google-map-placeholder rider-google-map-error"><MapPin size={26} /><strong>Mapa no disponible</strong><span>{mapMessage}</span></div>}
+    {mapState === "unavailable" && point && <iframe className="rider-google-map-canvas rider-map-fallback" title="Mapa de ubicación GPS del Rider" src={fallbackMapUrl} loading="lazy" referrerPolicy="no-referrer" style={{ display: "block", width: "100%", minHeight: "390px", border: 0 }} />}
+    {mapState === "unavailable" && !point && <div className="rider-google-map-placeholder rider-google-map-error"><MapPin size={26} /><strong>Mapa pendiente de GPS</strong><span>{mapMessage} {active ? "Activa la ubicación precisa y pulsa Reintentar GPS; el mapa aparecerá cuando el backend confirme una posición real." : "Activa la jornada para solicitar una posición GPS real."}</span></div>}
     {point && <a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${point.lat},${point.lng}`)}`} target="_blank" rel="noreferrer">Abrir mi posición en Google Maps</a>}
   </div>;
 }

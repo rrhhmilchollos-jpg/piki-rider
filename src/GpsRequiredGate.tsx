@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 
 /**
  * Puerta de GPS de la app del rider.
@@ -11,6 +12,9 @@ import { useEffect, useState } from "react";
 type Estado = "comprobando" | "concedido" | "rechazado" | "no_soportado";
 
 async function leerPermiso(): Promise<Estado> {
+  // The signed Android container requests permission through the native GPS
+  // plugin; the WebView permission must not block that native flow.
+  if (Capacitor.isNativePlatform()) return "concedido";
   if (typeof navigator === "undefined" || !navigator.geolocation) return "no_soportado";
   if (!navigator.permissions?.query) return "concedido";
   try {
@@ -55,8 +59,9 @@ export default function GpsRequiredGate({ children }: { children: React.ReactNod
           Permitir ubicación
         </button>
         <p className="gps-gate-help">
-          Si no aparece el aviso, abre los ajustes del móvil, entra en Aplicaciones → PIKI Rider →
-          Permisos → Ubicación y elige «Permitir todo el tiempo».
+          En la PWA: Chrome → Configuración de sitios → Ubicación → rider.pikidelivery.com → Permitir.
+          En el APK: Ajustes → Aplicaciones → PIKI Riders → Permisos → Ubicación → «Permitir siempre» y
+          «Ubicación precisa».
         </p>
       </div>
     </div>
