@@ -1534,6 +1534,11 @@ function RiderWorkspace() {
             <span>Operativa de reparto</span>
             <span className="status-dot" />
           </div>
+          <div className="greeting-pill" title={riderProfile.email || undefined}>
+            <span className="greeting-hello">Hola</span>
+            <strong className="greeting-name">{riderProfile.name || "Rider"}</strong>
+            <span className="greeting-role">Rider</span>
+          </div>
           <div className="topbar-actions">
             <NotificationCenter
               apiOrigin={apiOrigin}
