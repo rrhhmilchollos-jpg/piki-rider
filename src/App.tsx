@@ -743,9 +743,16 @@ function RiderWorkspace() {
           knownOfferIdsRef.current = currentIds;
           return;
         }
-        const hasNewOffer = !initialSync && nextOffers.some(
-          (offer) => offer.assignmentState === "offered" && !knownOfferIdsRef.current?.has(String(offer._id)),
-        );
+        // Solo suena si la oferta es nueva, sigue ofertada y acaba de crearse:
+        // una oferta fantasma de un pedido ya cerrado no debe alertar al rider.
+        const freshSince = Date.now() - 10 * 60_000;
+        const hasNewOffer = !initialSync && nextOffers.some((offer) => {
+          if (offer.assignmentState !== "offered") return false;
+          if (knownOfferIdsRef.current?.has(String(offer._id))) return false;
+          const createdAt = Date.parse(String((offer as { createdAt?: string }).createdAt || ""));
+          if (Number.isFinite(createdAt) && createdAt < freshSince) return false;
+          return Boolean((offer as { orderId?: string; order?: unknown }).orderId || (offer as { order?: unknown }).order);
+        });
         knownOfferIdsRef.current = currentIds;
         if (hasNewOffer && !nextOffers.some((offer) => offer.assignmentState === "assigned")) {
           lastOfferAtRef.current = Date.now();
