@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { MapPin, RefreshCw } from "lucide-react";
 import { loadGoogleMaps } from "../integrations/google-maps";
 import { useRiderGpsMapPoint, useRiderGpsSnapshot } from "../riderGpsState";
+import { ringsOf, useDeliveryZone } from "../riderGeofence";
 
-type Props = { active?: boolean };
+type Props = { active?: boolean; apiOrigin?: string; token?: string; riderId?: string };
 type MapState = "loading" | "ready" | "unavailable";
 
 /**
  * Displays only the canonical GPS stream owned by RiderGpsTracker. It never
  * starts a watcher, publishes a location, or supplies a geographic fallback.
  */
-export default function LiveGoogleMap({ active = false }: Props) {
+export default function LiveGoogleMap({ active = false, apiOrigin = "", token = "", riderId = "" }: Props) {
+  const deliveryZone = useDeliveryZone(apiOrigin, token, riderId);
   const point = useRiderGpsMapPoint();
   const gps = useRiderGpsSnapshot();
   const [mapState, setMapState] = useState<MapState>("loading");
@@ -19,10 +21,13 @@ export default function LiveGoogleMap({ active = false }: Props) {
   const mapsApiRef = useRef<typeof google.maps | null>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const zoneRef = useRef<any[]>([]);
 
   const clearRenderedMap = () => {
     markerRef.current?.setMap?.(null);
     markerRef.current = null;
+    zoneRef.current.forEach((shape) => shape?.setMap?.(null));
+    zoneRef.current = [];
     mapRef.current = null;
     mapNodeRef.current?.replaceChildren();
   };
@@ -85,6 +90,33 @@ export default function LiveGoogleMap({ active = false }: Props) {
       markerRef.current.setPosition(center);
     }
   }, [point, mapState]);
+
+  useEffect(() => {
+    const maps = mapsApiRef.current;
+    const map = mapRef.current;
+    if (mapState !== "ready" || !maps || !map) return;
+    zoneRef.current.forEach((shape) => shape?.setMap?.(null));
+    zoneRef.current = [];
+    const geometry = deliveryZone?.geometry;
+    if (!geometry) return;
+    zoneRef.current = ringsOf(geometry)
+      .filter((ring) => ring.length > 2)
+      .map((ring) => new maps.Polygon({
+        map,
+        paths: ring.map(([lng, lat]) => ({ lat, lng })),
+        strokeColor: "#4b7f2a",
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+        fillColor: "#9be15d",
+        fillOpacity: 0.12,
+        clickable: false,
+      }));
+    if (zoneRef.current.length && point) {
+      const bounds = new (maps as any).LatLngBounds();
+      zoneRef.current.forEach((shape) => shape.getPath().forEach((latLng: any) => bounds.extend(latLng)));
+      map.fitBounds(bounds, 40);
+    }
+  }, [deliveryZone, mapState, point]);
 
   const accuracy = Number(point?.accuracy);
   const precision = Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500

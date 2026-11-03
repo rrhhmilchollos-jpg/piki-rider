@@ -38,3 +38,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .greeting-name{color:#1d2a20;font-weight:800;overflow:hidden;text-overflow:ellipsis}
 .greeting-role{border-radius:999px;background:#1f2a1f;color:#d9f36a;font-size:.62rem;font-weight:800;letter-spacing:.04em;padding:.12rem .4rem;text-transform:uppercase}
 @media (max-width:640px){.greeting-pill .greeting-hello{display:none}.greeting-name{max-width:34vw;text-overflow:ellipsis}}
+.geofence-banner{position:fixed;top:0;left:0;right:0;z-index:80;display:flex;align-items:center;gap:.75rem;padding:.7rem 1rem;font-size:.85rem;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.geofence-banner>div{display:flex;flex-direction:column;gap:.1rem;flex:1;min-width:0}
+.geofence-banner strong{font-size:.9rem}
+.geofence-banner span{opacity:.9;line-height:1.25}
+.geofence-banner-warning{background:#fff3cd;color:#5c4400;border-bottom:2px solid #f0b400}
+.geofence-banner-danger{background:#fde2e1;color:#7a1c14;border-bottom:2px solid #d93b2f}
+.geofence-banner-info{background:#e8f3fb;color:#123c56;border-bottom:2px solid #4a90c2}
+.geofence-banner-link{display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,0,0,.08);color:inherit;border-radius:999px;padding:.35rem .7rem;font-weight:700;text-decoration:none;white-space:nowrap}

@@ -40,6 +40,7 @@ import EmployeeAuthGate from "./EmployeeAuthGate";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
 import LiveGoogleMap from "./components/LiveGoogleMap";
+import GeofenceGuard from "./GeofenceGuard";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
 import RiderOrderChatDialog from "./components/RiderOrderChatDialog";
 import OperationalActivation from "./components/OperationalActivation";
@@ -1520,6 +1521,15 @@ function RiderWorkspace() {
           aria-label="Cerrar navegación"
         />
       )}
+      {riderId && (
+        <GeofenceGuard
+          apiOrigin={apiOrigin}
+          token={apiToken}
+          riderId={riderId}
+          active={shiftActive}
+          delivering={Boolean(activeOrder)}
+        />
+      )}
       <main className={`main-content ${section === "Inicio" ? "home-main-content" : ""}`}>
         <header className="topbar">
           <button
@@ -2306,6 +2316,9 @@ function RiderWorkspace() {
                   <div className="rider-home-map-canvas">
                     <LiveGoogleMap
                       active={shouldTrackLocationOnOperationalMap(section, shiftActive)}
+                      apiOrigin={apiOrigin}
+                      token={apiToken}
+                      riderId={riderId}
                     />
                   </div>
                   {shiftActive && <OperationalActivation
