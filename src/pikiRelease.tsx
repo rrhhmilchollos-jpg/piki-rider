@@ -341,44 +341,44 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   const update = useCallback(async () => {
     if (nativeApp || updating) return;
     setUpdating(true);
-    setDetail("");
+    setDetail("Descargando la nueva versión…");
+    const hardReload = async () => {
+      try {
+        const registrations = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+        await Promise.all(registrations.map((registration) => registration.unregister().catch(() => undefined)));
+      } catch { /* sin service worker disponible */ }
+      try {
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+      } catch { /* caché no accesible */ }
+      const url = new URL(window.location.href);
+      url.searchParams.set("refresh", String(Date.now()));
+      window.location.replace(url.toString());
+    };
     try {
-      if (shouldDeferPwaActivation(safetyRef.current)) {
-        setUpdating(false);
-        setDetail("Terminaremos la actualización cuando acabes la entrega, el cobro o el formulario en curso.");
-        return;
-      }
-      const target = targetRef.current;
-      if (!target) {
-        setUpdating(false);
-        setDetail("No se ha confirmado una nueva versión web para esta superficie.");
-        return;
-      }
       const registration = await getRegistration();
-      if (!registration) {
-        setUpdating(false);
-        setDetail("No se pudo iniciar el servicio de actualización. Comprueba tu conexión y vuelve a intentarlo.");
-        return;
+      if (registration) {
+        try { await registration.update(); } catch { /* sin red para comprobar */ }
+        const waiting = await waitForPikiWaitingWorker(registration, workerActivationTimeoutMs);
+        if (waiting) {
+          activationRequestedRef.current = true;
+          const previousController = navigator.serviceWorker.controller;
+          const controllerChanged = waitForPikiControllerChange(navigator.serviceWorker, previousController, workerActivationTimeoutMs);
+          waiting.postMessage({ type: "SKIP_WAITING" });
+          if (await controllerChanged) { window.location.reload(); return; }
+        }
       }
-      await Promise.race([registration.update().catch(() => undefined), new Promise<void>((resolve) => window.setTimeout(resolve, workerActivationTimeoutMs))]);
-      const waiting = await waitForPikiWaitingWorker(registration, workerActivationTimeoutMs);
-      if (!waiting) {
-        if (!navigateToTarget(target, true)) setUpdating(false);
-        return;
-      }
-      activationRequestedRef.current = true;
-      const previousController = navigator.serviceWorker.controller;
-      const controllerChanged = waitForPikiControllerChange(navigator.serviceWorker, previousController, workerActivationTimeoutMs);
-      waiting.postMessage({ type: "SKIP_WAITING" });
-      if (await controllerChanged) navigateToTarget(target, true);
-      else if (!navigateToTarget(target, true)) setUpdating(false);
+      setDetail("Limpiando la caché y recargando…");
+      await hardReload();
     } catch (error) {
+      setDetail(error instanceof Error ? error.message : "No se pudo actualizar. Recarga la página.");
       setUpdating(false);
-      setDetail(error instanceof Error ? error.message : "No se pudo descargar la actualización.");
     }
-  }, [getRegistration, navigateToTarget, updating]);
+  }, [getRegistration, updating]);
 
   if (state === "checking") return <main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main>;
   if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI RIDERS · ACTUALIZACIÓN {nativeSecurityUpdate ? "DE APLICACIÓN" : "PWA"}</p><h1 id="piki-update-title">{nativeSecurityUpdate ? "Actualiza la aplicación para continuar" : "Hay una nueva versión lista"}</h1><p>{nativeSecurityUpdate ? `Esta aplicación necesita la versión firmada ${requiredVersion}. Instálala desde el canal firmado autorizado por PIKI o Google Play si es el canal configurado; los recursos embebidos no se actualizan desde una PWA.` : `El nuevo build web ${requiredVersion} se aplicará sin cerrar tu sesión ni borrar los datos guardados.`}</p>{detail && <p role="alert">{detail}</p>}{!nativeSecurityUpdate && <button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Aplicando nuevo build…" : "Actualizar PWA"}</button>}</section></main>;
-  return <>{state === "error" && <div role="status" style={{ position: "fixed", zIndex: 9998, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#fef3c7", color: "#78350f", fontSize: "13px" }}>Conexión de seguridad temporalmente no disponible. Puedes iniciar sesión; lo volveremos a comprobar automáticamente.</div>}{availableBuild && <div role="status" style={{ position: "fixed", zIndex: 9997, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#e0f2fe", color: "#0c4a6e", fontSize: "13px" }}>Nueva versión de PWA disponible: {availableBuild}. <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button></div>}{children}<PushConsentControl /></>;
+  return <>{state === "error" && <div role="status" style={{ position: "fixed", zIndex: 9998, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#fef3c7", color: "#78350f", fontSize: "13px" }}>Conexión de seguridad temporalmente no disponible. Puedes iniciar sesión; lo volveremos a comprobar automáticamente.</div>}{availableBuild && <div role="status" style={{ position: "fixed", zIndex: 9997, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#e0f2fe", color: "#0c4a6e", fontSize: "13px" }}>Nueva versión de PWA disponible: {availableBuild}. <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>{detail && <div style={{ marginTop: "4px", fontSize: "12px" }}>{detail}</div>}</div>}{children}<PushConsentControl /></>;
 }
