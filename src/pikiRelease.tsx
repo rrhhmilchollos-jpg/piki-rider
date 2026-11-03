@@ -30,7 +30,12 @@ const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
 const workerActivationTimeoutMs = 10_000;
-const nativeApp = Capacitor.isNativePlatform();
+// A hosted Rider PWA can be installed in Android standalone mode, but it must
+// still use the web update channel. Only the signed Capacitor container uses
+// the native-release gate and Google Play distribution message.
+const hostedRiderPwa = window.location.hostname === "rider.pikidelivery.com"
+  || window.location.hostname.endsWith(".vercel.app");
+const nativeApp = Capacitor.isNativePlatform() && !hostedRiderPwa;
 
 async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   if (isPikiNativePwaGuard(nativeApp) || !("serviceWorker" in navigator)) return null;
