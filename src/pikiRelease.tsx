@@ -1,4 +1,3 @@
-import { Capacitor } from "@capacitor/core";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PIKI_RELEASE } from "./release-meta";
 import { resolvePikiApiOrigin } from "./apiOrigin";
@@ -30,12 +29,10 @@ const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
 const workerActivationTimeoutMs = 10_000;
-// A hosted Rider PWA can be installed in Android standalone mode, but it must
-// still use the web update channel. Only the signed Capacitor container uses
-// the native-release gate and Google Play distribution message.
-const hostedRiderPwa = window.location.hostname === "rider.pikidelivery.com"
-  || window.location.hostname.endsWith(".vercel.app");
-const nativeApp = Capacitor.isNativePlatform() && !hostedRiderPwa;
+// Rider is distributed as a PWA. Even when Android opens it in standalone
+// mode, updates must come through release.json and the Service Worker; it must
+// never be blocked by a signed-package or Play Store gate.
+const nativeApp = false;
 
 async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   if (isPikiNativePwaGuard(nativeApp) || !("serviceWorker" in navigator)) return null;
