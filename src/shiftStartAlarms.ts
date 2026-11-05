@@ -107,9 +107,13 @@ async function ensurePermission(): Promise<boolean> {
  * programa las próximas. Devuelve cuántas quedaron activas.
  */
 export async function syncShiftStartAlarms(shifts: Shift[]): Promise<number> {
-  if (!isNative() || !shifts.length) return 0;
+  if (!isNative()) return 0;
+  // El canal debe existir antes del primer turno: si el push del servidor llega
+  // con channelId piki_shift_start y el canal no está creado, Android lo
+  // descarta en silencio. Por eso se prepara siempre, haya turnos o no.
   if (!(await ensurePermission())) return 0;
   if (!(await ensureShiftChannel())) return 0;
+  if (!shifts.length) return 0;
 
   const previous = readScheduledIds();
   if (previous.length) {
