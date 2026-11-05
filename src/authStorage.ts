@@ -32,3 +32,6 @@ export function getStoredEmail(): string {
 export function storeEmail(email: string): void {
   localStorage.setItem(emailKey, email.trim().toLowerCase());
 }
+export function forgetEmail(): void {
+  try { localStorage.removeItem(emailKey); } catch { /* noop */ }
+}
