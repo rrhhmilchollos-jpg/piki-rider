@@ -1,0 +1,44 @@
+name: Android debug APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/android-debug.yml"
+permissions:
+  contents: read
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Use the preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          test -d "$ANDROID_HOME"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm exec cap sync android
+      - name: Build debug APK
+        run: ./android/gradlew -p android assembleDebug --no-daemon
+      - name: Rename artefact
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk piki-rider-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: piki-rider-debug-apk
+          path: piki-rider-debug.apk
+          if-no-files-found: error
