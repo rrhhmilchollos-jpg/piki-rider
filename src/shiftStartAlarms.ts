@@ -136,7 +136,6 @@ export async function syncShiftStartAlarms(shifts: Shift[]): Promise<number> {
     body: `Tu turno empieza a las ${shift.start}${shift.zone ? ` en ${shift.zone}` : ""}. Abre PIKI Riders e inicia sesión.`,
     channelId: SHIFT_CHANNEL_ID,
     sound: SHIFT_SOUND_NAME,
-    smallIcon: "ic_launcher",
     schedule: { at, allowWhileIdle: true },
     extra: { date: shift.date, start: shift.start, end: shift.end, zone: shift.zone },
   }));
