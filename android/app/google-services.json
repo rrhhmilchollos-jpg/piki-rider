@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1012985847297",
+    "project_id": "piki-production-maps",
+    "storage_bucket": "piki-production-maps.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1012985847297:android:aca6d571739adcb3aeea00",
+        "android_client_info": {
+          "package_name": "com.pikidelivery.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE_qHn5R9ZQ-YE81WEzbHB8AZv13yQ2kM"
+        },
+        {
+          "current_key": "AIzaSyBvDe-4Lqreu_2qO46Lx-GEG17thyYy5go"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1012985847297:android:e3d9f041fed8286caeea00",
+        "android_client_info": {
+          "package_name": "com.pikidelivery.riders"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE_qHn5R9ZQ-YE81WEzbHB8AZv13yQ2kM"
+        },
+        {
+          "current_key": "AIzaSyBvDe-4Lqreu_2qO46Lx-GEG17thyYy5go"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
