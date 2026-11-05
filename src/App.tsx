@@ -488,6 +488,10 @@ function RiderWorkspace() {
     activeTokenRef.current = token;
     storeToken(token);
     setApiToken(token);
+    // Con el token ya guardado, el dispositivo se registra en FCM para recibir
+    // los avisos del servidor. Si el build no lleva google-services.json, falla
+    // en silencio y la app sigue funcionando con las alarmas locales.
+    void registerRiderPush(apiOrigin, token);
     setAuthRequired(false);
     setStatus("checking");
   }, [resetRiderScopedState]);
@@ -2505,3 +2509,4 @@ function SupportDetail({
 }
 export default App;
 import { clearShiftStartAlarms, syncShiftStartAlarms } from "./shiftStartAlarms";
+import { registerRiderPush } from "./nativePush";
