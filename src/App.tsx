@@ -700,6 +700,16 @@ function RiderWorkspace() {
     return () => window.clearTimeout(timer);
   }, [tipNotification]);
   useEffect(() => {
+    // El teléfono programa la alarma del turno aunque la app esté cerrada. Si no
+    // hay sesión no se dejan avisos huérfanos de un Rider anterior.
+    if (!apiToken || !riderId) {
+      void clearShiftStartAlarms();
+      return;
+    }
+    if (!shifts.length) return;
+    void syncShiftStartAlarms(shifts);
+  }, [apiToken, riderId, shifts]);
+  useEffect(() => {
     // Las ofertas son estado persistido del pedido, no un estado volátil del turno.
     if (!apiToken || !riderId) {
       knownOfferIdsRef.current = null; // oxlint-disable-next-line react/set-state-in-effect
@@ -2494,3 +2504,4 @@ function SupportDetail({
   );
 }
 export default App;
+import { clearShiftStartAlarms, syncShiftStartAlarms } from "./shiftStartAlarms";
