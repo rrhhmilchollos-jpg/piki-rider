@@ -51,7 +51,7 @@ export function createRiderGpsTracker(
   token: string,
   riderId: string,
   onChange: (state: RiderGpsSnapshot) => void,
-  onFix: (point: { latitude: number; longitude: number; accuracy: number }) => void,
+  onFix: (point: { latitude: number; longitude: number; accuracy: number; heading?: number }) => void,
 ) {
   const port: GpsPort = {
     async add(callbacks) {
@@ -79,10 +79,12 @@ export function createRiderGpsTracker(
               ? "Permite la ubicación precisa de PIKI Riders en Ajustes para repartir."
               : "No se pudo obtener la ubicación. Comprueba el GPS y vuelve a activar el seguimiento."));
           } else if (location) {
+            const nativeCourse = (location as unknown as { course?: number | null }).course;
             callbacks.onLocation({
               latitude: location.latitude,
               longitude: location.longitude,
               accuracy: location.accuracy,
+              heading: typeof nativeCourse === "number" && Number.isFinite(nativeCourse) && nativeCourse >= 0 ? nativeCourse : undefined,
             });
           }
         });
@@ -97,6 +99,7 @@ export function createRiderGpsTracker(
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          heading: typeof position.coords.heading === "number" && Number.isFinite(position.coords.heading) && position.coords.heading >= 0 ? position.coords.heading : undefined,
         }),
         (error) => callbacks.onError(new Error(error.code === 1
           ? "No has permitido la ubicación de PIKI Riders."

@@ -1,28 +1,42 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapPin, Navigation } from "lucide-react";
+import { LocateFixed, MapPin, Navigation } from "lucide-react";
 import { useRiderGpsMapPoint, useRiderGpsSnapshot } from "../riderGpsState";
 import { ringsOf, useDeliveryZone } from "../riderGeofence";
 
 type Props = { active?: boolean; apiOrigin?: string; token?: string; riderId?: string };
 
-/**
- * Mapa del rider con Leaflet y teselas de OpenStreetMap: no necesita clave de
- * Google ni facturación. Solo dibuja la posición GPS real que publica
- * RiderGpsTracker y el polígono de la zona autorizada; nunca inventa ubicación.
- */
 const TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION = "&copy; OpenStreetMap";
+const RIDER_ICON_SIZE = 56;
 
+function riderIcon(heading?: number) {
+  const safeHeading = Number.isFinite(heading) ? heading : 0;
+  return L.divIcon({
+    className: "rider-heading-icon-wrap",
+    iconSize: [RIDER_ICON_SIZE, RIDER_ICON_SIZE],
+    iconAnchor: [RIDER_ICON_SIZE / 2, RIDER_ICON_SIZE / 2],
+    html: `<div class="rider-heading-marker" aria-hidden="true">
+      <span class="rider-heading-beam" style="transform: rotate(${safeHeading}deg)"></span>
+      <span class="rider-heading-dot"><span></span></span>
+    </div>`,
+  });
+}
+
+/**
+ * Mapa del rider con Leaflet y teselas de OpenStreetMap. La posición solo se
+ * dibuja cuando procede del GPS real; el haz azul apunta al rumbo del dispositivo.
+ */
 export default function LiveGoogleMap({ active = false, apiOrigin = "", token = "", riderId = "" }: Props) {
   const deliveryZone = useDeliveryZone(apiOrigin, token, riderId);
   const point = useRiderGpsMapPoint();
   const gps = useRiderGpsSnapshot();
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.CircleMarker | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
   const zoneRef = useRef<L.Polygon[]>([]);
+  const initialCenterDoneRef = useRef(false);
 
   useEffect(() => {
     if (!nodeRef.current || mapRef.current) return;
@@ -36,6 +50,7 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
       mapRef.current = null;
       markerRef.current = null;
       zoneRef.current = [];
+      initialCenterDoneRef.current = false;
     };
   }, []);
 
@@ -45,21 +60,20 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
     if (!point) {
       markerRef.current?.remove();
       markerRef.current = null;
+      initialCenterDoneRef.current = false;
       return;
     }
     const latlng: L.LatLngExpression = [point.lat, point.lng];
     if (!markerRef.current) {
-      markerRef.current = L.circleMarker(latlng, {
-        radius: 9,
-        color: "#ffffff",
-        weight: 3,
-        fillColor: "#c7f04a",
-        fillOpacity: 1,
-      }).addTo(map);
+      markerRef.current = L.marker(latlng, { icon: riderIcon(point.heading), keyboard: false, zIndexOffset: 500 }).addTo(map);
     } else {
       markerRef.current.setLatLng(latlng);
+      markerRef.current.setIcon(riderIcon(point.heading));
     }
-    map.setView(latlng, Math.max(map.getZoom(), 15), { animate: true });
+    if (!initialCenterDoneRef.current) {
+      map.setView(latlng, Math.max(map.getZoom(), 15), { animate: false });
+      initialCenterDoneRef.current = true;
+    }
   }, [point]);
 
   useEffect(() => {
@@ -82,6 +96,12 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
     }
   }, [deliveryZone, point]);
 
+  const centerOnRider = () => {
+    if (!point || !mapRef.current) return;
+    mapRef.current.setView([point.lat, point.lng], Math.max(mapRef.current.getZoom(), 16), { animate: true });
+    markerRef.current?.openTooltip();
+  };
+
   const accuracy = Number(point?.accuracy);
   const precision = Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 500
     ? ` · precisión aproximada ±${Math.round(accuracy)} m`
@@ -98,6 +118,7 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
     <div className="rider-map-status" aria-live="polite">{locationMessage}</div>
     {!point && <div className="rider-google-map-placeholder"><MapPin size={26} /><strong>Esperando tu GPS</strong><span>El mapa se habilita solo cuando esta sesión aporta una posición real.</span></div>}
     <div ref={nodeRef} className="rider-google-map-canvas" style={{ display: point ? undefined : "none", minHeight: 260 }} aria-label="Mapa de tu posición GPS y de la zona de reparto" />
+    {point && <button type="button" className="rider-map-center" onClick={centerOnRider} aria-label="Centrar el mapa en mi ubicación" title="Centrar en mi ubicación"><LocateFixed size={19} /><span>Centrar</span></button>}
     {point && <a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${point.lat},${point.lng}`)}`} target="_blank" rel="noreferrer"><Navigation size={16} /> Abrir mi posición en Google Maps</a>}
   </div>;
 }

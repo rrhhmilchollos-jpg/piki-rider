@@ -1,4 +1,4 @@
-export type GpsPoint = { latitude: number; longitude: number; accuracy: number };
+export type GpsPoint = { latitude: number; longitude: number; accuracy: number; heading?: number };
 
 const blockedRiderStatuses = new Set([
   "pending",

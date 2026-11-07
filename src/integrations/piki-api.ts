@@ -1,7 +1,7 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { resolvePikiApiOrigin } from "../apiOrigin";
 
-export type GeoCoordinate = { latitude: number; longitude: number; accuracy?: number };
+export type GeoCoordinate = { latitude: number; longitude: number; accuracy?: number; heading?: number; speedMps?: number };
 export type OperationalZone = {
   _id?: string;
   slug: string;

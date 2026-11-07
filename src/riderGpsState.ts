@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { GpsPoint } from "./riderGpsPolicy";
 import type { RiderGpsSnapshot } from "./riderGpsTracker";
 
-export type RiderGpsMapPoint = { lat: number; lng: number; accuracy: number };
+export type RiderGpsMapPoint = { lat: number; lng: number; accuracy: number; heading?: number };
 
 const idleSnapshot: RiderGpsSnapshot = {
   state: "idle",
@@ -23,7 +23,7 @@ export function setRiderGpsSnapshot(next: RiderGpsSnapshot) {
 }
 
 export function setRiderGpsMapPoint(next: GpsPoint) {
-  point = { lat: next.latitude, lng: next.longitude, accuracy: next.accuracy };
+  point = { lat: next.latitude, lng: next.longitude, accuracy: next.accuracy, heading: next.heading };
   notify();
 }
 
