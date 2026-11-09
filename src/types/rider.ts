@@ -27,6 +27,8 @@ export type RiderOffer = {
   assignmentState: "offered" | "assigned";
   assignmentExpiresAt?: string | null;
   pickupDeadlineAt?: string | null;
+  pickupQrUrl?: string | null;
+  pickupPin?: string | null;
   partnerPrepDeadlineAt?: string | null;
   preparationMinutes?: number;
   riderHeadingToPartnerAt?: string | null;

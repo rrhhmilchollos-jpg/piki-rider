@@ -1262,6 +1262,11 @@ function RiderWorkspace() {
   }
   async function confirmPickup(orderId: string) {
     if (orderActionBusy) return;
+    const pickupCredential = window.prompt("Introduce el PIN del Partner o pega la URL del QR de recogida:")?.trim() || "";
+    if (!pickupCredential) {
+      setToast("Necesitas el PIN o QR que muestra el Partner para confirmar la recogida.");
+      return;
+    }
     setOrderActionBusy(true);
     // El API central confirma la recogida y arranca la ruta en una sola
     // transición: ready_for_pickup -> on_the_way.
@@ -1276,7 +1281,7 @@ function RiderWorkspace() {
             ...authHeaders(apiToken),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ pickupPin: pickupCredential }),
         },
       );
       const data = await response.json().catch(() => ({}));
