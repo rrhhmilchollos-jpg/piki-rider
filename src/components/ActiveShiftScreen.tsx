@@ -16,6 +16,7 @@ import { isLivePendingOffer } from "../riderOffersSync";
 import { isRiderGpsStatusBlocked } from "../riderGpsPolicy";
 import { useRiderGpsSnapshot } from "../riderGpsState";
 import { startRiderDeviceGps } from "../riderGpsSession";
+import { riderPickupStatusMessage, type RiderPickupRequest } from "../riderPickupStatus";
 import "../ActiveShiftScreen.css";
 import "../rider-card-payment-delay.css";
 
@@ -39,6 +40,7 @@ type Props = {
   onAcceptOffer: (orderId: string) => void;
   onOfferAction: (orderId: string, action: "on_the_way") => void;
   actionBusy?: boolean;
+  pickupRequest?: RiderPickupRequest | null;
   onConfirmPickup: (orderId: string, verificationCode?: string) => void;
   onConfirmDelivery: (orderId: string, deliveryQr: string) => void;
   onError: (message: string) => void;
@@ -153,7 +155,7 @@ function PendingOfferCard({ order, disabled, onAccept }: { order: RiderOffer; di
   </section>;
 }
 
-export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, tipNotification, actionBusy = false, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, tipNotification, actionBusy = false, pickupRequest, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const gps = useRiderGpsSnapshot();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -320,6 +322,7 @@ export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus,
             <section className={`active-order-stack-item ${navigation?.phase === "customer" ? "phase-customer" : "phase-partner"} is-assigned`} key={liveOrder._id} data-order-id={liveOrder.publicCode || liveOrder._id}><ActiveOrderCard order={liveOrder}/>
               {liveOrder.assignmentState === "assigned" && !isCustomerDeliveryPhase(liveOrder.status) && liveOrder.status !== "ready_for_pickup" && <p className="active-arrival-wait">El Partner está preparando el pedido. Podrás confirmar la recogida al estar a una manzana o menos cuando marque «Listo».</p>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "ready_for_pickup" && <button type="button" className="active-order-button exact-pickup-button" disabled={mutationDisabled} onClick={() => onConfirmPickup(liveOrder._id)}><CheckCircle2 size={18}/> CONFIRMAR RETIRO</button>}
+              {riderPickupStatusMessage(pickupRequest, liveOrder._id, liveOrder.status) && <p className="active-pickup-pending" role="status">{riderPickupStatusMessage(pickupRequest, liveOrder._id, liveOrder.status)}</p>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "picked_up" && <button type="button" className="active-order-button exact-pickup-button" disabled={mutationDisabled} onClick={() => onOfferAction(liveOrder._id, "on_the_way")}><Navigation size={18}/> INICIAR RUTA AL CLIENTE</button>}
               {liveOrder.assignmentState === "assigned" && liveOrder.status === "on_the_way" && <button type="button" className="active-order-button active-qr-button" disabled={mutationDisabled} aria-haspopup="dialog" onClick={(event) => { event.stopPropagation(); openScanner(liveOrder._id); }}><Camera size={17}/> Escanear QR o PIN del cliente</button>}
               {liveOrder.assignmentState === "assigned" && isCustomerDeliveryPhase(liveOrder.status) && (liveOrder as { paymentMethod?: string }).paymentMethod === "cash" && <CodPaymentActions orderId={liveOrder._id} totalCents={Number((liveOrder as { totalCents?: number }).totalCents ?? 0)} token={getStoredToken()} onResolved={() => onRefreshOffers()} onError={onError} />}<button type="button" className="active-order-button active-gps-button" aria-label={`Abrir GPS hacia ${navigation?.phase === "partner" ? "el Partner" : "el cliente"}`} onClick={() => window.open(buildDirectionsUrl(navigation?.address || ""), "_blank", "noopener,noreferrer")}><Navigation size={17}/> GPS · {navigation?.phase === "partner" ? "PARTNER" : "CLIENTE"}</button>

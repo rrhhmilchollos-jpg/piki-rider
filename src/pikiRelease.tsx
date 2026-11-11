@@ -224,6 +224,15 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   const activationRequestedRef = useRef(false);
   const controllerChangedRef = useRef(false);
 
+  const canApplyUpdate = useCallback(() => {
+    // Read the published state now, not only the state captured at the click.
+    safetyRef.current = getPwaOperationSafety();
+    if (!shouldDeferPwaActivation(safetyRef.current)) return true;
+    setDetail("Terminaremos la actualización cuando finalice la jornada, la entrega, el cobro o el formulario en curso.");
+    setUpdating(false);
+    return false;
+  }, []);
+
   const getRegistration = useCallback(async () => {
     if (!registrationRef.current) registrationRef.current = registerWorker();
     const registration = await registrationRef.current;
@@ -232,27 +241,36 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   }, []);
 
   const forceFullReload = useCallback(async (target: PikiPwaTarget | null) => {
+    if (!canApplyUpdate()) return;
     try {
       if (target) clearPikiTargetNavigation(sessionStorage, PIKI_RELEASE.surface, target.buildId);
       if ("serviceWorker" in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((registration) => registration.unregister().catch(() => undefined)));
+        if (!canApplyUpdate()) return;
+        for (const registration of registrations) {
+          if (!canApplyUpdate()) return;
+          await registration.unregister().catch(() => undefined);
+          if (!canApplyUpdate()) return;
+        }
       }
       if (typeof caches !== "undefined") {
         const keys = await caches.keys();
-        await Promise.all(keys.map((key) => caches.delete(key).catch(() => undefined)));
+        if (!canApplyUpdate()) return;
+        for (const key of keys) {
+          if (!canApplyUpdate()) return;
+          await caches.delete(key).catch(() => undefined);
+          if (!canApplyUpdate()) return;
+        }
       }
     } catch {
       // Si el navegador bloquea el borrado, la recarga con marca de tiempo ya evita la caché.
     }
+    if (!canApplyUpdate()) return;
     window.location.replace(pikiForcedReloadUrl(window.location.href, String(Date.now())));
-  }, []);
+  }, [canApplyUpdate]);
 
   const navigateToTarget = useCallback((target: PikiPwaTarget | null, manualRetry = false) => {
-    if (shouldDeferPwaActivation(safetyRef.current)) {
-      setDetail("Terminaremos la actualización cuando finalice la jornada, la entrega, el cobro o el formulario en curso.");
-      return false;
-    }
+    if (!canApplyUpdate()) return false;
     if (!canNavigateToPikiTarget({ target, current: PIKI_RELEASE, online: navigator.onLine, safe: true, storage: sessionStorage, manualRetry })) {
       if (manualRetry) {
         // Reintento manual: el build nuevo ya se intentó cargar antes y el
@@ -267,9 +285,10 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       return false;
     }
     markPikiTargetNavigation(sessionStorage, PIKI_RELEASE.surface, target!.buildId);
+    if (!canApplyUpdate()) return false;
     window.location.replace(pikiTargetNavigationUrl(window.location.href, target!.buildId));
     return true;
-  }, []);
+  }, [canApplyUpdate, forceFullReload]);
 
   const check = useCallback(async (reason: "initial" | "focus" | "visible" | "interval" | "manual") => {
     if (!shouldCheckPikiVersion({ now: Date.now(), lastCheckedAt: lastCheckAtRef.current, visible: document.visibilityState === "visible", reason, needsDeferredActivation: state === "required" })) return;
@@ -342,43 +361,37 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
 
   const update = useCallback(async () => {
     if (nativeApp || updating) return;
+    if (!canApplyUpdate()) return;
     setUpdating(true);
     setDetail("Descargando la nueva versión…");
-    const hardReload = async () => {
-      try {
-        const registrations = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
-        await Promise.all(registrations.map((registration) => registration.unregister().catch(() => undefined)));
-      } catch { /* sin service worker disponible */ }
-      try {
-        if (window.caches) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map((key) => caches.delete(key)));
-        }
-      } catch { /* caché no accesible */ }
-      const url = new URL(window.location.href);
-      url.searchParams.set("refresh", String(Date.now()));
-      window.location.replace(url.toString());
-    };
     try {
       const registration = await getRegistration();
+      if (!canApplyUpdate()) return;
       if (registration) {
         try { await registration.update(); } catch { /* sin red para comprobar */ }
+        if (!canApplyUpdate()) return;
         const waiting = await waitForPikiWaitingWorker(registration, workerActivationTimeoutMs);
+        if (!canApplyUpdate()) return;
         if (waiting) {
           activationRequestedRef.current = true;
           const previousController = navigator.serviceWorker.controller;
           const controllerChanged = waitForPikiControllerChange(navigator.serviceWorker, previousController, workerActivationTimeoutMs);
+          if (!canApplyUpdate()) return;
           waiting.postMessage({ type: "SKIP_WAITING" });
-          if (await controllerChanged) { window.location.reload(); return; }
+          const changed = await controllerChanged;
+          if (!canApplyUpdate()) return;
+          if (changed) { navigateToTarget(targetRef.current, true); return; }
         }
       }
+      if (!canApplyUpdate()) return;
       setDetail("Limpiando la caché y recargando…");
-      await hardReload();
+      await forceFullReload(targetRef.current);
     } catch (error) {
       setDetail(error instanceof Error ? error.message : "No se pudo actualizar. Recarga la página.");
+    } finally {
       setUpdating(false);
     }
-  }, [getRegistration, updating]);
+  }, [canApplyUpdate, forceFullReload, getRegistration, navigateToTarget, updating]);
 
   useEffect(() => {
     // La PWA se actualiza sola cuando hay un build nuevo. Si el rider está

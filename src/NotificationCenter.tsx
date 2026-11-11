@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, CheckCheck, X } from "lucide-react";
+import { requiresRiderAuthentication } from "./apiAuthPolicy";
 import "./NotificationCenter.css";
 
 type InboxItem = {
@@ -36,7 +37,7 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
           credentials: "include",
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
-        if (response.status === 401) { onUnauthorized?.(); return; }
+        if (await requiresRiderAuthentication(response)) { onUnauthorized?.(); return; }
         if (!response.ok) throw new Error("No se pudieron cargar los avisos.");
         const payload = await response.json() as InboxResponse;
         setItems(Array.isArray(payload.notifications) ? payload.notifications : []);
@@ -93,7 +94,7 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
         credentials: "include",
         headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
       });
-      if (response.status === 401) { onUnauthorized?.(); return; }
+      if (await requiresRiderAuthentication(response)) { onUnauthorized?.(); return; }
       if (!response.ok) throw new Error("No se pudieron marcar como leídos.");
       const readAt = new Date().toISOString();
       setItems((current) => current.map((item) => item.readAt ? item : { ...item, readAt }));
@@ -112,11 +113,15 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
           credentials: "include",
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
-        if (response.status === 401) { onUnauthorized?.(); return; }
-      } catch { /* Opening a saved notification must not depend on a read-receipt response. */ }
-      const readAt = new Date().toISOString();
-      setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate));
-      setUnreadCount((count) => Math.max(0, count - 1));
+        if (await requiresRiderAuthentication(response)) { onUnauthorized?.(); return; }
+        if (!response.ok) throw new Error("No se pudo marcar el aviso como leído.");
+        const readAt = new Date().toISOString();
+        setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate));
+        setUnreadCount((count) => Math.max(0, count - 1));
+      } catch {
+        // Keep the saved notice/unread count; navigation does not depend on the receipt.
+        setError("No se pudo marcar el aviso como leído. Puedes reintentarlo.");
+      }
     }
     setOpen(false);
     const destination = item.url.startsWith("/") && !item.url.startsWith("//") ? item.url : "/";

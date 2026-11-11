@@ -78,6 +78,7 @@ import {
 import { isRiderAuthenticationErrorMessage, requiresRiderAuthentication } from "./apiAuthPolicy";
 import { deliveryProofPayload, normalizeDeliveryProof } from "./deliveryProof";
 import { isRiderPwaOperationActive, publishPwaOperationSafety } from "./pwaOperationSafety";
+import { riderPickupStatusMessage, type RiderPickupRequest } from "./riderPickupStatus";
 import {
   buildMadridScheduleWeek,
   formatScheduleWeekRange,
@@ -362,6 +363,7 @@ function RiderWorkspace() {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [orderActionBusy, setOrderActionBusy] = useState(false);
+  const [pickupRequest, setPickupRequest] = useState<RiderPickupRequest | null>(null);
   const [supportTopic, setSupportTopic] = useState<string | null>(null);
   const [quickIncidentReply, setQuickIncidentReply] = useState("");
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
@@ -397,7 +399,7 @@ function RiderWorkspace() {
   const riderShiftSyncRef = useRef(new RiderShiftSync());
   const shiftActiveRef = useRef(false);
   // A poll/SSE response can be older than a just-confirmed mutation. Keep the
-  // optimistic state until the server reports the same or a later transition.
+  // confirmed state until the server reports the same or a later transition.
   const pendingOrderStatesRef = useRef(new Map<string, { status: RiderOffer["status"]; startedAt: number }>());
   const loadRiderDataRef = useRef<() => void>(() => undefined);
   const refreshOffersRef = useRef<(queueIfBusy?: boolean) => Promise<void>>(() => Promise.resolve());
@@ -1270,10 +1272,10 @@ function RiderWorkspace() {
       return;
     }
     setOrderActionBusy(true);
+    setPickupRequest({ orderId, status: "sending" });
+    setToast("Enviando la recogida al Partner… Aún no está confirmada.");
     // El API central confirma la recogida y arranca la ruta en una sola
-    // transición: ready_for_pickup -> on_the_way.
-    pendingOrderStatesRef.current.set(orderId, { status: "on_the_way", startedAt: Date.now() });
-    setOffers((previous) => previous.map((offer) => offer._id === orderId ? { ...offer, status: "on_the_way" } : offer));
+    // transición: ready_for_pickup -> on_the_way. No anticipes su resultado.
     try {
       const response = await fetch(
         `${apiOrigin}/api/v1/riders/${riderId}/orders/${orderId}/confirm-pickup`,
@@ -1289,14 +1291,18 @@ function RiderWorkspace() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         pendingOrderStatesRef.current.delete(orderId);
+        setPickupRequest(null);
         setToast(
           data.message ||
             data.error ||
             "El establecimiento no ha validado la recogida.",
         );
+        await refreshOffersRef.current();
         await loadRiderData();
         return;
       }
+      pendingOrderStatesRef.current.set(orderId, { status: "on_the_way", startedAt: Date.now() });
+      setPickupRequest(null);
       const confirmedOrder = data.order as RiderOffer | undefined;
       if (confirmedOrder) {
         setOffers((previous) => previous.map((offer) => offer._id === orderId
@@ -1309,6 +1315,7 @@ function RiderWorkspace() {
         data.message ||
           "Recogida confirmada. Ruta al cliente iniciada automáticamente.",
       );
+      await refreshOffersRef.current();
       await loadRiderData();
       // La respuesta de la mutación es la fuente de verdad inmediata. Si la
       // reconciliación REST llega desde una réplica con unos milisegundos de
@@ -1317,9 +1324,12 @@ function RiderWorkspace() {
         ? { ...offer, ...(confirmedOrder || {}), status: "on_the_way" }
         : offer));
     } catch {
+      pendingOrderStatesRef.current.delete(orderId);
+      setPickupRequest({ orderId, status: "verifying" });
       setToast(
-        "No se pudo validar la recogida. Comprueba tu ubicación GPS y vuelve a intentarlo.",
+        "Recogida pendiente de verificar por un error de conexión. Sincroniza el pedido antes de reintentar; no se ha confirmado la ruta al cliente.",
       );
+      await refreshOffersRef.current();
       await loadRiderData();
     } finally {
       setOrderActionBusy(false);
@@ -1493,6 +1503,7 @@ function RiderWorkspace() {
           }}
           onAcceptOffer={(orderId) => void acceptRiderOfferAction(orderId)}
           actionBusy={orderActionBusy}
+          pickupRequest={pickupRequest}
           onOfferAction={(orderId, action) => void offerAction(orderId, action)}
           onConfirmPickup={(orderId) => void confirmPickup(orderId)}
           onConfirmDelivery={(orderId, deliveryQr) =>
@@ -1944,6 +1955,7 @@ function RiderWorkspace() {
                             {offer.status === "on_the_way" && <button className="assignment-primary-action" onClick={() => { const code = window.prompt("Introduce el PIN o pega el enlace QR que muestra el Customer para confirmar la entrega."); if (code?.trim()) void confirmDelivery(offer._id, code.trim()); }}>VALIDAR QR/PIN <ShieldCheck size={17} /></button>}
                           </div>
                           <p className="assignment-helper">{offer.paymentMethod === "cash" ? `Cobro al entregar: ${formatOrderMoney(offer.totalCents)}` : "Pedido pagado online · no cobres al cliente"}</p>
+                          {riderPickupStatusMessage(pickupRequest, offer._id, offer.status) && <p className="assignment-helper" role="status">{riderPickupStatusMessage(pickupRequest, offer._id, offer.status)}</p>}
                         </article>
                       ))}
                     {!offers.some(
