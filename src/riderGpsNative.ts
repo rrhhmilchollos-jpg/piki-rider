@@ -2,6 +2,7 @@ import { Capacitor, CapacitorHttp, registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
 import { watchRiderBrowserGps } from "./riderGpsBrowser";
+import { riderResponseRequiresAuthentication } from "./apiAuthPolicy";
 import {
   RiderGpsAuthorizationError,
   RiderGpsPermissionError,
@@ -121,10 +122,24 @@ export function createRiderGpsTracker(
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
       // Timestamp is local evidence of a fresh provider fix, not a new API field.
       const data = { latitude: point.latitude, longitude: point.longitude, accuracy: point.accuracy, heading: point.heading };
-      const status = usesAndroidGps()
-        ? (await CapacitorHttp.post({ url, headers, data, connectTimeout: 15_000, readTimeout: 15_000 })).status
-        : (await fetch(url, { method: "POST", headers, body: JSON.stringify(data), signal: AbortSignal.timeout(15_000) })).status;
-      if (status === 401 || status === 403) {
+      let status: number;
+      let errorBody: unknown;
+      if (usesAndroidGps()) {
+        const response = await CapacitorHttp.post({ url, headers, data, connectTimeout: 15_000, readTimeout: 15_000 });
+        status = response.status;
+        if (status >= 400) {
+          try { errorBody = typeof response.data === "string" ? JSON.parse(response.data) : response.data; }
+          catch { /* An HTML proxy page is not evidence of a revoked Rider session. */ }
+        }
+      } else {
+        const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(data), signal: AbortSignal.timeout(15_000) });
+        status = response.status;
+        if (status >= 400) errorBody = await response.json().catch(() => undefined);
+      }
+      const operationalCode = errorBody && typeof errorBody === "object"
+        ? (errorBody as { error?: unknown }).error : undefined;
+      if (riderResponseRequiresAuthentication(status, errorBody)
+        || (status === 403 && operationalCode === "RIDER_ACCESS_DENIED")) {
         throw new RiderGpsAuthorizationError("La API rechazó la sesión. GPS detenido; revisa tu acceso antes de volver a activarlo.");
       }
       if (status < 200 || status >= 300) {

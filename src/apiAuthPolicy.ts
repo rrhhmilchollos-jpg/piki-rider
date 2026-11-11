@@ -27,6 +27,12 @@ function bodyRequiresAuthentication(body: AuthenticationErrorBody): boolean {
   return [body.error, body.code, body.message].some(isExplicitAuthenticationSignal);
 }
 
+/** Native HTTP and fetch must use the same explicit authentication evidence. */
+export function riderResponseRequiresAuthentication(status: number, body: unknown): boolean {
+  if (status !== 401 && status !== 403 && status !== 428) return false;
+  return Boolean(body && typeof body === "object" && bodyRequiresAuthentication(body as AuthenticationErrorBody));
+}
+
 /**
  * API client errors contain the response body after `API <status>:`. Only
  * structured, explicit auth codes may clear a saved Rider session; a proxy or
@@ -48,5 +54,5 @@ export async function requiresRiderAuthentication(response: Response): Promise<b
   if (response.status !== 401 && response.status !== 403 && response.status !== 428) return false;
 
   const body = await response.clone().json().catch(() => ({})) as AuthenticationErrorBody;
-  return bodyRequiresAuthentication(body);
+  return riderResponseRequiresAuthentication(response.status, body);
 }
