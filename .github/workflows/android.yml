@@ -39,6 +39,7 @@ jobs:
         run: |
           python scripts/test-android-identity.py
           python scripts/test-android-workflows.py
+          python scripts/test-signing-secret-aliases.py
           node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs
       - run: pnpm run build
       - run: pnpm exec cap sync android
@@ -78,6 +79,7 @@ jobs:
         run: |
           python scripts/test-android-identity.py
           python scripts/test-android-workflows.py
+          python scripts/test-signing-secret-aliases.py
           node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs
       - name: Verify canonical Play identity before build
         run: python scripts/android-identity.py check
@@ -86,11 +88,11 @@ jobs:
       - run: python scripts/android-identity.py check --synced
       - name: Require existing upload key, build signed release and verify AAB
         env:
-          PIKI_SIGNING_KEYSTORE_BASE64: ${{ secrets.PIKI_SIGNING_KEYSTORE_BASE64 }}
+          PIKI_SIGNING_KEYSTORE_BASE64: ${{ secrets.PIKI_SIGNING_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
           PIKI_SIGNING_STORE_FILE: ${{ runner.temp }}/piki-upload.jks
-          PIKI_SIGNING_STORE_PASSWORD: ${{ secrets.PIKI_SIGNING_STORE_PASSWORD }}
-          PIKI_SIGNING_KEY_ALIAS: ${{ secrets.PIKI_SIGNING_KEY_ALIAS }}
-          PIKI_SIGNING_KEY_PASSWORD: ${{ secrets.PIKI_SIGNING_KEY_PASSWORD }}
+          PIKI_SIGNING_STORE_PASSWORD: ${{ secrets.PIKI_SIGNING_STORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          PIKI_SIGNING_KEY_ALIAS: ${{ secrets.PIKI_SIGNING_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          PIKI_SIGNING_KEY_PASSWORD: ${{ secrets.PIKI_SIGNING_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
           PIKI_EXPECTED_UPLOAD_CERT_SHA256: ${{ vars.PIKI_EXPECTED_UPLOAD_CERT_SHA256 }}
           PIKI_PLAY_MAX_VERSION_CODE: ${{ vars.PIKI_PLAY_MAX_VERSION_CODE }}
         run: |
