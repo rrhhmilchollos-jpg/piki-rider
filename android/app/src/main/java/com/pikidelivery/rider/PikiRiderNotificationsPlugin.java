@@ -28,11 +28,14 @@ import java.util.Set;
 public class PikiRiderNotificationsPlugin extends Plugin {
     private final Set<Integer> orderIds = new HashSet<>();
     private final Set<Integer> alertIds = new HashSet<>();
+    private final Set<Integer> arrivalIds = new HashSet<>();
 
     private String channelFor(String kind) {
         if ("shift".equals(kind)) return "piki_shift_start";
         if ("order".equals(kind)) return "piki_new_order_rider";
         if ("cancelled".equals(kind)) return "piki_order_cancelled";
+        if ("arrived_store".equals(kind)) return "piki_arrived_store";
+        if ("arrived_customer".equals(kind)) return "piki_arrived_customer";
         return null;
     }
 
@@ -40,7 +43,17 @@ public class PikiRiderNotificationsPlugin extends Plugin {
         if ("shift".equals(kind)) return "start_shift";
         if ("order".equals(kind)) return "new_order_rider";
         if ("cancelled".equals(kind)) return "order_cancelled";
+        if ("arrived_store".equals(kind)) return "arrived_store";
+        if ("arrived_customer".equals(kind)) return "arrived_customer";
         return null;
+    }
+
+    private String titleFor(String kind) {
+        if ("order".equals(kind)) return "Nueva oferta de reparto";
+        if ("cancelled".equals(kind)) return "Pedido cancelado";
+        if ("arrived_store".equals(kind)) return "Llegada al comercio";
+        if ("arrived_customer".equals(kind)) return "Llegada al cliente";
+        return "Jornada iniciada";
     }
 
     private boolean ensureChannel(String kind) {
@@ -58,7 +71,7 @@ public class PikiRiderNotificationsPlugin extends Plugin {
             if (manager == null) return false;
             // Never delete/recreate or override an existing user's channel settings.
             if (manager.getNotificationChannel(channelId) == null) {
-                String name = "shift".equals(kind) ? "Inicio de jornada" : "order".equals(kind) ? "Nuevas ofertas de reparto" : "Pedido cancelado";
+                String name = "shift".equals(kind) ? "Inicio de jornada" : "order".equals(kind) ? "Nuevas ofertas de reparto" : titleFor(kind);
                 NotificationChannel channel = new NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_HIGH);
                 channel.setDescription("Avisos operativos PIKI. Sonido y vibración sujetos a tus ajustes de Android.");
                 AudioAttributes attributes = new AudioAttributes.Builder()
@@ -78,6 +91,8 @@ public class PikiRiderNotificationsPlugin extends Plugin {
         ensureChannel("shift");
         ensureChannel("order");
         ensureChannel("cancelled");
+        ensureChannel("arrived_store");
+        ensureChannel("arrived_customer");
     }
 
     @PluginMethod public void prepareChannels(PluginCall call) {
@@ -85,6 +100,8 @@ public class PikiRiderNotificationsPlugin extends Plugin {
         result.put("shift", ensureChannel("shift"));
         result.put("order", ensureChannel("order"));
         result.put("cancelled", ensureChannel("cancelled"));
+        result.put("arrived_store", ensureChannel("arrived_store"));
+        result.put("arrived_customer", ensureChannel("arrived_customer"));
         call.resolve(result);
     }
 
@@ -103,8 +120,10 @@ public class PikiRiderNotificationsPlugin extends Plugin {
         Intent intent = getContext().getPackageManager().getLaunchIntentForPackage(getContext().getPackageName());
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), channelFor(kind))
             .setSmallIcon(getContext().getApplicationInfo().icon)
-            .setContentTitle("order".equals(kind) ? "Nueva oferta de reparto" : "cancelled".equals(kind) ? "Pedido cancelado" : "Jornada iniciada")
-            .setContentText("Abre PIKI Riders para consultar el estado actualizado.")
+            .setContentTitle(titleFor(kind))
+            .setContentText("arrived_store".equals(kind) ? "Proximidad al comercio. Confirma la recogida con el flujo de PIKI."
+                : "arrived_customer".equals(kind) ? "Proximidad al cliente. La entrega requiere su QR o PIN."
+                : "Abre PIKI Riders para consultar el estado actualizado.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -119,6 +138,7 @@ public class PikiRiderNotificationsPlugin extends Plugin {
             NotificationManagerCompat.from(getContext()).notify(id, builder.build());
             alertIds.add(id);
             if ("order".equals(kind)) orderIds.add(id);
+            if ("arrived_store".equals(kind) || "arrived_customer".equals(kind)) arrivalIds.add(id);
             JSObject result = new JSObject(); result.put("scheduled", true); call.resolve(result);
         } catch (SecurityException exception) {
             // Revoked POST_NOTIFICATIONS is not a reason to force a permission prompt.
@@ -137,11 +157,23 @@ public class PikiRiderNotificationsPlugin extends Plugin {
         call.resolve();
     }
 
+    @PluginMethod public void retainArrivals(PluginCall call) {
+        JSONArray keep = call.getArray("ids");
+        Set<Integer> retained = new HashSet<>();
+        if (keep != null) for (int i = 0; i < keep.length(); i++) retained.add(keep.optInt(i, -1));
+        NotificationManagerCompat manager = NotificationManagerCompat.from(getContext());
+        for (Integer id : new HashSet<>(arrivalIds)) {
+            if (!retained.contains(id)) { manager.cancel(id); arrivalIds.remove(id); alertIds.remove(id); }
+        }
+        call.resolve();
+    }
+
     @PluginMethod public void clearAlerts(PluginCall call) {
         NotificationManagerCompat manager = NotificationManagerCompat.from(getContext());
         for (Integer id : new HashSet<>(alertIds)) manager.cancel(id);
         alertIds.clear();
         orderIds.clear();
+        arrivalIds.clear();
         call.resolve();
     }
 }

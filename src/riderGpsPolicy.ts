@@ -2,6 +2,10 @@ export type GpsPoint = { latitude: number; longitude: number; accuracy: number; 
 /** Timestamp supplied by the location provider, not by a heartbeat timer. */
 export type GpsFix = GpsPoint & { timestamp: number };
 
+/** Existing order-ping/provider limits, shared with arrival signals; no new accuracy claim. */
+export const riderGpsFixMaxAgeMs = 15_000;
+export const riderOrderGpsMaxAccuracyMeters = 150;
+
 const blockedRiderStatuses = new Set([
   "pending",
   "pending_documents",

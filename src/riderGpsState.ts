@@ -42,6 +42,11 @@ export function useRiderGpsSnapshot() {
   return useSyncExternalStore(subscribe, () => snapshot, () => idleSnapshot);
 }
 
+/** Read-only access to the same operational snapshot used by the UI and arrival hook. */
+export function getRiderGpsSnapshot() {
+  return snapshot;
+}
+
 export function useRiderGpsMapPoint() {
   return useSyncExternalStore(subscribe, () => point, () => null);
 }

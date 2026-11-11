@@ -1,6 +1,7 @@
 import {
   shouldPublishRiderGpsFix,
   validGpsPoint,
+  riderGpsFixMaxAgeMs,
   type GpsPoint,
   type GpsFix,
 } from "./riderGpsPolicy";
@@ -25,6 +26,8 @@ export type RiderGpsSnapshot = {
   detail: string;
   lastFixAt?: number;
   lastAckAt?: number;
+  /** The actual provider fix whose operational POST succeeded, not the newer map fix. */
+  lastAcknowledgedFix?: GpsFix;
   accuracy?: number;
   autoRetryAllowed?: boolean;
 };
@@ -177,7 +180,7 @@ export class RiderGpsTracker {
 
   private isFreshFix(point: GpsFix) {
     const age = Date.now() - point.timestamp;
-    return Number.isFinite(point.timestamp) && age >= 0 && age <= 15_000;
+    return Number.isFinite(point.timestamp) && age >= 0 && age <= riderGpsFixMaxAgeMs;
   }
 
   private async receiveFix(point: GpsFix, generation: number) {
@@ -220,7 +223,7 @@ export class RiderGpsTracker {
     }
   }
 
-  private async publish(point: GpsPoint, generation: number) {
+  private async publish(point: GpsFix, generation: number) {
     const sentAt = Date.now();
     try {
       await this.port.publish(point);
@@ -234,6 +237,7 @@ export class RiderGpsTracker {
           state: "tracking",
           detail: "La API ha confirmado la ubicación de este dispositivo.",
           lastAckAt: Date.now(),
+          lastAcknowledgedFix: { ...point },
           autoRetryAllowed: true,
         });
       }

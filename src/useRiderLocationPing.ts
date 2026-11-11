@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { useRiderGpsMapPoint, useRiderGpsSnapshot } from "./riderGpsState";
+import { riderGpsFixMaxAgeMs, riderOrderGpsMaxAccuracyMeters } from "./riderGpsPolicy";
 type Options = { apiOrigin: string; token: string; publicCode: string | null; enabled: boolean; intervalMs?: number };
 /** Order tracking consumes the same validated provider fixes as the map; no second WebView watcher. */
 export function useRiderLocationPing({ apiOrigin, token, publicCode, enabled, intervalMs = 5000 }: Options) {
@@ -10,7 +11,7 @@ export function useRiderLocationPing({ apiOrigin, token, publicCode, enabled, in
   useEffect(() => {
     if (!enabled || !publicCode || !token.trim() || !point || !gps.lastFixAt || gps.state === "idle" || gps.state === "error") return;
     const now = Date.now();
-    if (gps.lastFixAt > now || now - gps.lastFixAt > 15_000 || point.accuracy > 150) return;
+    if (gps.lastFixAt > now || now - gps.lastFixAt > riderGpsFixMaxAgeMs || point.accuracy > riderOrderGpsMaxAccuracyMeters) return;
     const scope = `${token}:${publicCode}`;
     if (lastSent.current.scope === scope && gps.lastFixAt - lastSent.current.at < intervalMs) return;
     lastSent.current = { scope, at: gps.lastFixAt };

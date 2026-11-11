@@ -46,6 +46,28 @@ describe("Rider GPS lifecycle", () => {
     expect(f.states.at(-1)?.lastAckAt).toBeTypeOf("number");
   });
 
+  it("correlates each successful ACK with exactly the provider fix sent, not a newer pending fix", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    try {
+      const sent = deferred<void>();
+      const f = fixture({ publish: vi.fn(() => sent.promise) });
+      await f.tracker.start();
+      const first = fix();
+      f.callbacks().onLocation(first);
+      expect(f.states.at(-1)?.lastAcknowledgedFix).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(10);
+      const pending = { ...fix(), accuracy: 9 };
+      f.callbacks().onLocation(pending);
+      sent.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.states.at(-1)?.lastFixAt).toBe(pending.timestamp);
+      expect(f.states.at(-1)?.lastAcknowledgedFix).toEqual(first);
+      f.tracker.stop();
+      expect(f.states.at(-1)?.lastAcknowledgedFix).toBeUndefined();
+    } finally { vi.useRealTimers(); }
+  });
+
   it("invalidates callbacks and late acknowledgements synchronously after stop", async () => {
     const sent = deferred<void>();
     const f = fixture({ publish: vi.fn(() => sent.promise) });

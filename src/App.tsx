@@ -90,8 +90,9 @@ import {
 import { createRiderGpsTracker } from "./riderGpsNative";
 import { isRiderGpsStatusBlocked, mayTrackRiderGps } from "./riderGpsPolicy";
 import { RIDER_GPS_START_EVENT, RIDER_GPS_STOP_EVENT, stopRiderDeviceGps } from "./riderGpsSession";
-import { resetRiderGpsState, setRiderGpsMapPoint, setRiderGpsSnapshot } from "./riderGpsState";
+import { getRiderGpsSnapshot, resetRiderGpsState, setRiderGpsMapPoint, setRiderGpsSnapshot } from "./riderGpsState";
 import { useRiderLocationPing } from "./useRiderLocationPing";
+import { useRiderArrivalAlerts } from "./useRiderArrivalAlerts";
 import GpsRequiredGate from "./GpsRequiredGate";
 import type { RiderGpsTracker } from "./riderGpsTracker";
 import {
@@ -429,7 +430,16 @@ function RiderWorkspace() {
     });
     return next;
   }, []);
+  const isArrivalOrderCancelled = useCallback((id: string) => cancelledOrderIdsRef.current.has(id), []);
   const activeOrder = orderRiderQueue(offers.filter((offer) => offer.assignmentState === "assigned"))[0];
+  const riderArrivalAlerts = useRiderArrivalAlerts({
+    riderId,
+    order: activeOrder ?? null,
+    enabled: Boolean(apiToken) && !offersError && !orderActionBusy
+      && mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive }),
+    consent: audioPreferences.alertsEnabled,
+    isOrderCancelled: isArrivalOrderCancelled,
+  });
   useRiderLocationPing({
     apiOrigin,
     token: apiToken,
@@ -445,6 +455,7 @@ function RiderWorkspace() {
     resetRiderGpsState();
   }, []);
   const resetRiderScopedState = useCallback(() => {
+    riderArrivalAlerts.reset();
     riderIdentityRef.current = "";
     cancelRiderPushRegistration();
     void clearRiderNativeAlerts();
@@ -488,7 +499,7 @@ function RiderWorkspace() {
     setSupportChatError("");
     setUnreadSupportMessages(0);
     setUnreadCustomerMessages(0);
-  }, [invalidateRiderGps]);
+  }, [invalidateRiderGps, riderArrivalAlerts]);
   const endRiderSession = useCallback((message?: string) => {
     riderSessionEpochRef.current += 1;
     activeTokenRef.current = "";
@@ -515,6 +526,7 @@ function RiderWorkspace() {
   const updateAudioPreferences = useCallback((patch: Partial<RiderAudioPreferences>) => {
     setAudioPreferences((current) => saveRiderAudioPreferences(riderId, { ...current, ...patch }));
     if (patch.alertsEnabled === false) {
+      riderArrivalAlerts.reset();
       void clearRiderNativeAlerts();
       void clearShiftStartAlarms();
     }
@@ -526,7 +538,7 @@ function RiderWorkspace() {
         void registerRiderPush(apiOrigin, apiToken);
       }).catch(() => setToast("Revisa los permisos de notificación de Android."));
     }
-  }, [riderId, apiToken, shifts]);
+  }, [riderId, apiToken, shifts, riderArrivalAlerts]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setScheduleNow(new Date()), 60_000);
@@ -786,6 +798,7 @@ function RiderWorkspace() {
       onSnapshot: (snapshot) => {
         if (!isCurrentSession()) return;
         const nextOffers = reconcileOfferSnapshot(snapshot);
+        riderArrivalAlerts.retainOrder(orderRiderQueue(nextOffers.filter((offer) => offer.assignmentState === "assigned"))[0] ?? null);
         riderOrdersRef.current = nextOffers;
         void retainRiderNativeOrderAlerts(audioPreferences.alertsEnabled
           ? nextOffers.filter((offer) => isLivePendingOffer(offer)).map((offer) => offer._id) : []);
@@ -825,13 +838,18 @@ function RiderWorkspace() {
       window.removeEventListener("pageshow", refreshOffersWhenVisible);
       window.removeEventListener("online", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot, audioPreferences.alertsEnabled]);
+  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot, audioPreferences.alertsEnabled, riderArrivalAlerts]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     return connectPikiRealtime({
       apiOrigin,
       token: apiToken,
       surface: "rider",
+      onState: (connected) => {
+        if (!connected && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId) {
+          riderArrivalAlerts.reset();
+        }
+      },
       onAuthExpired: () => {
         endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
       },
@@ -859,9 +877,14 @@ function RiderWorkspace() {
           return;
         }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
+        if (event.type === "order.rider_arrived_at_partner" && activeTokenRef.current === apiToken
+          && riderIdentityRef.current === riderId && riderAudioPreferencesRef.current.alertsEnabled) {
+          riderArrivalAlerts.partnerArrival(event.payload, getRiderGpsSnapshot());
+        }
         if (event.type === "order.status_changed" && event.payload.status === "cancelled") {
           const id = typeof event.payload.orderId === "string" ? event.payload.orderId : "";
           if (id && riderOrdersRef.current.some((offer) => offer._id === id) && !cancelledOrderIdsRef.current.has(id)) {
+            riderArrivalAlerts.cancel(id);
             cancelledOrderIdsRef.current.add(id);
             const retained = riderOrdersRef.current.filter((offer) => offer._id !== id && isLivePendingOffer(offer)).map((offer) => offer._id);
             void retainRiderNativeOrderAlerts(retained);
@@ -872,7 +895,7 @@ function RiderWorkspace() {
         void refreshOffersRef.current();
       },
     });
-  }, [apiToken, riderId, loadRiderData, endRiderSession]);
+  }, [apiToken, riderId, loadRiderData, endRiderSession, riderArrivalAlerts]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     let disposed = false;
