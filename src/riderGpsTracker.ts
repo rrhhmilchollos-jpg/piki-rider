@@ -2,12 +2,13 @@ import {
   shouldPublishRiderGpsFix,
   validGpsPoint,
   type GpsPoint,
+  type GpsFix,
 } from "./riderGpsPolicy";
 
 export type RiderGpsDiagnosticEvent = "watch_start" | "watch_stop" | "fix_received" | "send_ack" | "send_error";
 
 export type GpsCallbacks = {
-  onLocation: (point: GpsPoint) => void;
+  onLocation: (point: GpsFix) => void;
   onError: (error: Error) => void;
   isCurrent: () => boolean;
 };
@@ -25,9 +26,11 @@ export type RiderGpsSnapshot = {
   lastFixAt?: number;
   lastAckAt?: number;
   accuracy?: number;
+  autoRetryAllowed?: boolean;
 };
 
 export class RiderGpsAuthorizationError extends Error {}
+export class RiderGpsPermissionError extends Error {}
 
 /**
  * Owns exactly one location watcher. A stopped or superseded generation cannot
@@ -38,9 +41,11 @@ export class RiderGpsTracker {
   private watcher: string | null = null;
   private readonly pendingRemoval = new Set<string>();
   private inFlight: Promise<void> | null = null;
-  private pendingPoint: GpsPoint | null = null;
+  private pendingPoint: GpsFix | null = null;
+  private lastReceivedTimestamp = -Infinity;
   private lastPublishedPoint: GpsPoint | null = null;
   private lastPublishedAt = 0;
+  private lastResumeAt = -Infinity;
   private removal: Promise<void> = Promise.resolve();
   private readonly port: GpsPort;
   private readonly onChange: (state: RiderGpsSnapshot) => void;
@@ -65,12 +70,21 @@ export class RiderGpsTracker {
     void Promise.resolve(this.port.diagnose?.(event)).catch(() => undefined);
   }
 
+  /** Only foreground/online recovery calls this; explicit user retry uses start(). */
+  async resume() {
+    if (this.snapshot.state !== "idle" && this.snapshot.state !== "error") return;
+    if (this.snapshot.autoRetryAllowed === false || Date.now() - this.lastResumeAt < 15_000) return;
+    this.lastResumeAt = Date.now();
+    await this.start();
+  }
+
   async start() {
     const generation = ++this.generation;
     this.inFlight = null;
     this.pendingPoint = null;
     this.lastPublishedPoint = null;
     this.lastPublishedAt = 0;
+    this.lastReceivedTimestamp = -Infinity;
     try {
       await this.removeCurrentWatcher();
       if (generation !== this.generation) return;
@@ -84,8 +98,12 @@ export class RiderGpsTracker {
         onLocation: (point) => { void this.receiveFix(point, generation); },
         onError: (error) => {
           if (generation !== this.generation) return;
-          this.stop();
-          this.emit({ state: "error", detail: error.message });
+          const terminal = error instanceof RiderGpsPermissionError || error instanceof RiderGpsAuthorizationError;
+          if (terminal) this.stop();
+          // A timeout/unavailable fix is not a revoked permission. Keep the
+          // watcher and publish the next real fix immediately to recover.
+          else this.lastPublishedAt = 0;
+          this.emit({ state: "error", detail: error.message, autoRetryAllowed: !terminal });
         },
       });
       if (generation !== this.generation) {
@@ -110,6 +128,7 @@ export class RiderGpsTracker {
       this.emit({
         state: "error",
         detail: error instanceof Error ? error.message : "No se pudo activar el GPS.",
+        autoRetryAllowed: !(error instanceof RiderGpsPermissionError || error instanceof RiderGpsAuthorizationError),
       });
     }
   }
@@ -132,6 +151,7 @@ export class RiderGpsTracker {
     this.emit({
       state: "error",
       detail: "No se pudo confirmar la retirada del servicio GPS. Pulsa Reintentar GPS para volver a retirarlo; si persiste, detén PIKI Riders desde los ajustes de Android.",
+      autoRetryAllowed: false,
     });
   }
 
@@ -155,15 +175,22 @@ export class RiderGpsTracker {
     return this.removal;
   }
 
-  private async receiveFix(point: GpsPoint, generation: number) {
+  private isFreshFix(point: GpsFix) {
+    const age = Date.now() - point.timestamp;
+    return Number.isFinite(point.timestamp) && age >= 0 && age <= 15_000;
+  }
+
+  private async receiveFix(point: GpsFix, generation: number) {
     if (generation !== this.generation) return;
     this.diagnose("fix_received");
     if (!validGpsPoint(point)) {
       this.emit({ detail: "Posición descartada: precisión insuficiente o coordenadas no válidas." });
       return;
     }
+    if (!this.isFreshFix(point) || point.timestamp <= this.lastReceivedTimestamp) return;
+    this.lastReceivedTimestamp = point.timestamp;
     this.onFix?.(point);
-    this.emit({ lastFixAt: Date.now(), accuracy: point.accuracy });
+    this.emit({ lastFixAt: point.timestamp, accuracy: point.accuracy });
     if (this.inFlight) {
       // Preserve only the newest valid fix while the network request is active.
       this.pendingPoint = point;
@@ -172,9 +199,11 @@ export class RiderGpsTracker {
     await this.flushPendingFixes(point, generation);
   }
 
-  private async flushPendingFixes(firstPoint: GpsPoint, generation: number) {
-    let point: GpsPoint | null = firstPoint;
+  private async flushPendingFixes(firstPoint: GpsFix, generation: number) {
+    let point: GpsFix | null = firstPoint;
     while (point && generation === this.generation) {
+      // A fix queued behind a slow POST must not become a stored heartbeat.
+      if (!this.isFreshFix(point)) return;
       if (!shouldPublishRiderGpsFix(point, this.lastPublishedPoint, this.lastPublishedAt)) {
         if (this.snapshot.state === "tracking") {
           this.emit({ detail: "Posición recibida sin desplazamiento relevante; el GPS sigue activo." });
@@ -192,16 +221,20 @@ export class RiderGpsTracker {
   }
 
   private async publish(point: GpsPoint, generation: number) {
+    const sentAt = Date.now();
     try {
       await this.port.publish(point);
       if (generation === this.generation) {
         this.lastPublishedPoint = point;
-        this.lastPublishedAt = Date.now();
+        // Cadence is measured between confirmed sends, not ACK latency plus
+        // 60 s (which could push a 30 s browser sampler to a 90 s gap).
+        this.lastPublishedAt = sentAt;
         this.diagnose("send_ack");
         this.emit({
           state: "tracking",
           detail: "La API ha confirmado la ubicación de este dispositivo.",
           lastAckAt: Date.now(),
+          autoRetryAllowed: true,
         });
       }
     } catch (error) {
@@ -211,6 +244,7 @@ export class RiderGpsTracker {
       this.emit({
         state: "error",
         detail: error instanceof Error ? error.message : "No se pudo enviar la ubicación.",
+        autoRetryAllowed: !(error instanceof RiderGpsAuthorizationError),
       });
     }
   }

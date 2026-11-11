@@ -46,6 +46,7 @@ import RiderOrderChatDialog from "./components/RiderOrderChatDialog";
 import OperationalActivation from "./components/OperationalActivation";
 import RiderOfferDemoPreview from "./components/RiderOfferDemoPreview";
 import { connectPikiRealtime } from "./realtime";
+import { createRiderOffersSync, isLivePendingOffer, newPendingOfferIds, parseRiderOffersSnapshot } from "./riderOffersSync";
 import {
   playRiderOrderAlert,
   playRiderShiftStart,
@@ -398,6 +399,7 @@ function RiderWorkspace() {
   // optimistic state until the server reports the same or a later transition.
   const pendingOrderStatesRef = useRef(new Map<string, { status: RiderOffer["status"]; startedAt: number }>());
   const loadRiderDataRef = useRef<() => void>(() => undefined);
+  const refreshOffersRef = useRef<(queueIfBusy?: boolean) => Promise<void>>(() => Promise.resolve());
   const gpsTrackerRef = useRef<RiderGpsTracker | null>(null);
   const riderGpsSessionGenerationRef = useRef(0);
   const riderSessionEpochRef = useRef(0);
@@ -543,8 +545,9 @@ function RiderWorkspace() {
     playRiderOrderAlert(audioContextRef, audioPreferences);
   }, [audioPreferences]);
 
+  const gpsTrackingAllowed = Boolean(apiToken) && mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive });
   useEffect(() => {
-    if (!apiToken || !mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive })) {
+    if (!gpsTrackingAllowed) {
       stopRiderDeviceGps();
       resetRiderGpsState();
       return;
@@ -559,16 +562,25 @@ function RiderWorkspace() {
     gpsTrackerRef.current = tracker;
     const stop = () => tracker.stop();
     const start = () => { void tracker.start(); };
+    const resume = () => {
+      if (document.visibilityState === "visible") void tracker.resume();
+    };
     window.addEventListener(RIDER_GPS_STOP_EVENT, stop);
     window.addEventListener(RIDER_GPS_START_EVENT, start);
-    start();
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("online", resume);
+    resume();
     return () => {
       window.removeEventListener(RIDER_GPS_STOP_EVENT, stop);
       window.removeEventListener(RIDER_GPS_START_EVENT, start);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("online", resume);
       tracker.stop();
       if (gpsTrackerRef.current === tracker) gpsTrackerRef.current = null;
     };
-  }, [apiToken, riderId, riderOperationalStatus, shiftActive]);
+  }, [apiToken, riderId, gpsTrackingAllowed]);
 
   const loadRiderData = useCallback(async () => {
     if (!apiToken) return;
@@ -721,78 +733,67 @@ function RiderWorkspace() {
       setOffersError("");
       return;
     }
-    let disposed = false;
-    let pollInFlight = false;
-    const pollOffers = async () => {
-      if (pollInFlight || disposed || document.visibilityState !== "visible") return;
-      pollInFlight = true;
-      const initialSync = knownOfferIdsRef.current === null;
-      if (!disposed && initialSync) setOffersLoading(true);
-      try {
+    const sessionEpoch = riderSessionEpochRef.current;
+    const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current
+      && riderIdentityRef.current === riderId && activeTokenRef.current === apiToken;
+    const sync = createRiderOffersSync({
+      request: async (signal) => {
+        if (!isCurrentSession()) throw new DOMException("Sesión invalidada", "AbortError");
         const response = await fetch(
           `${apiOrigin}/api/v1/riders/${riderId}/offers`,
-          { headers: authHeaders(apiToken) },
+          { headers: authHeaders(apiToken), cache: "no-store", signal },
         );
-        if (!response.ok || disposed) {
-          const requiresAuthentication = !disposed && await requiresRiderAuthentication(response);
-          if (requiresAuthentication && !disposed) {
+        signal.throwIfAborted();
+        if (!response.ok) {
+          const requiresAuthentication = await requiresRiderAuthentication(response);
+          signal.throwIfAborted();
+          if (requiresAuthentication && isCurrentSession()) {
             endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
           }
-          if (!disposed)
-            setOffersError("No se han podido sincronizar los pedidos");
-          return;
+          throw new Error("No se han podido sincronizar los pedidos");
         }
-        const data = (await response.json()) as { offers?: RiderOffer[] };
-        if (disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
-        const nextOffers = reconcileOfferSnapshot(Array.isArray(data.offers) ? data.offers : []);
+        const data: unknown = await response.json();
+        signal.throwIfAborted();
+        return parseRiderOffersSnapshot(data);
+      },
+      onSnapshot: (snapshot) => {
+        if (!isCurrentSession()) return;
+        const nextOffers = reconcileOfferSnapshot(snapshot);
+        const newIds = newPendingOfferIds(nextOffers, knownOfferIdsRef.current);
+        knownOfferIdsRef.current = new Set(nextOffers.filter((offer) => isLivePendingOffer(offer)).map((offer) => offer._id));
         assignedOrderRef.current = nextOffers.some(
           (offer) => offer.assignmentState === "assigned",
         );
         setOffers(nextOffers);
         setOffersError("");
-        const currentIds = new Set(
-          nextOffers.map((offer) => String(offer._id)),
-        );
-        if (knownOfferIdsRef.current === null) {
-          knownOfferIdsRef.current = currentIds;
-          return;
-        }
-        // Solo suena si la oferta es nueva, sigue ofertada y acaba de crearse:
-        // una oferta fantasma de un pedido ya cerrado no debe alertar al rider.
-        const freshSince = Date.now() - 10 * 60_000;
-        const hasNewOffer = !initialSync && nextOffers.some((offer) => {
-          if (offer.assignmentState !== "offered") return false;
-          if (knownOfferIdsRef.current?.has(String(offer._id))) return false;
-          const createdAt = Date.parse(String((offer as { createdAt?: string }).createdAt || ""));
-          if (Number.isFinite(createdAt) && createdAt < freshSince) return false;
-          return Boolean((offer as { orderId?: string; order?: unknown }).orderId || (offer as { order?: unknown }).order);
-        });
-        knownOfferIdsRef.current = currentIds;
-        if (hasNewOffer && !nextOffers.some((offer) => offer.assignmentState === "assigned")) {
+        if (newIds.length) {
+          setCollapsedOfferIds((previous) => new Set([...previous].filter((id) => !newIds.includes(id))));
+          setShowOperations(false);
           lastOfferAtRef.current = Date.now();
           playAssignmentAlert();
-          setToast("Nuevo reparto asignado. Revisa tus ofertas.");
+          setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
         }
-      } catch {
-        if (!disposed)
-          setOffersError("La red no está disponible temporalmente");
-      } finally {
-        if (!disposed && initialSync) setOffersLoading(false);
-        pollInFlight = false;
-      }
-    };
-    void pollOffers();
-    const timer = window.setInterval(() => {
-      void pollOffers();
-    }, 5000);
-    const refreshOffersWhenVisible = () => {
-      if (document.visibilityState === "visible") void pollOffers();
-    };
+      },
+      onError: (error) => {
+        if (isCurrentSession()) setOffersError(error instanceof Error ? error.message : "La red no está disponible temporalmente");
+      },
+      onLoading: (loading) => { if (isCurrentSession()) setOffersLoading(loading); },
+    });
+    const refresh = (queueIfBusy = true) => isCurrentSession() && document.visibilityState === "visible" ? sync.refresh(queueIfBusy) : Promise.resolve();
+    refreshOffersRef.current = refresh;
+    void refresh();
+    const timer = window.setInterval(() => { void refresh(false); }, 5000);
+    const refreshOffersWhenVisible = () => { void refresh(); };
     document.addEventListener("visibilitychange", refreshOffersWhenVisible);
+    window.addEventListener("pageshow", refreshOffersWhenVisible);
+    window.addEventListener("online", refreshOffersWhenVisible);
     return () => {
-      disposed = true;
+      sync.dispose();
+      if (refreshOffersRef.current === refresh) refreshOffersRef.current = () => Promise.resolve();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshOffersWhenVisible);
+      window.removeEventListener("pageshow", refreshOffersWhenVisible);
+      window.removeEventListener("online", refreshOffersWhenVisible);
     };
   }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot]);
   useEffect(() => {
@@ -829,30 +830,10 @@ function RiderWorkspace() {
         }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
         if (document.visibilityState !== "visible") return;
-        void fetch(`${apiOrigin}/api/v1/riders/${riderId}/offers`, {
-          headers: authHeaders(apiToken),
-        })
-          .then(async (response) => {
-            if (!response.ok || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
-            const data = (await response.json()) as { offers?: RiderOffer[] };
-            const nextOffers = reconcileOfferSnapshot(Array.isArray(data.offers) ? data.offers : []);
-            const previousOfferIds = knownOfferIdsRef.current;
-            const isNewPendingOffer = event.type === "order.rider_offer" && previousOfferIds !== null
-              && nextOffers.some((offer) => offer.assignmentState === "offered" && !previousOfferIds?.has(String(offer._id)));
-            knownOfferIdsRef.current = new Set(nextOffers.map((offer) => String(offer._id)));
-            assignedOrderRef.current = nextOffers.some((offer) => offer.assignmentState === "assigned");
-            setOffers(nextOffers);
-            setOffersError("");
-            if (isNewPendingOffer && !assignedOrderRef.current) {
-              lastOfferAtRef.current = Date.now();
-              playAssignmentAlert();
-              setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
-            }
-          })
-          .catch(() => undefined);
+        void refreshOffersRef.current();
       },
     });
-  }, [apiToken, riderId, loadRiderData, playAssignmentAlert, endRiderSession]);
+  }, [apiToken, riderId, loadRiderData, endRiderSession]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     let disposed = false;
@@ -1181,9 +1162,11 @@ function RiderWorkspace() {
     try {
       const result = await acceptRiderOffer(apiToken, riderId, orderId);
       setToast(result.message || "Reparto aceptado. Dirígete al Partner.");
+      await refreshOffersRef.current();
       await loadRiderData();
     } catch (error) {
       setToast(error instanceof Error ? error.message : "No se pudo aceptar el reparto.");
+      await refreshOffersRef.current();
       await loadRiderData();
     } finally {
       setOrderActionBusy(false);
@@ -1472,6 +1455,9 @@ function RiderWorkspace() {
     return (
       <>
         <ActiveShiftScreen
+          key={riderId}
+          shiftActive={shiftActive}
+          riderOperationalStatus={riderOperationalStatus}
           currentShift={currentShift}
           offers={offers}
           offersLoading={offersLoading}
@@ -1486,7 +1472,7 @@ function RiderWorkspace() {
           onOpenOrderChat={(order) => { setUnreadCustomerMessages(0); setOrderChatOrder(order); }}
           unreadMessageCount={unreadSupportMessages + unreadCustomerMessages}
           onRefreshOffers={() => {
-            setOffersError("");
+            void refreshOffersRef.current();
             void loadRiderData();
           }}
           onAcceptOffer={(orderId) => void acceptRiderOfferAction(orderId)}

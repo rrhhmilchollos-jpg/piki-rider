@@ -1,4 +1,6 @@
 export type GpsPoint = { latitude: number; longitude: number; accuracy: number; heading?: number };
+/** Timestamp supplied by the location provider, not by a heartbeat timer. */
+export type GpsFix = GpsPoint & { timestamp: number };
 
 const blockedRiderStatuses = new Set([
   "pending",
@@ -11,7 +13,7 @@ const blockedRiderStatuses = new Set([
   "inactive",
 ]);
 
-/** Native background tracking already filters at 25 m; browsers use this too before publishing. */
+/** Publication filter only: the native provider must also deliver stationary fixes. */
 export const riderGpsMinimumPublishDistanceMeters = 25;
 /** Keep a bounded proof-of-life while stationary without producing a dense location trail. */
 export const riderGpsStationaryHeartbeatMs = 60_000;

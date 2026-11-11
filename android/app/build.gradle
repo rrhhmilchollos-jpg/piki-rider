@@ -19,10 +19,38 @@ android {
     buildFeatures {
         buildConfig true
     }
+    def signingStore = System.getenv("PIKI_SIGNING_STORE_FILE")
+    if (signingStore) {
+        signingConfigs {
+            release {
+                storeFile file(signingStore)
+                storePassword System.getenv("PIKI_SIGNING_STORE_PASSWORD")
+                keyAlias System.getenv("PIKI_SIGNING_KEY_ALIAS")
+                keyPassword System.getenv("PIKI_SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingStore) signingConfig signingConfigs.release
+        }
+    }
+}
+
+// Debug/PR tasks do not need secrets. Every release entry point fails closed.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.project.path == ':app' && it.name.toLowerCase().contains('release') }) {
+        def required = ['PIKI_SIGNING_STORE_FILE', 'PIKI_SIGNING_STORE_PASSWORD', 'PIKI_SIGNING_KEY_ALIAS', 'PIKI_SIGNING_KEY_PASSWORD', 'PIKI_EXPECTED_UPLOAD_CERT_SHA256', 'PIKI_PLAY_MAX_VERSION_CODE']
+        def missing = required.findAll { !System.getenv(it)?.trim() }
+        if (missing) throw new GradleException("Release bloqueada: faltan variables de firma (${missing.join(', ')}). No se genera un AAB sin firmar ni otra keystore.")
+        if (!file(System.getenv('PIKI_SIGNING_STORE_FILE')).isFile()) throw new GradleException('Release bloqueada: no existe la keystore de subida configurada.')
+        exec {
+            commandLine 'node', rootProject.file('../scripts/require-android-signing.mjs').absolutePath
+        }
+        exec {
+            commandLine 'python3', rootProject.file('../scripts/android-identity.py').absolutePath, 'check', '--synced'
         }
     }
 }

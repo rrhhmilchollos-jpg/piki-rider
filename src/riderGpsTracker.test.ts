@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   RiderGpsAuthorizationError,
+  RiderGpsPermissionError,
   RiderGpsTracker,
   type GpsCallbacks,
   type GpsPort,
@@ -8,6 +9,7 @@ import {
 } from "./riderGpsTracker";
 
 const point = { latitude: 38.989, longitude: -0.52, accuracy: 8 };
+const fix = () => ({ ...point, timestamp: Date.now() });
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -36,7 +38,7 @@ describe("Rider GPS lifecycle", () => {
     expect(f.port.add).not.toHaveBeenCalled();
     await f.tracker.start();
     expect(f.states.at(-1)?.state).toBe("waiting");
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     expect(f.states.at(-1)?.lastAckAt).toBeUndefined();
     sent.resolve();
     await tick();
@@ -48,10 +50,10 @@ describe("Rider GPS lifecycle", () => {
     const sent = deferred<void>();
     const f = fixture({ publish: vi.fn(() => sent.promise) });
     await f.tracker.start();
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     f.tracker.stop();
     const stateCount = f.states.length;
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     sent.resolve();
     await tick();
     expect(f.port.publish).toHaveBeenCalledTimes(1);
@@ -95,9 +97,9 @@ describe("Rider GPS lifecycle", () => {
   it("stops after an authorization rejection and never posts a later fix", async () => {
     const f = fixture({ publish: vi.fn(async () => { throw new RiderGpsAuthorizationError("Sesión caducada"); }) });
     await f.tracker.start();
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     await tick();
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     expect(f.port.publish).toHaveBeenCalledTimes(1);
     expect(f.port.remove).toHaveBeenCalledWith("watcher-1");
     expect(f.states.at(-1)?.state).toBe("error");
@@ -106,7 +108,7 @@ describe("Rider GPS lifecycle", () => {
   it("emits only the implemented diagnostic lifecycle events", async () => {
     const f = fixture();
     await f.tracker.start();
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     await tick();
     f.tracker.stop();
     await tick();
@@ -121,7 +123,7 @@ describe("Rider GPS lifecycle", () => {
   it("marks a send failure without pretending it was acknowledged and emits send_error", async () => {
     const f = fixture({ publish: vi.fn(async () => { throw new Error("Sin red"); }) });
     await f.tracker.start();
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     await tick();
     expect(f.states.at(-1)?.state).toBe("error");
     expect(f.states.at(-1)?.lastAckAt).toBeUndefined();
@@ -131,11 +133,118 @@ describe("Rider GPS lifecycle", () => {
   it("does not republish an unchanged fix immediately, while preserving the active watcher", async () => {
     const f = fixture();
     await f.tracker.start();
-    f.callbacks().onLocation(point);
+    f.callbacks().onLocation(fix());
     await tick();
-    f.callbacks().onLocation({ ...point, accuracy: 9 });
+    f.callbacks().onLocation({ ...fix(), accuracy: 9 });
     await tick();
     expect(f.port.publish).toHaveBeenCalledTimes(1);
     expect(f.states.at(-1)?.state).toBe("tracking");
+  });
+
+  it("keeps a watcher after a transient error and recovers only on a real new fix/ack", async () => {
+    const f = fixture();
+    await f.tracker.start();
+    f.callbacks().onLocation(fix());
+    await tick();
+    const ack = f.states.at(-1)?.lastAckAt;
+    f.callbacks().onError(new Error("Timeout GPS"));
+    expect(f.port.remove).not.toHaveBeenCalled();
+    expect(f.callbacks().isCurrent()).toBe(true);
+    expect(f.states.at(-1)?.lastAckAt).toBe(ack);
+    await tick();
+    f.callbacks().onLocation(fix());
+    await tick();
+    expect(f.port.publish).toHaveBeenCalledTimes(2);
+    expect(f.states.at(-1)?.state).toBe("tracking");
+  });
+
+  it("does not auto-retry a denied permission, while explicit user retry is possible", async () => {
+    const f = fixture();
+    await f.tracker.start();
+    f.callbacks().onError(new RiderGpsPermissionError("Permiso denegado"));
+    await tick();
+    expect(f.callbacks().isCurrent()).toBe(false);
+    await f.tracker.resume();
+    expect(f.port.add).toHaveBeenCalledTimes(1);
+    await f.tracker.start();
+    expect(f.port.add).toHaveBeenCalledTimes(2);
+  });
+
+  it("rate limits automatic foreground retries and never retries API authorization errors", async () => {
+    const f = fixture({ add: vi.fn(async () => { throw new Error("Abre la app"); }) });
+    await f.tracker.resume();
+    await f.tracker.resume();
+    expect(f.port.add).toHaveBeenCalledTimes(1);
+    const blocked = fixture({ publish: vi.fn(async () => { throw new RiderGpsAuthorizationError("401"); }) });
+    await blocked.tracker.start();
+    blocked.callbacks().onLocation(fix());
+    await tick();
+    await blocked.tracker.resume();
+    expect(blocked.port.add).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses provider time and refuses duplicate, missing, stale, future or out-of-order timestamps", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    try {
+      const f = fixture();
+      await f.tracker.start();
+      const realFix = { ...point, timestamp: Date.now() - 100 };
+      f.callbacks().onLocation(realFix);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.states.at(-1)?.lastFixAt).toBe(realFix.timestamp);
+      const ack = f.states.at(-1)?.lastAckAt;
+      await vi.advanceTimersByTimeAsync(60_000);
+      for (const timestamp of [realFix.timestamp, NaN, Date.now() - 15_001, Date.now() + 1]) {
+        f.callbacks().onLocation({ ...point, timestamp });
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.port.publish).toHaveBeenCalledTimes(1);
+      expect(f.states.at(-1)?.lastAckAt).toBe(ack);
+      f.callbacks().onLocation(fix());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.port.publish).toHaveBeenCalledTimes(2);
+      const latestFixAt = f.states.at(-1)?.lastFixAt;
+      f.callbacks().onLocation({ ...point, timestamp: Date.now() - 1 });
+      expect(f.states.at(-1)?.lastFixAt).toBe(latestFixAt);
+      f.tracker.stop();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("does not republish a queued provider fix after it becomes stale behind a slow POST", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    try {
+      const sent = deferred<void>();
+      const f = fixture({ publish: vi.fn(() => sent.promise) });
+      await f.tracker.start();
+      f.callbacks().onLocation(fix());
+      await vi.advanceTimersByTimeAsync(1_000);
+      f.callbacks().onLocation({ ...fix(), latitude: point.latitude + 0.001 });
+      const capturedAt = f.states.at(-1)?.lastFixAt;
+      await vi.advanceTimersByTimeAsync(60_000);
+      sent.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.port.publish).toHaveBeenCalledTimes(1);
+      expect(f.states.at(-1)?.lastFixAt).toBe(capturedAt);
+      // The only ACK comes from the actual completed POST, not the queued fix.
+      expect(f.diagnose.mock.calls.filter(([event]) => event === "send_ack")).toHaveLength(1);
+      f.tracker.stop();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("never manufactures a heartbeat acknowledgement when no new fix arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture();
+      await f.tracker.start();
+      f.callbacks().onLocation(fix());
+      await vi.advanceTimersByTimeAsync(0);
+      const ack = f.states.at(-1)?.lastAckAt;
+      await vi.advanceTimersByTimeAsync(91_000);
+      expect(f.port.publish).toHaveBeenCalledTimes(1);
+      expect(f.states.at(-1)?.lastAckAt).toBe(ack);
+      f.tracker.stop();
+    } finally { vi.useRealTimers(); }
   });
 });

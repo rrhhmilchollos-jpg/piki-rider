@@ -1,0 +1,3 @@
+# Keep generated pixels deterministic across developer machines and CI.
+Pillow==13.0.0
+PyYAML==6.0.3

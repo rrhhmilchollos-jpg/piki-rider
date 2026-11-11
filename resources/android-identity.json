@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "locale": "es-ES",
+  "packageName": "com.pikidelivery.riders",
+  "androidNamespace": "com.pikidelivery.rider",
+  "playAppName": "PIKI Riders",
+  "canonicalIcon": "resources/play-icon.png",
+  "canonicalSha256": "9dac81089e2d8bcf3155e6f4fa9051708ad4c940307213a2242c4de05779dd09",
+  "canonicalSourceUrl": "https://lh3.googleusercontent.com/q6ZxrnGnXVAjv1jVDHoV3jz18En1mAnWrQHmNTEeOWtc53uU2Dsooc4hnNQoF-RyefXgIw__Gp1z2pv_6r0SFA",
+  "adaptiveBackground": "#171715",
+  "foregroundSafeSquareDp": 46
+}

@@ -1,13 +1,18 @@
 name: Android AAB release
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
-  workflow_dispatch:
 permissions:
   contents: read
+
 jobs:
-  android:
+  pr-compile:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: https://api.pikidelivery.com
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,26 +27,86 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Use the preinstalled Android SDK
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          test -d "$ANDROID_HOME"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scripts/android-identity-requirements.txt
       - uses: gradle/actions/setup-gradle@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
-      - run: pnpm test || true
+      - run: pnpm test
+      - name: Regression tests (pure; no keystore generation)
+        run: |
+          python scripts/test-android-identity.py
+          python scripts/test-android-workflows.py
+          node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs
       - run: pnpm run build
       - run: pnpm exec cap sync android
-      - run: ./android/gradlew -p android bundleRelease --no-daemon
-      - run: ./android/gradlew -p android assembleRelease --no-daemon
-      - uses: actions/upload-artifact@v4
+      - name: Compile debug without release secrets; never upload from PR
+        run: bash android/gradlew -p android assembleDebug --no-daemon
+      - name: Check installed identity and synced assets
+        run: python scripts/android-identity.py check --synced
+
+  signed-release:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: https://api.pikidelivery.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
-          name: piki-rider-unsigned-release-aab
-          path: android/app/build/outputs/bundle/release/*.aab
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+          version: 10.4.1
+          run_install: false
+      - uses: actions/setup-node@v4
         with:
-          name: piki-rider-unsigned-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scripts/android-identity-requirements.txt
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm test
+      - name: Regression tests (pure; no keystore generation)
+        run: |
+          python scripts/test-android-identity.py
+          python scripts/test-android-workflows.py
+          node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs
+      - name: Verify canonical Play identity before build
+        run: python scripts/android-identity.py check
+      - run: pnpm run build
+      - run: pnpm exec cap sync android
+      - run: python scripts/android-identity.py check --synced
+      - name: Require existing upload key, build signed release and verify AAB
+        env:
+          PIKI_SIGNING_KEYSTORE_BASE64: ${{ secrets.PIKI_SIGNING_KEYSTORE_BASE64 }}
+          PIKI_SIGNING_STORE_FILE: ${{ runner.temp }}/piki-upload.jks
+          PIKI_SIGNING_STORE_PASSWORD: ${{ secrets.PIKI_SIGNING_STORE_PASSWORD }}
+          PIKI_SIGNING_KEY_ALIAS: ${{ secrets.PIKI_SIGNING_KEY_ALIAS }}
+          PIKI_SIGNING_KEY_PASSWORD: ${{ secrets.PIKI_SIGNING_KEY_PASSWORD }}
+          PIKI_EXPECTED_UPLOAD_CERT_SHA256: ${{ vars.PIKI_EXPECTED_UPLOAD_CERT_SHA256 }}
+          PIKI_PLAY_MAX_VERSION_CODE: ${{ vars.PIKI_PLAY_MAX_VERSION_CODE }}
+        run: |
+          node scripts/prepare-ci-keystore.mjs
+          bash android/gradlew -p android bundleRelease --no-daemon
+          node scripts/require-android-signing.mjs --verify-aab android/app/build/outputs/bundle/release/app-release.aab
+          node scripts/play-release.mjs metadata android/app/build/outputs/bundle/release/app-release.aab
+      - name: Remove temporary upload keystore even after failure
+        if: always()
+        run: rm -f "$RUNNER_TEMP/piki-upload.jks"
+      - name: Store only the verified signed AAB and provenance; no Play upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: piki-rider-signed-release-aab
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/bundle/release/release-metadata.json
           if-no-files-found: error
+          retention-days: 14

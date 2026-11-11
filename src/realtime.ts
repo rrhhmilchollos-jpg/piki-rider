@@ -1,3 +1,5 @@
+import { withRequestDeadline } from "./requestDeadline";
+
 export type PikiRealtimeEvent = { id?: string; type: string; payload: Record<string, unknown>; occurredAt?: string };
 
 type RealtimeInput = {
@@ -12,6 +14,11 @@ type RealtimeInput = {
   onAuthorizationError?: (status: 403) => void;
 };
 
+export const realtimeConnectTimeoutMs = 15_000;
+// The API sends a comment heartbeat every 20 s. Every received chunk counts,
+// including comments, so quiet order traffic does not force reconnection.
+export const realtimeSilenceTimeoutMs = 60_000;
+
 function retryDelayMs(attempt: number, retryAfterMs = 0): number {
   if (retryAfterMs > 0) return Math.min(60_000, retryAfterMs);
   const exponential = Math.min(60_000, 1_000 * 2 ** Math.min(attempt, 6));
@@ -23,32 +30,41 @@ function retryAfterMs(response: Response): number {
   return Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : 0;
 }
 
-/**
- * Authenticated, resumable SSE stream.
- *
- * Important: 401/428 and 403 are terminal client states. Retrying an expired bearer
- * token every few seconds turns a normal session expiry into a Render/API incident.
- */
+/** Authenticated SSE: bounded silence, resumable IDs and terminal auth failures. */
 export function connectPikiRealtime(input: RealtimeInput) {
   const controller = new AbortController();
   const storageKey = `piki-realtime-last-event:${input.surface}`;
-  const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  const sleep = (milliseconds: number) => new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, milliseconds);
+    controller.signal.addEventListener("abort", finish, { once: true });
+    if (controller.signal.aborted) finish();
+  });
 
   const run = async () => {
     let failedAttempts = 0;
     while (!controller.signal.aborted) {
       let nextDelay = 0;
+      const connection = new AbortController();
+      const abortConnection = () => connection.abort();
+      controller.signal.addEventListener("abort", abortConnection, { once: true });
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
         const lastId = sessionStorage.getItem(storageKey) || "";
-        const response = await fetch(`${input.apiOrigin}/api/v1/realtime/events`, {
-          signal: controller.signal,
+        const response = await withRequestDeadline((signal) => fetch(`${input.apiOrigin}/api/v1/realtime/events`, {
+          signal,
           headers: {
             Authorization: `Bearer ${input.token}`,
             "X-PIKI-Surface": input.surface,
             ...(lastId ? { "Last-Event-ID": lastId } : {}),
           },
           credentials: "include",
-        });
+        }), connection, realtimeConnectTimeoutMs);
+        if (controller.signal.aborted) return;
 
         if (response.status === 401 || response.status === 428) {
           input.onState?.(false);
@@ -66,14 +82,15 @@ export function connectPikiRealtime(input: RealtimeInput) {
         }
         if (!response.ok || !response.body) throw new Error(`SSE_HTTP_${response.status}`);
 
-        failedAttempts = 0;
         input.onState?.(true);
-        const reader = response.body.getReader();
+        reader = response.body.getReader();
+        const activeReader = reader;
         const decoder = new TextDecoder();
         let buffer = "";
         while (!controller.signal.aborted) {
-          const { value, done } = await reader.read();
-          if (done) break;
+          const { value, done } = await withRequestDeadline(() => activeReader.read(), connection, realtimeSilenceTimeoutMs);
+          if (controller.signal.aborted || done) break;
+          failedAttempts = 0;
           buffer += decoder.decode(value, { stream: true });
           const frames = buffer.split("\n\n");
           buffer = frames.pop() || "";
@@ -94,10 +111,17 @@ export function connectPikiRealtime(input: RealtimeInput) {
             }
           }
         }
-        input.onState?.(false);
+        if (!controller.signal.aborted) input.onState?.(false);
       } catch {
         if (controller.signal.aborted) return;
         input.onState?.(false);
+      } finally {
+        controller.signal.removeEventListener("abort", abortConnection);
+        connection.abort();
+        if (reader) {
+          void reader.cancel().catch(() => undefined);
+          reader.releaseLock();
+        }
       }
 
       if (!controller.signal.aborted) {

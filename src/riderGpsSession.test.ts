@@ -17,7 +17,7 @@ it("stops publishing synchronously on logout or end-of-shift invalidation", asyn
   await tracker.start();
   target.addEventListener(RIDER_GPS_STOP_EVENT, () => tracker.stop());
   stopRiderDeviceGps();
-  callbacks.onLocation({ latitude: 38.99, longitude: -0.52, accuracy: 8 });
+  callbacks.onLocation({ latitude: 38.99, longitude: -0.52, accuracy: 8, timestamp: Date.now() });
   expect(publish).not.toHaveBeenCalled();
   expect(callbacks.isCurrent()).toBe(false);
 });
