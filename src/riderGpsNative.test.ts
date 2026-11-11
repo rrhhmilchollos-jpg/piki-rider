@@ -7,7 +7,7 @@ const native = vi.hoisted(() => ({
   android: false,
   addWatcher: vi.fn(),
   removeWatcher: vi.fn(async () => {}),
-  post: vi.fn(async (_input: unknown) => ({ status: 200 })),
+  post: vi.fn(async (_input: unknown): Promise<{ status: number; data?: unknown }> => ({ status: 200 })),
   checkPermissions: vi.fn(async () => ({ display: "granted" })),
   requestPermissions: vi.fn(async () => ({ display: "granted" })),
   event: vi.fn(async () => {}),
@@ -317,7 +317,7 @@ describe("Visible browser stationary GPS", () => {
   });
 
   it("stops and clears the browser sampler on API authorization rejection", async () => {
-    fetchMock.mockResolvedValue({ status: 401 });
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "AUTHENTICATION_REQUIRED" }), { status: 401 }));
     const f = fixture();
     await f.tracker.start();
     watches[0].success(position());
@@ -329,6 +329,43 @@ describe("Visible browser stationary GPS", () => {
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(geolocation.getCurrentPosition).not.toHaveBeenCalled();
+  });
+});
+
+describe("GPS HTTP rejection evidence", () => {
+  it.each([false, true])("keeps a single watcher and recovers after a generic proxy 401 (Android=%s)", async (android) => {
+    native.android = android;
+    if (android) native.post.mockResolvedValueOnce({ status: 401, data: "<html>Unauthorized</html>" });
+    else fetchMock.mockResolvedValueOnce(new Response("<html>Unauthorized</html>", { status: 401 }));
+    const f = fixture();
+    await f.tracker.start();
+    if (android) nativeCallbacks[0](location());
+    else watches[0].success(position());
+    await settle();
+    expect(f.latest().state).toBe("error");
+    expect(f.latest().autoRetryAllowed).toBe(true);
+    expect(f.latest().lastAckAt).toBeUndefined();
+    expect(android ? native.removeWatcher.mock.calls.length : liveWatches.size).toBe(android ? 0 : 1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    if (android) nativeCallbacks[0](location());
+    else watches[0].success(position());
+    await settle();
+    expect(f.latest().state).toBe("tracking");
+    expect(f.latest().lastAckAt).toBe(Date.now());
+    expect(android ? native.addWatcher.mock.calls.length : watches.length).toBe(1);
+  });
+
+  it.each(["AUTHENTICATION_REQUIRED", "RIDER_ACCESS_DENIED"])("still stops Android GPS for explicit %s", async (code) => {
+    native.android = true;
+    native.post.mockResolvedValueOnce({ status: 403, data: JSON.stringify({ error: code }) });
+    const f = fixture();
+    await f.tracker.start();
+    nativeCallbacks[0](location());
+    await settle();
+    expect(f.latest().autoRetryAllowed).toBe(false);
+    expect(native.removeWatcher).toHaveBeenCalledWith({ id: "native-1" });
+    await f.tracker.resume();
+    expect(native.addWatcher).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -47,6 +47,7 @@ import OperationalActivation from "./components/OperationalActivation";
 import RiderOfferDemoPreview from "./components/RiderOfferDemoPreview";
 import { connectPikiRealtime } from "./realtime";
 import { createRiderOffersSync, isLivePendingOffer, newPendingOfferIds, parseRiderOffersSnapshot } from "./riderOffersSync";
+import { refreshRiderDataPanels, riderDataRequestTimeoutMs } from "./riderDataRefresh";
 import {
   playRiderOrderAlert,
   playRiderOrderCancelled,
@@ -81,8 +82,8 @@ import {
   buildMadridScheduleWeek,
   formatScheduleWeekRange,
   madridDateKey,
-  normalizeScheduleDate,
 } from "./scheduleCalendar";
+import { normalizeRiderShift, parseRiderShiftSnapshot, riderSnapshotHasActiveShift, RiderShiftSync } from "./riderShiftSync";
 import {
   shouldShowOperationalMap,
   shouldTrackLocationOnOperationalMap,
@@ -306,18 +307,6 @@ const manychatWhatsAppUrl = String(
 );
 const SUPPORT_PHONE = "+34634038662";
 const SUPPORT_PHONE_LABEL = "634 03 86 62";
-function normalizeRiderShift(raw: Record<string, unknown>): Shift {
-  const date = normalizeScheduleDate(String(raw.date || ""));
-  const rawDay = String(raw.day || "");
-  return {
-    day: rawDay ? `${rawDay.slice(0, 1).toUpperCase()}${rawDay.slice(1)}` : "",
-    date,
-    start: String(raw.start || raw.startTime || ""),
-    end: String(raw.end || raw.endTime || ""),
-    zone: String(raw.zone || raw.zoneSlug || ""),
-    status: String(raw.status || "planned") as Shift["status"],
-  };
-}
 
 function App() {
   if (new URLSearchParams(window.location.search).get("preview") === "ofertas-demo") {
@@ -405,6 +394,8 @@ function RiderWorkspace() {
   const assignedOrderRef = useRef(false);
   const riderRefreshInFlightRef = useRef(false);
   const riderRefreshQueuedRef = useRef(false);
+  const riderShiftSyncRef = useRef(new RiderShiftSync());
+  const shiftActiveRef = useRef(false);
   // A poll/SSE response can be older than a just-confirmed mutation. Keep the
   // optimistic state until the server reports the same or a later transition.
   const pendingOrderStatesRef = useRef(new Map<string, { status: RiderOffer["status"]; startedAt: number }>());
@@ -456,6 +447,8 @@ function RiderWorkspace() {
   }, []);
   const resetRiderScopedState = useCallback(() => {
     riderArrivalAlerts.reset();
+    riderShiftSyncRef.current.reset();
+    shiftActiveRef.current = false;
     riderIdentityRef.current = "";
     cancelRiderPushRegistration();
     void clearRiderNativeAlerts();
@@ -636,16 +629,18 @@ function RiderWorkspace() {
     riderRefreshInFlightRef.current = true;
     const sessionEpoch = riderSessionEpochRef.current;
     const token = apiToken;
+    const shiftReadRevision = riderShiftSyncRef.current.beginRead();
     const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current && token === activeTokenRef.current;
     const headers = authHeaders(token);
     try {
       const sessionResponse = await fetch(
         `${apiOrigin}/api/v1/riders/session`,
-        { headers },
+        { headers, cache: "no-store", signal: AbortSignal.timeout(riderDataRequestTimeoutMs) },
       );
       if (!isCurrentSession()) return;
       if (!sessionResponse.ok) {
-        if (await requiresRiderAuthentication(sessionResponse)) {
+        const authenticationRequired = await requiresRiderAuthentication(sessionResponse);
+        if (isCurrentSession() && authenticationRequired) {
           endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
         }
         return;
@@ -673,36 +668,53 @@ function RiderWorkspace() {
       setRiderOperationalStatus(nextRiderStatus);
       setRiderProfile({ name: String(sessionData.rider?.name || ""), email: String(sessionData.rider?.email || ""), riderCode: String(sessionData.rider?.riderCode || "") });
       if (isRiderGpsStatusBlocked(nextRiderStatus)) invalidateRiderGps();
-      const [slotResponse, statsResponse, shiftResponse, cashResponse] =
-        await Promise.all([
-          fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers, cache: "no-store" }),
-          fetch(`${apiOrigin}/api/v1/riders/statistics`, { headers }),
-          fetch(`${apiOrigin}/api/v1/riders/${id}/shift`, { headers, cache: "no-store" }),
-          fetch(`${apiOrigin}/api/v1/riders/${id}/cash-wallet`, { headers }),
-        ]);
-      if (!isCurrentSession() || riderIdentityRef.current !== id) return;
-      if (slotResponse.ok) {
-        const data = (await slotResponse.json()) as { slots?: Array<Record<string, unknown>> };
-        setShifts(Array.isArray(data.slots) ? data.slots.map(normalizeRiderShift) : []);
-      }
-      if (shiftResponse.ok) {
-        const data = (await shiftResponse.json()) as CurrentShift & { shift?: Record<string, unknown> | null };
-        setCurrentShift({ ...data, shift: data.shift ? normalizeRiderShift(data.shift) : null });
-        const nextShiftActive = data.shift?.status === "active" && !isRiderGpsStatusBlocked(nextRiderStatus);
-        if (!nextShiftActive) invalidateRiderGps();
-        setShiftActive(nextShiftActive);
-      }
-      if (statsResponse.ok) {
-        const data = (await statsResponse.json()) as {
-          statistics?: Partial<Stats>;
-        };
-        setStats((prev) => mergeRiderStatistics(prev, data.statistics));
-      }
-      if (cashResponse?.ok) {
-        const data = (await cashResponse.json()) as { wallet?: CashWallet };
-        if (data.wallet) setCashWallet(data.wallet);
-      }
-      setStatus("ready");
+      const isCurrentRider = () => isCurrentSession() && riderIdentityRef.current === id;
+      const requestPanel = (path: string) => fetch(`${apiOrigin}${path}`, {
+        headers, cache: "no-store", signal: AbortSignal.timeout(riderDataRequestTimeoutMs),
+      });
+      await refreshRiderDataPanels({
+        shift: async () => {
+          const response = await requestPanel(`/api/v1/riders/${id}/shift`);
+          if (!response.ok) return;
+          const data = parseRiderShiftSnapshot(await response.json());
+          if (!isCurrentRider() || !data || !riderShiftSyncRef.current.mayApply(shiftReadRevision)) return;
+          const wasActive = shiftActiveRef.current;
+          const nextShiftActive = riderSnapshotHasActiveShift(data) && !isRiderGpsStatusBlocked(nextRiderStatus);
+          setCurrentShift(data);
+          shiftActiveRef.current = nextShiftActive;
+          setShiftActive(nextShiftActive);
+          // Repeated assigned snapshots must not cancel permissions/GPS capture
+          // while a start is pending. Stop only a confirmed active -> inactive transition.
+          if (wasActive && !nextShiftActive) {
+            invalidateRiderGps();
+            setStartedShiftNotice(false);
+            setToast(data.shift?.status === "completed"
+              ? "La API ha confirmado el cierre de tu jornada."
+              : data.shift?.status === "cancelled"
+                ? "Fleet ha cancelado tu turno. Contacta con Fleet si no corresponde."
+                : "La API ya no confirma una jornada activa. Revisa Horarios o contacta con Fleet.");
+          }
+        },
+        slots: async () => {
+          const response = await requestPanel(`/api/v1/riders/${id}/slots`);
+          if (!response.ok) return;
+          const data = await response.json() as { slots?: Array<Record<string, unknown>> };
+          if (isCurrentRider()) setShifts(Array.isArray(data.slots) ? data.slots.map(normalizeRiderShift) : []);
+        },
+        statistics: async () => {
+          const response = await requestPanel("/api/v1/riders/statistics");
+          if (!response.ok) return;
+          const data = await response.json() as { statistics?: Partial<Stats> };
+          if (isCurrentRider()) setStats((prev) => mergeRiderStatistics(prev, data.statistics));
+        },
+        cashWallet: async () => {
+          const response = await requestPanel(`/api/v1/riders/${id}/cash-wallet`);
+          if (!response.ok) return;
+          const data = await response.json() as { wallet?: CashWallet };
+          if (isCurrentRider() && data.wallet) setCashWallet(data.wallet);
+        },
+      });
+      if (isCurrentRider()) setStatus("ready");
     } catch {
       if (isCurrentSession()) setStatus("unavailable");
       /* Panels remain usable while the API is unavailable. */
@@ -902,38 +914,6 @@ function RiderWorkspace() {
     });
   }, [apiToken, riderId, loadRiderData, endRiderSession, riderArrivalAlerts]);
   useEffect(() => {
-    if (!apiToken || !riderId) return;
-    let disposed = false;
-    const checkShift = async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/shift`, { headers: authHeaders(apiToken), cache: "no-store" });
-        if (!response.ok || disposed || riderIdentityRef.current !== riderId || activeTokenRef.current !== apiToken) return;
-        const data = await response.json() as CurrentShift & { shift?: Record<string, unknown> | null };
-        const nextShift = data.shift ? normalizeRiderShift(data.shift) : null;
-        if (nextShift?.status === "active" && !isRiderGpsStatusBlocked(riderOperationalStatus)) {
-          setCurrentShift({ ...data, shift: nextShift });
-          setShiftActive(true);
-          return;
-        }
-        invalidateRiderGps();
-        if (!shiftActive) {
-          setCurrentShift({ ...data, shift: nextShift });
-          return;
-        }
-        setCurrentShift({ ...data, shift: nextShift });
-        setShiftActive(false);
-        setStartedShiftNotice(false);
-        setToast("Tu jornada ha finalizado automáticamente al terminar el slot.");
-      } catch { /* el siguiente ciclo vuelve a consultar el estado oficial */ }
-    };
-    void checkShift();
-    // Fleet puede guardar el turno mientras Rider ya tiene la sesión abierta;
-    // no debemos depender exclusivamente de que el evento SSE llegue al navegador.
-    const timer = window.setInterval(() => void checkShift(), 10000);
-    return () => { disposed = true; window.clearInterval(timer); };
-  }, [apiToken, riderId, riderOperationalStatus, shiftActive, invalidateRiderGps]);
-  useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
       return;
@@ -1089,6 +1069,8 @@ function RiderWorkspace() {
     setStartConsentOpen(false);
     const endpoint = "start";
     const gpsSessionGeneration = riderGpsSessionGenerationRef.current;
+    const sessionEpoch = riderSessionEpochRef.current;
+    riderShiftSyncRef.current.beginStart();
     setShiftBusy(true);
     try {
       if (consentedAudioPreferences.alertsEnabled) {
@@ -1133,6 +1115,7 @@ function RiderWorkspace() {
         return;
       }
       const nowActive = true;
+      shiftActiveRef.current = true;
       setShiftActive(true);
       setStartedShiftNotice(true);
       setCurrentShift((previous) => ({
@@ -1147,11 +1130,14 @@ function RiderWorkspace() {
         playRiderShiftStart(consentedAudioPreferences);
       }
       setToast("Jornada iniciada. Se cerrará automáticamente al finalizar el slot.");
-      await loadRiderData();
     } catch (error) {
       setToast(error instanceof Error ? error.message : "No se pudo validar el turno con la API.");
     } finally {
-      setShiftBusy(false);
+      if (sessionEpoch === riderSessionEpochRef.current) {
+        riderShiftSyncRef.current.finishStart();
+        setShiftBusy(false);
+        loadRiderDataRef.current();
+      }
     }
   }
   async function offerAction(
