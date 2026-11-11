@@ -40,7 +40,7 @@ jobs:
           python scripts/test-android-identity.py
           python scripts/test-android-workflows.py
           python scripts/test-signing-secret-aliases.py
-          node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs
+          node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs scripts/test-release-apk.mjs
       - run: pnpm run build
       - run: pnpm exec cap sync android
       - name: Compile debug without release secrets; never upload from PR
@@ -80,12 +80,14 @@ jobs:
           python scripts/test-android-identity.py
           python scripts/test-android-workflows.py
           python scripts/test-signing-secret-aliases.py
-          node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs
+          node --test scripts/test-android-signing.mjs scripts/test-play-release.mjs scripts/test-release-apk.mjs
       - name: Verify canonical Play identity before build
         run: python scripts/android-identity.py check
       - run: pnpm run build
       - run: pnpm exec cap sync android
       - run: python scripts/android-identity.py check --synced
+      - name: Compile native code before private signing guards
+        run: bash android/gradlew -p android assembleDebug --no-daemon
       - name: Require existing upload key, build signed release and verify AAB
         env:
           PIKI_SIGNING_KEYSTORE_BASE64: ${{ secrets.PIKI_SIGNING_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -100,6 +102,8 @@ jobs:
           bash android/gradlew -p android bundleRelease --no-daemon
           node scripts/require-android-signing.mjs --verify-aab android/app/build/outputs/bundle/release/app-release.aab
           node scripts/play-release.mjs metadata android/app/build/outputs/bundle/release/app-release.aab
+          bash android/gradlew -p android assembleRelease --no-daemon
+          node scripts/verify-release-apk.mjs android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/bundle/release/release-metadata.json
       - name: Remove temporary upload keystore even after failure
         if: always()
         run: rm -f "$RUNNER_TEMP/piki-upload.jks"
@@ -110,5 +114,14 @@ jobs:
           path: |
             android/app/build/outputs/bundle/release/app-release.aab
             android/app/build/outputs/bundle/release/release-metadata.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Store only the verified signed APK and provenance; no Play upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: piki-rider-signed-release-apk
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/release/apk-metadata.json
           if-no-files-found: error
           retention-days: 14

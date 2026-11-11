@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validateApkBadging, validateApkSigner, normalizeFingerprint } from './verify-release-apk.mjs';
+const expected = { packageName: 'com.pikidelivery.partners', versionCode: 10 };
+const sha = 'a'.repeat(64);
+test('paquete/version válidos', () => assert.deepEqual(validateApkBadging("package: name='com.pikidelivery.partners' versionCode='10' versionName='1.0'", expected), expected));
+test('otro paquete rechazado', () => assert.throws(() => validateApkBadging("package: name='otro' versionCode='10'", expected)));
+test('otra versión rechazada', () => assert.throws(() => validateApkBadging("package: name='com.pikidelivery.partners' versionCode='9'", expected)));
+test('manifest ausente rechazado', () => assert.throws(() => validateApkBadging('sin badging', expected)));
+test('firma válida y normalizada', () => assert.equal(validateApkSigner(`Signer #1 certificate SHA-256 digest: ${sha}\n`, sha.toUpperCase()), sha));
+test('otra clave rechazada', () => assert.throws(() => validateApkSigner(`Signer #1 certificate SHA-256 digest: ${sha}\n`, 'b'.repeat(64))));
+test('varios firmantes rechazados', () => assert.throws(() => validateApkSigner(`Signer #1 certificate SHA-256 digest: ${sha}\nSigner #2 certificate SHA-256 digest: ${sha}\n`, sha)));
+test('sin certificado rechazado', () => assert.throws(() => validateApkSigner('verified', sha)));
+test('formato SHA256 inválido rechazado', () => assert.throws(() => normalizeFingerprint('abc')));

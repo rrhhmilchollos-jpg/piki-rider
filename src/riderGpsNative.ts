@@ -87,7 +87,11 @@ export function createRiderGpsTracker(
               ? new RiderGpsPermissionError("Permite la ubicación precisa de PIKI Riders en Ajustes para repartir.")
               : new Error("No se pudo obtener la ubicación. Comprueba el GPS y vuelve a activar el seguimiento."));
           } else if (location) {
-            const nativeCourse = (location as unknown as { course?: number | null }).course;
+            if (location.simulated) {
+              callbacks.onError(new RiderGpsPermissionError("Se recibió una ubicación simulada. Desactiva la ubicación de prueba antes de repartir."));
+              return;
+            }
+            const nativeCourse = location.bearing;
             callbacks.onLocation({
               latitude: location.latitude,
               longitude: location.longitude,

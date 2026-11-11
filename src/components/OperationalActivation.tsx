@@ -19,7 +19,7 @@ export default function OperationalActivation({ active, playTestSound }: Props) 
   const confirmed = gps.state === "tracking";
   const waiting = gps.state === "starting" || gps.state === "waiting";
   const label = confirmed
-    ? "Ubicación y sonido activados"
+    ? "Ubicación confirmada por la API"
     : waiting
       ? "Esperando confirmación de ubicación"
       : gps.state === "error"
@@ -37,6 +37,7 @@ export default function OperationalActivation({ active, playTestSound }: Props) 
       <strong>{label}</strong>
       <p>{gps.detail}</p>
       <small>Durante la jornada, PIKI transmite tu ubicación GPS para coordinar repartos y mostrar su avance. Android mantiene una notificación mientras el servicio GPS sigue activo; se detiene al finalizar la jornada.</small>
+      <small>Los avisos de sonido requieren tu consentimiento y respetan el volumen, silencio, No molestar y canales de Android. Confirmar GPS no demuestra que el teléfono haya sonado.</small>
     </div>
     <button className="primary-button" type="button" onClick={() => void handleAction()} disabled={waiting}>
       <LocateFixed size={16} />{actionLabel}

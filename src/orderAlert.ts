@@ -1,4 +1,5 @@
 import { clampRiderAlertVolume, type RiderAudioPreferences } from "./riderAudioPreferences";
+import { queueRiderNativeAlert, usesAndroidNotifications } from "./riderNativeNotifications";
 
 export type RiderAlertAudioContext = {
   currentTime: number;
@@ -60,7 +61,7 @@ export function primeRiderOrderAudio(
   preferences?: RiderAudioPreferences,
   environment: RiderAlertEnvironment = browserEnvironment(),
 ): RiderAlertAudioContext | null {
-  if (!allowed(preferences)) return null;
+  if (!allowed(preferences) || usesAndroidNotifications()) return null;
   try {
     const AudioContextCtor = environment.window?.AudioContext ?? environment.window?.webkitAudioContext;
     if (!AudioContextCtor) return null;
@@ -75,11 +76,13 @@ export function primeRiderOrderAudio(
 
 export function playRiderShiftStart(preferences?: RiderAudioPreferences): boolean {
   if (!allowed(preferences)) return false;
+  if (usesAndroidNotifications()) return queueRiderNativeAlert("shift", true);
   const volume = volumeOf(preferences);
   return playAsset("ui-shift-start.mp3", volume) || playAsset("piki-alert-15s.mp3", volume);
 }
 
-export function playRiderOrderCancelled(preferences?: RiderAudioPreferences): boolean {
+export function playRiderOrderCancelled(preferences?: RiderAudioPreferences, orderId?: string): boolean {
+  if (usesAndroidNotifications()) return queueRiderNativeAlert("cancelled", allowed(preferences), orderId);
   return allowed(preferences) && playAsset("ui-order-cancelled.mp3", volumeOf(preferences));
 }
 
@@ -88,8 +91,12 @@ export function playRiderOrderAlert(
   audioContextRef: { current: RiderAlertAudioContext | null },
   preferences?: RiderAudioPreferences,
   environment: RiderAlertEnvironment = browserEnvironment(),
+  offer?: { id: string; expiresAt?: string | null },
 ): { soundScheduled: boolean; vibrationRequested: boolean } {
   if (!allowed(preferences)) return { soundScheduled: false, vibrationRequested: false };
+  if (usesAndroidNotifications()) {
+    return { soundScheduled: queueRiderNativeAlert("order", true, offer?.id ?? "order", offer?.expiresAt), vibrationRequested: false };
+  }
   const volume = volumeOf(preferences);
   const assetPlayed = playAsset("piki-order-voice-15s.mp3", volume);
   let soundScheduled = assetPlayed;

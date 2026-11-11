@@ -333,6 +333,27 @@ describe("Visible browser stationary GPS", () => {
 });
 
 describe("Android stationary provider", () => {
+  it("uses the installed native bearing field rather than inventing a north heading", async () => {
+    native.android = true;
+    const f = fixture();
+    await f.tracker.start();
+    nativeCallbacks[0]({ ...location(), bearing: 95 });
+    await settle();
+    expect(f.onFix).toHaveBeenCalledWith(expect.objectContaining({ heading: 95 }));
+  });
+
+  it("rejects simulated Android GPS before map display or API publication", async () => {
+    native.android = true;
+    const f = fixture();
+    await f.tracker.start();
+    nativeCallbacks[0]({ ...location(), simulated: true });
+    await settle();
+    expect(native.post).not.toHaveBeenCalled();
+    expect(f.onFix).not.toHaveBeenCalled();
+    expect(f.latest().autoRetryAllowed).toBe(false);
+    expect(native.removeWatcher).toHaveBeenCalledWith({ id: "native-1" });
+  });
+
   it("uses distanceFilter 0 / stale false, real native timestamps and the existing 60 s publish policy", async () => {
     native.android = true;
     const f = fixture();

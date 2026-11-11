@@ -1,63 +1,26 @@
-import { useEffect } from "react";
-
-/**
- * Emite la posición del rider mientras lleva un pedido encima.
- *
- * Solo se activa entre la recogida y la entrega: antes no tiene sentido (aún va
- * al local) y después tampoco (el pedido ya está cerrado). Envía como mucho un
- * ping cada 5 segundos y descarta los que tienen mala precisión, para no llenar
- * el mapa de saltos.
- */
-
-type Options = {
-  apiOrigin: string;
-  token: string;
-  publicCode: string | null;
-  enabled: boolean;
-  intervalMs?: number;
-};
-
-const MAX_ACCURACY_METERS = 150;
-
+import { useEffect, useRef } from "react";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { useRiderGpsMapPoint, useRiderGpsSnapshot } from "./riderGpsState";
+type Options = { apiOrigin: string; token: string; publicCode: string | null; enabled: boolean; intervalMs?: number };
+/** Order tracking consumes the same validated provider fixes as the map; no second WebView watcher. */
 export function useRiderLocationPing({ apiOrigin, token, publicCode, enabled, intervalMs = 5000 }: Options) {
+  const point = useRiderGpsMapPoint();
+  const gps = useRiderGpsSnapshot();
+  const lastSent = useRef<{ scope: string; at: number }>({ scope: "", at: 0 });
   useEffect(() => {
-    if (!enabled || !publicCode || !token.trim()) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-
-    let lastSent = 0;
-    let cancelled = false;
-
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        if (cancelled) return;
-        const now = Date.now();
-        if (now - lastSent < intervalMs) return;
-        if (position.coords.accuracy > MAX_ACCURACY_METERS) return;
-        lastSent = now;
-        void fetch(`${apiOrigin}/api/v1/orders/${encodeURIComponent(publicCode)}/location`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` },
-          body: JSON.stringify({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracyMeters: position.coords.accuracy,
-            headingDegrees: Number.isFinite(position.coords.heading) ? position.coords.heading : undefined,
-            speedMps: Number.isFinite(position.coords.speed) ? position.coords.speed : undefined,
-          }),
-          keepalive: true,
-        }).catch(() => {
-          /* si falla la red, el siguiente ping lo reintenta */
-        });
-      },
-      () => {
-        /* sin permiso de ubicación: la rider sigue trabajando, solo no comparte posición */
-      },
-      { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
-    );
-
-    return () => {
-      cancelled = true;
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, [apiOrigin, token, publicCode, enabled, intervalMs]);
+    if (!enabled || !publicCode || !token.trim() || !point || !gps.lastFixAt || gps.state === "idle" || gps.state === "error") return;
+    const now = Date.now();
+    if (gps.lastFixAt > now || now - gps.lastFixAt > 15_000 || point.accuracy > 150) return;
+    const scope = `${token}:${publicCode}`;
+    if (lastSent.current.scope === scope && gps.lastFixAt - lastSent.current.at < intervalMs) return;
+    lastSent.current = { scope, at: gps.lastFixAt };
+    const url = `${apiOrigin}/api/v1/orders/${encodeURIComponent(publicCode)}/location`;
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` };
+    const data = { latitude: point.lat, longitude: point.lng, accuracyMeters: point.accuracy, headingDegrees: point.heading };
+    // Real timestamp is local evidence only; the established API schema stays unchanged.
+    const request = Capacitor.isNativePlatform()
+      ? CapacitorHttp.post({ url, headers, data, connectTimeout: 15_000, readTimeout: 15_000 })
+      : fetch(url, { method: "POST", headers, body: JSON.stringify(data), signal: AbortSignal.timeout(15_000) });
+    void request.catch(() => { /* A later new fix may retry, never a timer replay. */ });
+  }, [apiOrigin, token, publicCode, enabled, intervalMs, point, gps.lastFixAt, gps.state]);
 }

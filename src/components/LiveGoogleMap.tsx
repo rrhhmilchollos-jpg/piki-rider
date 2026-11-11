@@ -12,13 +12,13 @@ const TILE_ATTRIBUTION = "&copy; OpenStreetMap";
 const RIDER_ICON_SIZE = 56;
 
 function riderIcon(heading?: number) {
-  const safeHeading = Number.isFinite(heading) ? heading : 0;
+  const hasHeading = typeof heading === "number" && Number.isFinite(heading) && heading >= 0 && heading <= 360;
   return L.divIcon({
     className: "rider-heading-icon-wrap",
     iconSize: [RIDER_ICON_SIZE, RIDER_ICON_SIZE],
     iconAnchor: [RIDER_ICON_SIZE / 2, RIDER_ICON_SIZE / 2],
     html: `<div class="rider-heading-marker" aria-hidden="true">
-      <span class="rider-heading-beam" style="transform: rotate(${safeHeading}deg)"></span>
+      ${hasHeading ? `<span class="rider-heading-beam" style="transform: rotate(${heading}deg)"></span>` : ""}
       <span class="rider-heading-dot"><span></span></span>
     </div>`,
   });
@@ -40,7 +40,7 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
 
   useEffect(() => {
     if (!nodeRef.current || mapRef.current) return;
-    const map = L.map(nodeRef.current, { zoomControl: true, attributionControl: true }).setView([38.9887, -0.5213], 14);
+    const map = L.map(nodeRef.current, { zoomControl: true, attributionControl: true });
     L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
     mapRef.current = map;
     const timer = window.setTimeout(() => map.invalidateSize(), 120);
@@ -63,16 +63,18 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
       initialCenterDoneRef.current = false;
       return;
     }
+    map.invalidateSize();
     const latlng: L.LatLngExpression = [point.lat, point.lng];
+    if (!initialCenterDoneRef.current) {
+      const zoom = map.getZoom();
+      map.setView(latlng, Number.isFinite(zoom) ? Math.max(zoom, 15) : 15, { animate: false });
+      initialCenterDoneRef.current = true;
+    }
     if (!markerRef.current) {
       markerRef.current = L.marker(latlng, { icon: riderIcon(point.heading), keyboard: false, zIndexOffset: 500 }).addTo(map);
     } else {
       markerRef.current.setLatLng(latlng);
       markerRef.current.setIcon(riderIcon(point.heading));
-    }
-    if (!initialCenterDoneRef.current) {
-      map.setView(latlng, Math.max(map.getZoom(), 15), { animate: false });
-      initialCenterDoneRef.current = true;
     }
   }, [point]);
 

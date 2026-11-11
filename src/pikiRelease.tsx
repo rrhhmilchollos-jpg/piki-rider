@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Capacitor } from "@capacitor/core";
 import { PIKI_RELEASE } from "./release-meta";
 import { resolvePikiApiOrigin } from "./apiOrigin";
 import { shouldShowPushConsent } from "./pushConsentPolicy";
@@ -29,10 +30,9 @@ const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
 const workerActivationTimeoutMs = 10_000;
-// Rider is distributed as a PWA. Even when Android opens it in standalone
-// mode, updates must come through release.json and the Service Worker; it must
-// never be blocked by a signed-package or Play Store gate.
-const nativeApp = false;
+// La web/PWA usa Service Worker. Capacitor mantiene los assets del paquete
+// firmado: standalone no equivale a contenedor Android nativo.
+const nativeApp = Capacitor.isNativePlatform();
 
 async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   if (isPikiNativePwaGuard(nativeApp) || !("serviceWorker" in navigator)) return null;

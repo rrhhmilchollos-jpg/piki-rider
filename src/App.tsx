@@ -49,10 +49,15 @@ import { connectPikiRealtime } from "./realtime";
 import { createRiderOffersSync, isLivePendingOffer, newPendingOfferIds, parseRiderOffersSnapshot } from "./riderOffersSync";
 import {
   playRiderOrderAlert,
+  playRiderOrderCancelled,
   playRiderShiftStart,
   primeRiderOrderAudio,
   type RiderAlertAudioContext,
 } from "./orderAlert";
+import { captureRiderGps } from "./riderGpsCapture";
+import { clearRiderNativeAlerts, requestRiderNotificationPermission, retainRiderNativeOrderAlerts } from "./riderNativeNotifications";
+import { cancelRiderPushRegistration } from "./nativePush";
+import { mergeRiderStatistics } from "./riderStatistics";
 import {
   acceptRiderOffer,
   createRiderSupportTicket,
@@ -387,6 +392,10 @@ function RiderWorkspace() {
   const [unreadSupportMessages, setUnreadSupportMessages] = useState(0);
   const [unreadCustomerMessages, setUnreadCustomerMessages] = useState(0);
   const [orderChatOrder, setOrderChatOrder] = useState<RiderOffer | null>(null);
+  const riderOrdersRef = useRef<RiderOffer[]>([]);
+  const cancelledOrderIdsRef = useRef(new Set<string>());
+  const riderAudioPreferencesRef = useRef(audioPreferences);
+  useEffect(() => { riderAudioPreferencesRef.current = audioPreferences; }, [audioPreferences]);
   const closeSupportChat = useCallback(() => setSupportChatOpen(false), []);
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
   const lastOfferAtRef = useRef(0);
@@ -425,7 +434,8 @@ function RiderWorkspace() {
     apiOrigin,
     token: apiToken,
     publicCode: activeOrder?.publicCode ?? null,
-    enabled: Boolean(activeOrder) && activeOrder?.status === "on_the_way",
+    enabled: Boolean(activeOrder) && activeOrder?.status === "on_the_way"
+      && mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive }),
   });
   const hasPersistedOrder = offers.some((offer) => offer.assignmentState === "assigned" || offer.assignmentState === "offered");
 
@@ -436,7 +446,12 @@ function RiderWorkspace() {
   }, []);
   const resetRiderScopedState = useCallback(() => {
     riderIdentityRef.current = "";
+    cancelRiderPushRegistration();
+    void clearRiderNativeAlerts();
+    void clearShiftStartAlarms();
     invalidateRiderGps();
+    riderOrdersRef.current = [];
+    cancelledOrderIdsRef.current.clear();
     knownOfferIdsRef.current = null;
     assignedOrderRef.current = false;
     riderRefreshQueuedRef.current = false;
@@ -499,7 +514,19 @@ function RiderWorkspace() {
   }, [resetRiderScopedState]);
   const updateAudioPreferences = useCallback((patch: Partial<RiderAudioPreferences>) => {
     setAudioPreferences((current) => saveRiderAudioPreferences(riderId, { ...current, ...patch }));
-  }, [riderId]);
+    if (patch.alertsEnabled === false) {
+      void clearRiderNativeAlerts();
+      void clearShiftStartAlarms();
+    }
+    if (patch.alertsEnabled === true) {
+      const sessionEpoch = riderSessionEpochRef.current;
+      void requestRiderNotificationPermission().then((granted) => {
+        if (!granted || sessionEpoch !== riderSessionEpochRef.current) return;
+        void syncShiftStartAlarms(shifts, { enabled: true });
+        void registerRiderPush(apiOrigin, apiToken);
+      }).catch(() => setToast("Revisa los permisos de notificación de Android."));
+    }
+  }, [riderId, apiToken, shifts]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setScheduleNow(new Date()), 60_000);
@@ -536,13 +563,14 @@ function RiderWorkspace() {
     });
   }, [activeOrder, applicationStatus, formEditing, orderActionBusy, shiftBusy, startConsentOpen, supportChatBusy, supportFormBusy]);
 
-  const playAssignmentAlert = useCallback(() => {
+  const playAssignmentAlert = useCallback((offer?: RiderOffer) => {
     if (!audioPreferences.alertsEnabled) return;
     const now = Date.now();
     // Polling and realtime can observe the same offer; one finite alert is enough.
     if (now - lastAlertAtRef.current < 5_000) return;
     lastAlertAtRef.current = now;
-    playRiderOrderAlert(audioContextRef, audioPreferences);
+    playRiderOrderAlert(audioContextRef, audioPreferences, undefined,
+      offer ? { id: offer._id, expiresAt: offer.assignmentExpiresAt } : undefined);
   }, [audioPreferences]);
 
   const gpsTrackingAllowed = Boolean(apiToken) && mayTrackRiderGps({ riderId, riderStatus: riderOperationalStatus, shiftActive });
@@ -651,7 +679,7 @@ function RiderWorkspace() {
         const data = (await statsResponse.json()) as {
           statistics?: Partial<Stats>;
         };
-        setStats((prev) => ({ ...prev, ...(data.statistics ?? {}) }));
+        setStats((prev) => mergeRiderStatistics(prev, data.statistics));
       }
       if (cashResponse?.ok) {
         const data = (await cashResponse.json()) as { wallet?: CashWallet };
@@ -722,9 +750,8 @@ function RiderWorkspace() {
       void clearShiftStartAlarms();
       return;
     }
-    if (!shifts.length) return;
-    void syncShiftStartAlarms(shifts);
-  }, [apiToken, riderId, shifts]);
+    void syncShiftStartAlarms(shifts, { enabled: audioPreferences.alertsEnabled });
+  }, [apiToken, riderId, shifts, audioPreferences.alertsEnabled]);
   useEffect(() => {
     // Las ofertas son estado persistido del pedido, no un estado volátil del turno.
     if (!apiToken || !riderId) {
@@ -759,6 +786,9 @@ function RiderWorkspace() {
       onSnapshot: (snapshot) => {
         if (!isCurrentSession()) return;
         const nextOffers = reconcileOfferSnapshot(snapshot);
+        riderOrdersRef.current = nextOffers;
+        void retainRiderNativeOrderAlerts(audioPreferences.alertsEnabled
+          ? nextOffers.filter((offer) => isLivePendingOffer(offer)).map((offer) => offer._id) : []);
         const newIds = newPendingOfferIds(nextOffers, knownOfferIdsRef.current);
         knownOfferIdsRef.current = new Set(nextOffers.filter((offer) => isLivePendingOffer(offer)).map((offer) => offer._id));
         assignedOrderRef.current = nextOffers.some(
@@ -770,7 +800,7 @@ function RiderWorkspace() {
           setCollapsedOfferIds((previous) => new Set([...previous].filter((id) => !newIds.includes(id))));
           setShowOperations(false);
           lastOfferAtRef.current = Date.now();
-          playAssignmentAlert();
+          playAssignmentAlert(nextOffers.find((offer) => offer._id === newIds[0]));
           setToast("Nueva oferta de reparto. Revísala en la pantalla de jornada.");
         }
       },
@@ -795,7 +825,7 @@ function RiderWorkspace() {
       window.removeEventListener("pageshow", refreshOffersWhenVisible);
       window.removeEventListener("online", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot]);
+  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot, audioPreferences.alertsEnabled]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
     return connectPikiRealtime({
@@ -829,6 +859,15 @@ function RiderWorkspace() {
           return;
         }
         if (!["order.rider_offer", "order.status_changed", "order.rider_arrived_at_partner"].includes(event.type)) return;
+        if (event.type === "order.status_changed" && event.payload.status === "cancelled") {
+          const id = typeof event.payload.orderId === "string" ? event.payload.orderId : "";
+          if (id && riderOrdersRef.current.some((offer) => offer._id === id) && !cancelledOrderIdsRef.current.has(id)) {
+            cancelledOrderIdsRef.current.add(id);
+            const retained = riderOrdersRef.current.filter((offer) => offer._id !== id && isLivePendingOffer(offer)).map((offer) => offer._id);
+            void retainRiderNativeOrderAlerts(retained);
+            playRiderOrderCancelled(riderAudioPreferencesRef.current, id);
+          }
+        }
         if (document.visibilityState !== "visible") return;
         void refreshOffersRef.current();
       },
@@ -1024,47 +1063,19 @@ function RiderWorkspace() {
     const gpsSessionGeneration = riderGpsSessionGenerationRef.current;
     setShiftBusy(true);
     try {
+      if (consentedAudioPreferences.alertsEnabled) {
+        await requestRiderNotificationPermission();
+        if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+        void registerRiderPush(apiOrigin, apiToken);
+        void syncShiftStartAlarms(shifts, { enabled: true });
+      }
       if (!shiftActive) {
-        if (!navigator.geolocation) {
-          setToast(
-            "Este dispositivo no ofrece GPS. No se puede iniciar la jornada.",
-          );
-          return;
-        }
-        const position = await new Promise<GeolocationPosition>(
-          (resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              maximumAge: 5_000,
-              timeout: 15_000,
-            }),
-        );
+        const position = await captureRiderGps();
         if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
-        const locationResponse = await fetch(
-          `${apiOrigin}/api/v1/riders/${riderId}/location`,
-          {
-            method: "POST",
-            headers: {
-              ...authHeaders(apiToken),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-            }),
-          },
-        );
+        await publishRiderLocation(apiToken, riderId, {
+          latitude: position.latitude, longitude: position.longitude, accuracy: position.accuracy,
+        });
         if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
-        if (!locationResponse.ok) {
-          const payload = await locationResponse.json().catch(() => ({}));
-          setToast(
-            payload.message ||
-              payload.error ||
-              "No se pudo validar el GPS real.",
-          );
-          return;
-        }
       }
       if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
       const response = await fetch(
@@ -1109,8 +1120,8 @@ function RiderWorkspace() {
       }
       setToast("Jornada iniciada. Se cerrará automáticamente al finalizar el slot.");
       await loadRiderData();
-    } catch {
-      setToast("No se pudo validar el turno con la API.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "No se pudo validar el turno con la API.");
     } finally {
       setShiftBusy(false);
     }
@@ -1186,20 +1197,14 @@ function RiderWorkspace() {
       // el último watchPosition puede tener varios segundos de retraso o
       // haber sido cacheado por Chrome/TWA; fuerza una lectura de alta
       // precisión y publícala antes de pedir al API que valide el radio.
-      if (navigator.geolocation && riderId) {
+      if (riderId) {
         try {
-          const freshPosition = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              maximumAge: 0,
-              timeout: 12_000,
-            }),
-          );
+          const freshPosition = await captureRiderGps(12_000);
           if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
           await publishRiderLocation(apiToken, riderId, {
-            latitude: freshPosition.coords.latitude,
-            longitude: freshPosition.coords.longitude,
-            accuracy: freshPosition.coords.accuracy,
+            latitude: freshPosition.latitude,
+            longitude: freshPosition.longitude,
+            accuracy: freshPosition.accuracy,
           });
           if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
         } catch {
