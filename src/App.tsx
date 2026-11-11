@@ -74,9 +74,9 @@ import {
   storeToken,
   markStoredTokenValidated,
 } from "./authStorage";
-import { requiresRiderAuthentication } from "./apiAuthPolicy";
+import { isRiderAuthenticationErrorMessage, requiresRiderAuthentication } from "./apiAuthPolicy";
 import { deliveryProofPayload, normalizeDeliveryProof } from "./deliveryProof";
-import { publishPwaOperationSafety } from "./pwaOperationSafety";
+import { isRiderPwaOperationActive, publishPwaOperationSafety } from "./pwaOperationSafety";
 import {
   buildMadridScheduleWeek,
   formatScheduleWeekRange,
@@ -563,17 +563,22 @@ function RiderWorkspace() {
 
   useEffect(() => {
     publishPwaOperationSafety({
-      known: true,
-      active: Boolean(activeOrder)
-        || orderActionBusy
-        || shiftBusy
-        || supportFormBusy
-        || supportChatBusy
-        || applicationStatus === "sending"
-        || startConsentOpen
-        || formEditing,
+      // Keep updates deferred until the API has restored the authenticated
+      // rider and its shift state; a running shift is an active operation too.
+      known: Boolean(apiToken && riderId && status === "ready"),
+      active: isRiderPwaOperationActive({
+        activeOrder,
+        shiftActive,
+        orderActionBusy,
+        shiftBusy,
+        supportFormBusy,
+        supportChatBusy,
+        applicationStatus,
+        startConsentOpen,
+        formEditing,
+      }),
     });
-  }, [activeOrder, applicationStatus, formEditing, orderActionBusy, shiftBusy, startConsentOpen, supportChatBusy, supportFormBusy]);
+  }, [activeOrder, apiToken, applicationStatus, formEditing, orderActionBusy, riderId, shiftActive, shiftBusy, startConsentOpen, status, supportChatBusy, supportFormBusy]);
 
   const playAssignmentAlert = useCallback((offer?: RiderOffer) => {
     if (!audioPreferences.alertsEnabled) return;
@@ -1460,10 +1465,7 @@ function RiderWorkspace() {
   }
   const [profileOpen, setProfileOpen] = useState(false);
   const handleApiError = useCallback((message: string) => {
-    if (
-      message.includes("API 401") ||
-      message.includes("AUTHENTICATION_REQUIRED")
-    ) {
+    if (isRiderAuthenticationErrorMessage(message)) {
       endRiderSession("Tu sesión ha caducado. Vuelve a iniciar sesión.");
       return;
     }

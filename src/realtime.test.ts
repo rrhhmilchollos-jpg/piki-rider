@@ -57,7 +57,11 @@ describe("SSE deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
   it.each([401, 428, 403])("does not reconnect after terminal HTTP %s", async (status) => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status }));
+    const error = status === 401 ? "AUTHENTICATION_REQUIRED" : status === 428 ? "PASSWORD_CHANGE_REQUIRED" : "FORBIDDEN";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }));
     vi.stubGlobal("fetch", fetchMock);
     const onAuthExpired = vi.fn();
     const onAuthorizationError = vi.fn();
@@ -66,5 +70,18 @@ describe("SSE deadlines", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(status === 403 ? onAuthorizationError : onAuthExpired).toHaveBeenCalledWith(status);
     stop();
+  });
+
+  it("does not log out on an unstructured 401 from a proxy and keeps retrying", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("Unauthorized", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthExpired = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthExpired });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onAuthExpired).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

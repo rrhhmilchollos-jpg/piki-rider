@@ -1,4 +1,5 @@
 import { withRequestDeadline } from "./requestDeadline";
+import { requiresRiderAuthentication } from "./apiAuthPolicy";
 
 export type PikiRealtimeEvent = { id?: string; type: string; payload: Record<string, unknown>; occurredAt?: string };
 
@@ -67,9 +68,11 @@ export function connectPikiRealtime(input: RealtimeInput) {
         if (controller.signal.aborted) return;
 
         if (response.status === 401 || response.status === 428) {
-          input.onState?.(false);
-          input.onAuthExpired?.(response.status);
-          return;
+          if (await requiresRiderAuthentication(response)) {
+            input.onState?.(false);
+            input.onAuthExpired?.(response.status);
+            return;
+          }
         }
         if (response.status === 403) {
           input.onState?.(false);

@@ -16,6 +16,32 @@ export function publishPwaOperationSafety(safety: PwaOperationSafety): void {
   window.dispatchEvent(new CustomEvent<PwaOperationSafety>(eventName, { detail: safety }));
 }
 
+export type RiderPwaOperationState = {
+  activeOrder?: unknown;
+  shiftActive?: boolean;
+  orderActionBusy?: boolean;
+  shiftBusy?: boolean;
+  supportFormBusy?: boolean;
+  supportChatBusy?: boolean;
+  applicationStatus?: string;
+  startConsentOpen?: boolean;
+  formEditing?: boolean;
+};
+
+export function isRiderPwaOperationActive(state: RiderPwaOperationState): boolean {
+  return Boolean(
+    state.activeOrder
+    || state.shiftActive
+    || state.orderActionBusy
+    || state.shiftBusy
+    || state.supportFormBusy
+    || state.supportChatBusy
+    || state.applicationStatus === "sending"
+    || state.startConsentOpen
+    || state.formEditing,
+  );
+}
+
 export function subscribePwaOperationSafety(listener: (safety: PwaOperationSafety) => void): () => void {
   const receive = (event: Event) => listener((event as CustomEvent<PwaOperationSafety>).detail);
   window.addEventListener(eventName, receive);

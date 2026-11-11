@@ -250,7 +250,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
 
   const navigateToTarget = useCallback((target: PikiPwaTarget | null, manualRetry = false) => {
     if (shouldDeferPwaActivation(safetyRef.current)) {
-      setDetail("Terminaremos la actualización cuando acabes la entrega, el cobro o el formulario en curso.");
+      setDetail("Terminaremos la actualización cuando finalice la jornada, la entrega, el cobro o el formulario en curso.");
       return false;
     }
     if (!canNavigateToPikiTarget({ target, current: PIKI_RELEASE, online: navigator.onLine, safe: true, storage: sessionStorage, manualRetry })) {
