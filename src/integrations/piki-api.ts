@@ -1,5 +1,6 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { resolvePikiApiOrigin } from "../apiOrigin";
+import { withRequestDeadline } from "../requestDeadline";
 
 export type GeoCoordinate = { latitude: number; longitude: number; accuracy?: number; heading?: number; speedMps?: number };
 export type OperationalZone = {
@@ -79,7 +80,8 @@ export async function sendRiderOrderMessage(token: string, riderId: string, orde
   return result.message;
 }
 
-export type RiderOfferAcceptance = { message?: string; pickupDeadlineAt?: string };
+export type RiderOfferAcceptance = { message: string; pickupDeadlineAt: string | null };
+export const riderOfferAcceptanceTimeoutMs = 15_000;
 
 export class RiderOfferAcceptanceError extends Error {
   readonly status: number;
@@ -94,26 +96,48 @@ export class RiderOfferAcceptanceError extends Error {
 }
 
 const riderOfferAcceptanceErrors: Record<string, string> = {
-  RIDER_OFFER_EXPIRED: "Este pedido se está reasignando. Se ha liberado tu jornada y se actualizarán tus ofertas.",
+  RIDER_OFFER_EXPIRED: "La oferta ha caducado. Se actualizarán tus pedidos; esto no confirma el cierre de tu jornada.",
   RIDER_OFFER_NOT_FOUND: "La oferta ya no está disponible. Se actualizarán tus pedidos.",
+  RIDER_OFFER_NOT_ELIGIBLE: "La API no confirma que esta oferta siga siendo elegible. Se actualizarán tus pedidos; revisa tu turno, GPS y zona sin forzar disponibilidad.",
   ORDER_CHANGED_RETRY: "La asignación ha cambiado. Se actualizarán tus pedidos.",
   RIDER_ACCESS_DENIED: "Esta oferta no corresponde a tu cuenta de Rider.",
+  AUTHENTICATION_REQUIRED: "Tu sesión no permite confirmar este reparto. Inicia sesión de nuevo si la API lo requiere.",
+  PASSWORD_CHANGE_REQUIRED: "Debes revisar tu acceso antes de confirmar este reparto.",
+  CLIENT_UPDATE_REQUIRED: "La API requiere una actualización de la aplicación antes de confirmar este reparto.",
+  RIDER_OFFER_ACK_INVALID: "No se ha recibido un acuse válido de este reparto. Se consultarán tus pedidos antes de volver a intentarlo.",
+  RIDER_OFFER_ACCEPT_FAILED: "No se pudo confirmar el reparto. Se consultarán tus pedidos antes de volver a intentarlo.",
 };
 
 export async function acceptRiderOffer(token: string, riderId: string, orderId: string): Promise<RiderOfferAcceptance> {
-  const response = await fetch(apiUrl(`/api/v1/riders/${encodeURIComponent(riderId)}/orders/${encodeURIComponent(orderId)}/accept-offer`), {
-    method: "POST",
-    headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
-  });
-  const body = await response.json().catch(() => ({})) as { message?: string; error?: string; pickupDeadlineAt?: string };
-  if (!response.ok) {
-    const code = body.error || "RIDER_OFFER_ACCEPT_FAILED";
-    const userMessage = code === "RIDER_OFFER_EXPIRED"
-      ? riderOfferAcceptanceErrors.RIDER_OFFER_EXPIRED
-      : body.message || riderOfferAcceptanceErrors[code] || "No se pudo aceptar el reparto. Se actualizarán tus pedidos.";
-    throw new RiderOfferAcceptanceError(userMessage, response.status, code);
-  }
-  return body;
+  // One POST only. Timeout/invalid ACK is an unknown outcome, not a rejection:
+  // the caller must read persisted offers, never automatically replay the POST.
+  return withRequestDeadline(async (signal) => {
+    const response = await fetch(apiUrl(`/api/v1/riders/${encodeURIComponent(riderId)}/orders/${encodeURIComponent(orderId)}/accept-offer`), {
+      method: "POST",
+      headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
+      signal,
+    });
+    signal.throwIfAborted();
+    const data: unknown = await response.json().catch(() => null);
+    signal.throwIfAborted();
+    const body = data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : null;
+    if (!response.ok) {
+      const rawCode = typeof body?.error === "string" ? body.error : "";
+      const code = Object.hasOwn(riderOfferAcceptanceErrors, rawCode) ? rawCode : "RIDER_OFFER_ACCEPT_FAILED";
+      throw new RiderOfferAcceptanceError(riderOfferAcceptanceErrors[code], response.status, code);
+    }
+    const order = body?.order && typeof body.order === "object" && !Array.isArray(body.order)
+      ? body.order as Record<string, unknown> : null;
+    // This route's published ACK is { order: updated, pickupDeadlineAt: null }.
+    // HTML, empty bodies, an unrelated order/rider and an offered/terminal order
+    // cannot confirm acceptance merely because the transport returned 2xx.
+    if (!order || order._id !== orderId || order.riderId !== riderId || order.assignmentState !== "assigned"
+      || order.assignmentExpiresAt !== null || order.pickupDeadlineAt !== null
+      || !["pending", "accepted", "preparing", "ready_for_pickup", "picked_up", "on_the_way"].includes(String(order.status))) {
+      throw new RiderOfferAcceptanceError(riderOfferAcceptanceErrors.RIDER_OFFER_ACK_INVALID, response.status, "RIDER_OFFER_ACK_INVALID");
+    }
+    return { message: "Pedido aceptado. El Partner avisará cuando esté listo para retirar.", pickupDeadlineAt: null };
+  }, new AbortController(), riderOfferAcceptanceTimeoutMs);
 }
 
 export type RiderSupportTicket = { id: string; ticketNumber: string; status: string };
