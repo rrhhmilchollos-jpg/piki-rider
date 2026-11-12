@@ -1171,18 +1171,25 @@ function RiderWorkspace() {
   }
   async function acceptRiderOfferAction(orderId: string) {
     if (orderActionBusy || !apiToken || !riderId) return;
+    const sessionEpoch = riderSessionEpochRef.current;
+    const isCurrentRider = () => sessionEpoch === riderSessionEpochRef.current
+      && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId;
     setOrderActionBusy(true);
     try {
       const result = await acceptRiderOffer(apiToken, riderId, orderId);
+      if (!isCurrentRider()) return;
       setToast(result.message || "Reparto aceptado. Dirígete al Partner.");
       await refreshOffersRef.current();
+      if (!isCurrentRider()) return;
       await loadRiderData();
     } catch (error) {
+      if (!isCurrentRider()) return;
       setToast(error instanceof Error ? error.message : "No se pudo aceptar el reparto.");
       await refreshOffersRef.current();
+      if (!isCurrentRider()) return;
       await loadRiderData();
     } finally {
-      setOrderActionBusy(false);
+      if (isCurrentRider()) setOrderActionBusy(false);
     }
   }
   async function confirmDelivery(orderId: string, deliveryQr: string) {
