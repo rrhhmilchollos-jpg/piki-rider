@@ -85,6 +85,7 @@ import {
   madridDateKey,
 } from "./scheduleCalendar";
 import { normalizeRiderShift, parseRiderShiftSnapshot, riderSnapshotHasActiveShift, RiderShiftSync } from "./riderShiftSync";
+import { parseRiderStartAcknowledgement, riderStartBlock, riderStartFailureMessage } from "./riderShiftStart";
 import {
   shouldShowOperationalMap,
   shouldTrackLocationOnOperationalMap,
@@ -1038,6 +1039,8 @@ function RiderWorkspace() {
   const isCurrentScheduleWeek = scheduleWeekOffset === 0;
   const showApplication = section === "Solicitar alta";
 
+  const startBlock = riderStartBlock({ riderId, riderStatus: riderOperationalStatus, currentShift });
+
   function showSection(next: string) {
     if (next === "Horarios") setScheduleWeekOffset(0);
     setSection(next);
@@ -1054,14 +1057,9 @@ function RiderWorkspace() {
         setToast("No hay una cuenta Rider vinculada a esta sesión.");
       return;
     }
-    if (isRiderGpsStatusBlocked(riderOperationalStatus)) {
-      setToast("Tu alta Rider sigue pendiente o no está operativa. Contacta con Fleet antes de iniciar jornada.");
-      return;
-    }
-    if (!shiftActive && !currentShift.eligible) {
-      setToast(
-        "No hay un turno disponible ahora. Revisa Horarios o contacta con Fleet.",
-      );
+    const blocked = riderStartBlock({ riderId, riderStatus: riderOperationalStatus, currentShift });
+    if (blocked) {
+      setToast(blocked.message);
       return;
     }
     if (!shiftActive && !startConsentOpen) {
@@ -1094,37 +1092,25 @@ function RiderWorkspace() {
         `${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`,
         { method: "POST", headers: authHeaders(apiToken) },
       );
-      const data = (await response.json()) as {
-        message?: string;
-        error?: string;
-        shift?: Shift;
-        locationRequired?: boolean;
-        now?: { date: string; time: string };
-      };
+      const data: unknown = await response.json();
       if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
       if (!response.ok) {
-        setToast(
-          data.message ||
-            "No puedes iniciar: no hay un turno reservado activo.",
-        );
+        setToast(riderStartFailureMessage(data));
         return;
       }
-      if (data.locationRequired) {
-        setToast(
-          data.message ||
-            "La jornada sigue bloqueada: activa la ubicación y comparte una posición GPS real.",
-        );
+      const confirmedShift = parseRiderStartAcknowledgement(data, riderId);
+      if (!confirmedShift) {
+        setToast(riderStartFailureMessage(data, true));
         return;
       }
-      const nowActive = true;
       shiftActiveRef.current = true;
       setShiftActive(true);
       setStartedShiftNotice(true);
       setCurrentShift((previous) => ({
         ...previous,
-        eligible: !nowActive,
+        eligible: true,
         selfStartAllowed: false,
-        shift: data.shift ?? previous.shift,
+        shift: confirmedShift,
       }));
       setShowOperations(false);
       if (!shiftActive) {
@@ -2049,18 +2035,16 @@ function RiderWorkspace() {
                       <span>
                         {shiftActive
                           ? "Puedes recibir ofertas en tu zona."
-                          : currentShift.eligible
-                            ? "Tu turno está abierto: puedes iniciar ahora."
-                            : "No hay un turno disponible en esta franja. Revisa los horarios o contacta con Fleet."}
+                          : startBlock?.message || "Tu turno está abierto: puedes iniciar ahora."}
                       </span>
                     </div>
                     {!shiftActive && <button
                       className="primary-button rider-shift-start-button"
-                      disabled={shiftBusy || !currentShift.eligible}
+                      disabled={shiftBusy || Boolean(startBlock)}
                       onClick={() => void toggleShift()}
                     >
                       <Power size={18} />
-                      {shiftBusy ? "VALIDANDO…" : currentShift.eligible ? "INICIAR JORNADA" : "FUERA DE HORARIO"}
+                      {shiftBusy ? "VALIDANDO…" : startBlock?.label || "INICIAR JORNADA"}
                     </button>}
                   </div>
                 </section>
@@ -2376,15 +2360,15 @@ function RiderWorkspace() {
                     <div>
                       <p className="rider-home-eyebrow">JORNADA DE REPARTO</p>
                       <h1>{shiftActive ? "Estás en línea" : "No estás disponible"}</h1>
-                      <p>{shiftActive ? "Tu ubicación está activa y recibirás ofertas en tu zona." : "Activa tu jornada para aparecer disponible y recibir repartos."}</p>
+                      <p>{shiftActive ? "Tu ubicación está activa y recibirás ofertas en tu zona." : startBlock?.message || "Activa tu jornada para aparecer disponible y recibir repartos."}</p>
                     </div>
                     {!shiftActive && <button
                       className="rider-home-toggle"
                       type="button"
-                      disabled={shiftBusy || !currentShift.eligible}
+                      disabled={shiftBusy || Boolean(startBlock)}
                       onClick={() => void toggleShift()}
                     >
-                      {shiftBusy ? "Comprobando…" : currentShift.eligible ? "Empezar sesión" : "Fuera de horario"}
+                      {shiftBusy ? "Comprobando…" : startBlock?.label || "Empezar sesión"}
                     </button>}
                     <div className="rider-home-meta"><span><i className={shiftActive ? "is-online" : ""} /> {shiftActive ? "Disponible hasta el fin del slot" : "No disponible para asignaciones"}</span><button type="button" onClick={() => showSection("Horarios")}>Ver horarios</button></div>
                   </div>
