@@ -3,6 +3,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
 import { watchRiderBrowserGps } from "./riderGpsBrowser";
 import { riderResponseRequiresAuthentication } from "./apiAuthPolicy";
+import { isRiderGpsLocationAck, riderGpsHttpFailureDetail, riderGpsResponseCode, riderGpsTransportFailureDetail } from "./riderGpsResponse";
 import {
   RiderGpsAuthorizationError,
   RiderGpsPermissionError,
@@ -123,27 +124,31 @@ export function createRiderGpsTracker(
       // Timestamp is local evidence of a fresh provider fix, not a new API field.
       const data = { latitude: point.latitude, longitude: point.longitude, accuracy: point.accuracy, heading: point.heading };
       let status: number;
-      let errorBody: unknown;
-      if (usesAndroidGps()) {
-        const response = await CapacitorHttp.post({ url, headers, data, connectTimeout: 15_000, readTimeout: 15_000 });
-        status = response.status;
-        if (status >= 400) {
-          try { errorBody = typeof response.data === "string" ? JSON.parse(response.data) : response.data; }
-          catch { /* An HTML proxy page is not evidence of a revoked Rider session. */ }
+      let responseBody: unknown;
+      try {
+        if (usesAndroidGps()) {
+          const response = await CapacitorHttp.post({ url, headers, data, connectTimeout: 15_000, readTimeout: 15_000 });
+          status = response.status;
+          try { responseBody = typeof response.data === "string" ? JSON.parse(response.data) : response.data; }
+          catch { /* HTML is neither a location ACK nor evidence of a revoked session. */ }
+        } else {
+          const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(data), signal: AbortSignal.timeout(15_000) });
+          status = response.status;
+          responseBody = await response.json().catch(() => undefined);
         }
-      } else {
-        const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(data), signal: AbortSignal.timeout(15_000) });
-        status = response.status;
-        if (status >= 400) errorBody = await response.json().catch(() => undefined);
+      } catch (error) {
+        throw new Error(riderGpsTransportFailureDetail(error));
       }
-      const operationalCode = errorBody && typeof errorBody === "object"
-        ? (errorBody as { error?: unknown }).error : undefined;
-      if (riderResponseRequiresAuthentication(status, errorBody)
-        || (status === 403 && operationalCode === "RIDER_ACCESS_DENIED")) {
-        throw new RiderGpsAuthorizationError("La API rechazó la sesión. GPS detenido; revisa tu acceso antes de volver a activarlo.");
+      const operationalCode = riderGpsResponseCode(responseBody);
+      if (riderResponseRequiresAuthentication(status, responseBody)
+        || (status === 403 && (operationalCode === "RIDER_ACCESS_DENIED" || operationalCode === "RIDER_GPS_ACCESS_DENIED"))) {
+        throw new RiderGpsAuthorizationError(`${riderGpsHttpFailureDetail(status, responseBody)} GPS detenido; revisa tu acceso antes de volver a activarlo. Este aviso no finaliza tu turno.`);
       }
       if (status < 200 || status >= 300) {
-        throw new Error(`La API no confirmó la ubicación (HTTP ${status}). Se intentará con una nueva posición; no se almacena un historial offline.`);
+        throw new Error(`${riderGpsHttpFailureDetail(status, responseBody)} Se intentará con una nueva posición; no se almacena un historial offline.`);
+      }
+      if (!isRiderGpsLocationAck(responseBody, riderId, point)) {
+        throw new Error(`Respuesta GPS sin confirmación verificable (HTTP ${status} · ACK_LOCATION_INVALID). No se confirmó el contrato de ubicación de este dispositivo; se intentará con una nueva posición.`);
       }
     },
     diagnose: emitAndroidDiagnostic,

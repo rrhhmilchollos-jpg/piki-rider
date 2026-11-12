@@ -68,4 +68,40 @@ describe("active shift server rendering (no device/network)", () => {
     expect(html).toContain("CONFIRMAR RETIRO");
     expect(getItem).not.toHaveBeenCalled();
   });
+  it("does not show a new ACK as missing just because the last timer tick predates it", () => {
+    const instant = 1_800_000_000_000;
+    state.gps = { state: "tracking", detail: "La API ha confirmado la ubicación de este dispositivo.", lastAckAt: instant };
+    const p = props();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(instant).mockReturnValueOnce(instant - 1);
+    try {
+      const html = renderToStaticMarkup(<ActiveShiftScreen {...p}/>);
+      expect(html).toContain("GPS confirmado hace menos de 90 s");
+      expect(html).not.toContain("GPS sin confirmación reciente");
+    } finally { clock.mockRestore(); }
+  });
+  it("explains an expired local ACK without blaming the API or GPS provider", () => {
+    state.gps = { state: "tracking", detail: "La API ha confirmado la ubicación de este dispositivo.", lastAckAt: Date.now() - 91_000 };
+    const html = renderToStaticMarkup(<ActiveShiftScreen {...props()}/>);
+    expect(html).toContain("La última confirmación GPS de este dispositivo ya no es reciente");
+    expect(html).not.toContain("La API ha confirmado la ubicación de este dispositivo.");
+    expect(html).toContain("Turno activo");
+    expect(html).toContain("Partner activo");
+  });
+  it("keeps ACK confirmation separate from assignment eligibility without hiding existing orders", () => {
+    const html = renderToStaticMarkup(<ActiveShiftScreen {...props()} currentShift={{ eligible: false }}/>);
+    expect(html).toContain("GPS confirmado hace menos de 90 s");
+    expect(html).toContain("La confirmación GPS no acredita por sí sola elegibilidad");
+    expect(html).not.toContain("En línea");
+    expect(html).toContain("Turno activo");
+    expect(html).toContain("Partner activo");
+  });
+  it("renders HTTP and operational rejection without changing the active shift or existing cards", () => {
+    state.gps = { state: "error", detail: "La API no confirmó la ubicación (HTTP 409 · RIDER_SESSION_NOT_ACTIVE).", lastAckAt: 0 };
+    const html = renderToStaticMarkup(<ActiveShiftScreen {...props()}/>);
+    expect(html).toContain("HTTP 409 · RIDER_SESSION_NOT_ACTIVE");
+    expect(html).toContain("Turno activo");
+    expect(html).toContain("Partner activo");
+    expect(html).toContain("Reintentar GPS");
+    expect(html).not.toContain("Fuera de turno");
+  });
 });
