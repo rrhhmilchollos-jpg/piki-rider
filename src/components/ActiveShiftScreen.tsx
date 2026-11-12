@@ -157,13 +157,21 @@ function PendingOfferCard({ order, disabled, onAccept }: { order: RiderOffer; di
 
 export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, tipNotification, actionBusy = false, pickupRequest, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const gps = useRiderGpsSnapshot();
-  const [now, setNow] = useState(() => Date.now());
+  // The timer triggers expiry renders; a GPS subscription render must use the
+  // current clock, not a tick from before the ACK arrived (up to five seconds).
+  const [, setNow] = useState(() => Date.now());
+  const now = Date.now();
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 5_000);
     return () => window.clearInterval(timer);
   }, []);
   const gpsRecent = gps.state === "tracking" && typeof gps.lastAckAt === "number"
     && now >= gps.lastAckAt && now - gps.lastAckAt < 90_000;
+  const gpsDetail = gps.state === "tracking" && !gpsRecent
+    ? typeof gps.lastAckAt === "number" && now >= gps.lastAckAt
+      ? "La última confirmación GPS de este dispositivo ya no es reciente. No se conoce todavía la causa; mantén la app visible y solicita una nueva posición."
+      : "No se puede validar la antigüedad de la confirmación GPS de este dispositivo. Revisa el reloj y solicita una nueva posición."
+    : gps.detail;
   const gpsAllowed = shiftActive && !isRiderGpsStatusBlocked(riderOperationalStatus);
   const mutationDisabled = actionBusy || Boolean(offersError);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -304,7 +312,7 @@ export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus,
       <button type="button" className="active-support-call-button" onClick={onCallSupport} aria-label="Llamada directa al soporte" title="Llamada directa al soporte"><Phone size={22}/></button>
       <button type="button" className="active-help-button active-help-message-button" onClick={onOpenSupport} aria-label={unreadMessageCount ? `Abrir mensajes y soporte: ${unreadMessageCount} sin leer` : "Abrir soporte"}><Headphones size={24}/>{unreadMessageCount > 0 && <b className="active-message-badge" aria-hidden="true">{unreadMessageCount > 9 ? "9+" : unreadMessageCount}</b>}</button>
       {liveOrder && <button type="button" className="active-chat-header-button" onClick={() => onOpenOrderChat(liveOrder)} aria-label="Abrir chat con el cliente" title="Abrir chat con el cliente"><MessageCircle size={24}/></button>}
-      <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : !gpsAllowed ? "Fuera de turno" : !gpsRecent ? "Revisar GPS" : offersLoading ? "Sincronizando" : "En línea"}</strong>{!offersError && gpsAllowed && gpsRecent && <i className="online-dot"/>}</div>
+      <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : !gpsAllowed ? "Fuera de turno" : !gpsRecent ? "Revisar GPS" : offersLoading ? "Sincronizando" : "GPS confirmado"}</strong>{!offersError && gpsAllowed && gpsRecent && <i className="online-dot"/>}</div>
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>Mantén la app visible para recibir asignaciones y avisos en tiempo real.</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
       </section>}
@@ -314,7 +322,7 @@ export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus,
         {liveOrder && !pendingOrders.length && <button type="button" className="active-sheet-handle" aria-label={isCollapsed ? "Ampliar ficha del pedido" : "Minimizar ficha del pedido"} aria-expanded={!isCollapsed} title={isCollapsed ? "Ampliar pedido" : "Ocultar detalle y dejar el mapa visible"} onClick={toggleSheet} onPointerDown={handleSheetPointerDown}><span className="active-sheet-grab-bar" aria-hidden="true"/>{isCollapsed ? <Plus size={21} strokeWidth={3}/> : <Minus size={21} strokeWidth={3}/>}</button>}
         {liveOrder && <div className="active-order-summary"><span className="active-order-summary-label"><i aria-hidden="true"/> PEDIDO #{liveOrder.displayCode || liveOrder.publicCode || liveOrder._id.slice(-6).toUpperCase()}</span><strong>{navigation?.phase === "customer" ? liveOrder.customerName || "Cliente final" : liveOrder.restaurant?.name || "Establecimiento Partner"}</strong><p><MapPin size={17} aria-hidden="true"/>{navigation?.address || "Destino no disponible"}</p></div>}
         {offersError && <div role="status"><p>{offersError}. Se conserva el último estado recibido; sincroniza antes de confirmar acciones.</p><button type="button" className="active-retry-button" disabled={offersLoading} onClick={onRefreshOffers}><RefreshCw size={16}/> {offersLoading ? "Sincronizando…" : "Reintentar pedidos"}</button></div>}
-        <div role="status"><small>{shiftActive ? "Turno activo" : "Turno no activo"} · {offersError ? "API sin sincronizar" : offersLoading ? "Consultando API" : "Última consulta de pedidos correcta"} · {gpsRecent ? "GPS confirmado hace menos de 90 s" : "GPS sin confirmación reciente"}</small>{gpsAllowed && !gpsRecent && <><p>{gps.detail} Sin GPS reciente puedes quedar fuera de las nuevas asignaciones.</p><button type="button" className="active-retry-button" disabled={gps.state === "starting"} onClick={startRiderDeviceGps}><RefreshCw size={16}/> Reintentar GPS</button></>}</div>
+        <div role="status"><small>{shiftActive ? "Turno activo" : "Turno no activo"} · {offersError ? "API sin sincronizar" : offersLoading ? "Consultando API" : "Última consulta de pedidos correcta"} · {gpsRecent ? "GPS confirmado hace menos de 90 s" : "GPS sin confirmación reciente"}</small>{gpsAllowed && !gpsRecent && <><p>{gpsDetail} Sin GPS reciente puedes quedar fuera de las nuevas asignaciones.</p><button type="button" className="active-retry-button" disabled={gps.state === "starting"} onClick={startRiderDeviceGps}><RefreshCw size={16}/> Reintentar GPS</button></>}<p>La confirmación GPS no acredita por sí sola elegibilidad para nuevas asignaciones: la API evalúa por separado zona, cupo y disponibilidad.</p></div>
         <div className="active-sheet-expanded-content" aria-hidden={isCollapsed}>
           {pendingOrders.length > 0 && <section aria-label="Ofertas pendientes de respuesta"><p className="active-eyebrow">PIKI · {pendingOrders.length} OFERTA{pendingOrders.length === 1 ? "" : "S"} PENDIENTE{pendingOrders.length === 1 ? "" : "S"}</p>{pendingOrders.map((order) => <PendingOfferCard key={order._id} order={order} disabled={mutationDisabled} onAccept={onAcceptOffer}/>)}</section>}
           {liveOrder ? <>

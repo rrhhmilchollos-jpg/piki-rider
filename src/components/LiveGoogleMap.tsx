@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { LocateFixed, MapPin, Navigation } from "lucide-react";
-import { useRiderGpsMapPoint, useRiderGpsSnapshot } from "../riderGpsState";
+import { useRiderGpsMapPoint } from "../riderGpsState";
 import { ringsOf, useDeliveryZone } from "../riderGeofence";
+import { observeRiderMapLayout, observeRiderMapTiles, riderMapTileDetail, type RiderMapTileState } from "../riderMapLifecycle";
 
 type Props = { active?: boolean; apiOrigin?: string; token?: string; riderId?: string };
 
@@ -26,26 +27,32 @@ function riderIcon(heading?: number) {
 
 /**
  * Mapa del rider con Leaflet y teselas de OpenStreetMap. La posición solo se
- * dibuja cuando procede del GPS real; el haz azul apunta al rumbo del dispositivo.
+ * dibuja cuando procede del proveedor de ubicación del dispositivo. El navegador
+ * puede estimarla sin un receptor GPS; el mapa no acredita ACK ni elegibilidad.
  */
 export default function LiveGoogleMap({ active = false, apiOrigin = "", token = "", riderId = "" }: Props) {
   const deliveryZone = useDeliveryZone(apiOrigin, token, riderId);
   const point = useRiderGpsMapPoint();
-  const gps = useRiderGpsSnapshot();
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const zoneRef = useRef<L.Polygon[]>([]);
   const initialCenterDoneRef = useRef(false);
+  const [tileState, setTileState] = useState<RiderMapTileState>("idle");
 
   useEffect(() => {
     if (!nodeRef.current || mapRef.current) return;
     const map = L.map(nodeRef.current, { zoomControl: true, attributionControl: true });
-    L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
+    const tiles = L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 });
+    const stopTileEvents = observeRiderMapTiles(tiles, setTileState);
+    tiles.addTo(map);
+    const stopLayout = observeRiderMapLayout(nodeRef.current, map);
     mapRef.current = map;
     const timer = window.setTimeout(() => map.invalidateSize(), 120);
     return () => {
       window.clearTimeout(timer);
+      stopLayout();
+      stopTileEvents();
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
@@ -110,15 +117,14 @@ export default function LiveGoogleMap({ active = false, apiOrigin = "", token = 
     : " · precisión no disponible";
   const locationMessage = !point
     ? active
-      ? "GPS activo · esperando la primera posición real de esta sesión"
-      : "Activa la jornada para solicitar una posición GPS real; no se usa un centro predeterminado"
-    : gps.state === "tracking"
-      ? `GPS confirmado por la API${precision}`
-      : `Posición GPS propia recibida; esperando confirmación de la API${precision}`;
+      ? "Jornada activa · esperando la primera posición de este dispositivo"
+      : "Activa la jornada para solicitar una posición del dispositivo; no se usa un centro predeterminado"
+    : `Posición del dispositivo recibida${precision}. El mapa no acredita confirmación GPS reciente ni elegibilidad para asignaciones.`;
+  const tileDetail = point ? riderMapTileDetail(tileState) : "";
 
   return <div className="rider-map-card">
-    <div className="rider-map-status" aria-live="polite">{locationMessage}</div>
-    {!point && <div className="rider-google-map-placeholder"><MapPin size={26} /><strong>Esperando tu GPS</strong><span>El mapa se habilita solo cuando esta sesión aporta una posición real.</span></div>}
+    <div className="rider-map-status" aria-live="polite">{locationMessage}{tileDetail && <small> {tileDetail}</small>}</div>
+    {!point && <div className="rider-google-map-placeholder"><MapPin size={26} /><strong>Esperando tu ubicación</strong><span>El mapa se habilita cuando esta sesión aporta una posición del dispositivo; en un navegador puede ser una estimación sin GPS.</span></div>}
     <div ref={nodeRef} className="rider-google-map-canvas" style={{ display: point ? undefined : "none", minHeight: 260 }} aria-label="Mapa de tu posición GPS y de la zona de reparto" />
     {point && <button type="button" className="rider-map-center" onClick={centerOnRider} aria-label="Centrar el mapa en mi ubicación" title="Centrar en mi ubicación"><LocateFixed size={19} /><span>Centrar</span></button>}
     {point && <a className="secondary-button rider-map-open" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${point.lat},${point.lng}`)}`} target="_blank" rel="noreferrer"><Navigation size={16} /> Abrir mi posición en Google Maps</a>}

@@ -28,6 +28,10 @@ class VisibilityDocument extends EventTarget {
 }
 type CapturedPosition = { success: PositionCallback; error: PositionErrorCallback };
 const coords = { latitude: 38.989, longitude: -0.52, accuracy: 8 };
+function ackBody() {
+  return { rider: { id: "rider-1", riderCode: "offline", status: "available", location: { type: "Point", coordinates: [coords.longitude, coords.latitude] }, lastLocationAt: new Date().toISOString() } };
+}
+function browserAckResponse() { return { status: 200, json: async () => ackBody() }; }
 function position(timestamp = Date.now()): GeolocationPosition {
   return { timestamp, coords: { ...coords, heading: null, speed: null, altitude: null, altitudeAccuracy: null } } as GeolocationPosition;
 }
@@ -63,7 +67,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-11-11T00:00:00Z"));
   vi.clearAllMocks();
   native.android = false;
-  native.post.mockResolvedValue({ status: 200 });
+  native.post.mockImplementation(async () => ({ status: 200, data: ackBody() }));
   native.checkPermissions.mockResolvedValue({ display: "granted" });
   native.requestPermissions.mockResolvedValue({ display: "granted" });
   watches = [];
@@ -85,7 +89,7 @@ beforeEach(() => {
     clearWatch: vi.fn((id: number) => { liveWatches.delete(id); }),
     getCurrentPosition: vi.fn((success: PositionCallback, fail: PositionErrorCallback) => { requests.push({ success, error: fail }); }),
   };
-  fetchMock = vi.fn(async () => ({ status: 200 }));
+  fetchMock = vi.fn(async () => browserAckResponse());
   vi.stubGlobal("document", documentMock);
   vi.stubGlobal("navigator", { geolocation });
   vi.stubGlobal("fetch", fetchMock);
@@ -103,7 +107,7 @@ afterEach(async () => {
 
 describe("Visible browser stationary GPS", () => {
   it("keeps the provider timestamp and requires a real HTTP acknowledgement", async () => {
-    const sent = deferred<{ status: number }>();
+    const sent = deferred<ReturnType<typeof browserAckResponse>>();
     fetchMock.mockImplementation(() => sent.promise);
     const f = fixture();
     await f.tracker.start();
@@ -116,7 +120,7 @@ describe("Visible browser stationary GPS", () => {
     expect(f.latest().lastAckAt).toBeUndefined();
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(coords);
     await vi.advanceTimersByTimeAsync(2_000);
-    sent.resolve({ status: 200 });
+    sent.resolve(browserAckResponse());
     await settle();
     expect(f.latest().state).toBe("tracking");
     expect(f.latest().lastAckAt).toBe(Date.now());
@@ -124,13 +128,13 @@ describe("Visible browser stationary GPS", () => {
   });
 
   it("requests a NEW stationary fix every 30 s but publishes only at 60 s, not on timer ticks", async () => {
-    const sent = deferred<{ status: number }>();
+    const sent = deferred<ReturnType<typeof browserAckResponse>>();
     fetchMock.mockImplementationOnce(() => sent.promise);
     const f = fixture();
     await f.tracker.start();
     watches[0].success(position());
     await vi.advanceTimersByTimeAsync(2_000);
-    sent.resolve({ status: 200 });
+    sent.resolve(browserAckResponse());
     await settle();
     await vi.advanceTimersByTimeAsync(28_000);
     expect(geolocation.getCurrentPosition.mock.calls[0][2]).toEqual({ enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 });
@@ -220,7 +224,7 @@ describe("Visible browser stationary GPS", () => {
   });
 
   it("removes timer/listener/watcher and ignores pending fixes and HTTP ACKs after stop", async () => {
-    const sent = deferred<{ status: number }>();
+    const sent = deferred<ReturnType<typeof browserAckResponse>>();
     fetchMock.mockImplementation(() => sent.promise);
     const f = fixture();
     await f.tracker.start();
@@ -233,7 +237,7 @@ describe("Visible browser stationary GPS", () => {
     expect(vi.getTimerCount()).toBe(0);
     requests[0].success(position());
     watches[0].success(position());
-    sent.resolve({ status: 200 });
+    sent.resolve(browserAckResponse());
     documentMock.setVisibility("hidden");
     documentMock.setVisibility("visible");
     await vi.advanceTimersByTimeAsync(120_000);
@@ -450,5 +454,92 @@ describe("Android stationary provider", () => {
     expect(f.latest().autoRetryAllowed).toBe(false);
     await f.tracker.resume();
     expect(native.addWatcher).not.toHaveBeenCalled();
+  });
+});
+
+describe("GPS confirmation contract regressions (offline)", () => {
+  it.each([false, true])("does not acknowledge an HTML 200 response (Android=%s)", async (android) => {
+    native.android = android;
+    if (android) native.post.mockResolvedValueOnce({ status: 200, data: "<html>proxy login</html>" });
+    else fetchMock.mockResolvedValueOnce(new Response("<html>proxy login</html>", { status: 200 }));
+    const f = fixture();
+    await f.tracker.start();
+    if (android) nativeCallbacks[0](location()); else watches[0].success(position());
+    await settle();
+    expect(f.latest().lastAckAt).toBeUndefined();
+    expect(f.latest().lastAcknowledgedFix).toBeUndefined();
+    expect(f.latest().state).toBe("error");
+    expect(f.latest().detail).toContain("HTTP 200");
+  });
+
+  it.each([false, true])("recognizes the API GPS access-denied code without clearing a shift (Android=%s)", async (android) => {
+    native.android = android;
+    const data = { error: "RIDER_GPS_ACCESS_DENIED" };
+    if (android) native.post.mockResolvedValueOnce({ status: 403, data });
+    else fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(data), { status: 403 }));
+    const f = fixture();
+    await f.tracker.start();
+    if (android) nativeCallbacks[0](location()); else watches[0].success(position());
+    await settle();
+    expect(f.latest().lastAckAt).toBeUndefined();
+    expect(f.latest().autoRetryAllowed).toBe(false);
+    expect(f.latest().detail).toContain("HTTP 403");
+    expect(f.latest().detail).toContain("RIDER_GPS_ACCESS_DENIED");
+    expect(android ? native.removeWatcher.mock.calls.length : liveWatches.size).toBe(android ? 1 : 0);
+    await f.tracker.resume();
+    expect(android ? native.addWatcher.mock.calls.length : watches.length).toBe(1);
+  });
+
+  it("shows a recognized operational code but not the server's free-text or private payload", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "RIDER_SESSION_NOT_ACTIVE", message: "secret-token-private@example.invalid", latitude: 38.989 }), { status: 409 }));
+    const f = fixture();
+    await f.tracker.start();
+    watches[0].success(position());
+    await settle();
+    expect(f.latest().detail).toContain("HTTP 409");
+    expect(f.latest().detail).toContain("RIDER_SESSION_NOT_ACTIVE");
+    expect(f.latest().detail).not.toMatch(/secret-token|private@example|38\.989/);
+    expect(f.latest().lastAckAt).toBeUndefined();
+    expect(liveWatches.size).toBe(1);
+  });
+});
+
+describe("GPS transport contract parity", () => {
+  it.each([false, true])("accepts the API nested ACK including a JSON string in native HTTP (Android=%s)", async (android) => {
+    native.android = android;
+    if (android) native.post.mockResolvedValueOnce({ status: 200, data: JSON.stringify(ackBody()) });
+    else fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(ackBody()), { status: 200 }));
+    const f = fixture();
+    await f.tracker.start();
+    if (android) nativeCallbacks[0](location()); else watches[0].success(position());
+    await settle();
+    expect(f.latest().state).toBe("tracking");
+    expect(f.latest().lastAcknowledgedFix).toEqual({ ...coords, timestamp: Date.now() });
+    expect(f.latest().lastAckAt).toBe(Date.now());
+  });
+  it.each([false, true])("does not treat a batch 202 as a legacy location ACK (Android=%s)", async (android) => {
+    native.android = android;
+    const body = { accepted: [], duplicates: [], rejected: ["offline-sample"] };
+    if (android) native.post.mockResolvedValueOnce({ status: 202, data: body });
+    else fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 202 }));
+    const f = fixture();
+    await f.tracker.start();
+    if (android) nativeCallbacks[0](location()); else watches[0].success(position());
+    await settle();
+    expect(f.latest().state).toBe("error");
+    expect(f.latest().lastAckAt).toBeUndefined();
+    expect(f.latest().detail).toContain("ACK_LOCATION_INVALID");
+  });
+  it.each([false, true])("reports a transport timeout without inventing HTTP or leaking an exception (Android=%s)", async (android) => {
+    native.android = android;
+    const failure = Object.assign(new Error("Bearer secret-token-private@example.invalid coordinates"), { name: "TimeoutError" });
+    if (android) native.post.mockRejectedValueOnce(failure); else fetchMock.mockRejectedValueOnce(failure);
+    const f = fixture();
+    await f.tracker.start();
+    if (android) nativeCallbacks[0](location()); else watches[0].success(position());
+    await settle();
+    expect(f.latest().lastAckAt).toBeUndefined();
+    expect(f.latest().detail).toContain("agotó el tiempo de espera");
+    expect(f.latest().detail).not.toMatch(/Bearer|secret-token|private@example|coordinates/);
   });
 });
