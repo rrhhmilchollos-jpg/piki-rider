@@ -59,7 +59,7 @@ export default function GpsRequiredGate({ children }: { children: React.ReactNod
           Permitir ubicación
         </button>
         <p className="gps-gate-help">
-          En la PWA: Chrome → Configuración de sitios → Ubicación → riders.pikidelivery.com → Permitir.
+          En la PWA: Chrome → Configuración de sitios → Ubicación → rider.pikidelivery.com → Permitir.
           En Android: Ajustes → Aplicaciones → PIKI Riders → Permisos → Ubicación → «Mientras se usa la aplicación»
           y «Ubicación precisa». Inicia la jornada con PIKI visible; durante el turno se muestra el servicio de ubicación.
         </p>

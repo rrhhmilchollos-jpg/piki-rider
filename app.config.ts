@@ -1,3 +1,3 @@
 export default {
-  logoUrl: "https://riders.pikidelivery.com/piki-mascot.png",
+  logoUrl: "https://rider.pikidelivery.com/piki-mascot.png",
 };
