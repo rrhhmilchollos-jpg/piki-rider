@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { checkReleaseVersion, releaseVersion } from "./check-release-version.mjs";
 
 const metadata = { surface: "rider", version: "1.0.15", minimumVersion: "1.0.15", forceUpdate: true, buildId: "fixture" };
@@ -30,4 +32,24 @@ for (const [name, file, content, options] of [
 ]) test(`rejects ${name}`, () => { const f = fixture(); try { f.put(file, content); assert.throws(() => checkReleaseVersion(f.root, { env: {}, ...options })); } finally { f.clean(); } });
 test("rejects divergent environment override before writing release metadata", () => {
   const f = fixture(); try { assert.throws(() => releaseVersion(f.root, { PIKI_RELEASE_VERSION: "1.0.99" }), /debe coincidir/); } finally { f.clean(); }
+});
+
+for (const force of [undefined, "false", "true"]) test(`web release requires explicit force-update opt-in (${String(force)})`, () => {
+  const f = fixture();
+  try {
+    f.put("public/sw.template.js", "const BUILD = '__BUILD_ID__'; const CACHE = '__CACHE_PREFIX__'; const SHELL = __APP_SHELL__;\n");
+    const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
+    for (const script of ["prepare-release.mjs", "check-release-version.mjs"]) {
+      f.put(`scripts/${script}`, fs.readFileSync(path.join(sourceRoot, script), "utf8"));
+    }
+    const env = { PATH: process.env.PATH, HOME: process.env.HOME, GITHUB_SHA: "fixture-web-115", NODE_OPTIONS: process.env.NODE_OPTIONS || "" };
+    if (force !== undefined) env.PIKI_FORCE_UPDATE = force;
+    const result = spawnSync(process.execPath, [path.join(f.root, "scripts/prepare-release.mjs")], { cwd: f.root, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    const release = JSON.parse(fs.readFileSync(path.join(f.root, "public/release.json"), "utf8"));
+    assert.equal(release.version, "1.0.15", "must not invent a newer native version");
+    assert.equal(release.forceUpdate, force === "true");
+    assert.equal(release.minimumVersion, force === "true" ? "1.0.15" : "0.0.0");
+    assert.equal(checkReleaseVersion(f.root, { env: {} }), "1.0.15");
+  } finally { f.clean(); }
 });
