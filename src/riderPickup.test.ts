@@ -23,6 +23,8 @@ function fixture(request: () => Promise<Response>, credential = "mock-only-pin")
   const busy = vi.fn();
   const pickupState = vi.fn();
   const fetcher = vi.fn(request);
+  const epoch = { current: 1 };
+  const invalidateIdentity = vi.fn();
   const context: Record<string, unknown> = {
     console, Date, window: { prompt: () => credential }, orderActionBusy: false,
     apiOrigin: "https://mock.invalid", riderId: "fixture-rider", apiToken: "mock-only", authHeaders: () => ({}),
@@ -30,15 +32,31 @@ function fixture(request: () => Promise<Response>, credential = "mock-only-pin")
     setPickupRequest: pickupState,
     setOffers: (update: (previous: typeof offers) => typeof offers) => { offers = update(offers); },
     fetch: fetcher, loadRiderData: load, refreshOffersRef: { current: refresh },
+    riderSessionEpochRef: epoch, invalidateAccountIdentity: invalidateIdentity,
   };
   expect(target).toBeDefined();
   runInNewContext(compile(target!.getText(ast), "pickup.ts") + "\nthis.confirmPickup = confirmPickup;", context);
   return { confirm: context.confirmPickup as (id: string) => Promise<void>, offers: () => offers,
-    pending, refresh, load, toast, busy, pickupState, fetcher };
+    pending, refresh, load, toast, busy, pickupState, fetcher, epoch, invalidateIdentity };
 }
 function response(status: number, data: unknown) { return new Response(JSON.stringify(data), { status }); }
 
 describe("confirmPickup real function — offline AST harness", () => {
+  it.each([401, 403, 428])("clears current account identity immediately on auth HTTP %s", async (status) => {
+    const f = fixture(async () => response(status, { error: "UNAUTHORIZED" }));
+    await f.confirm("fixture-order");
+    expect(f.invalidateIdentity).toHaveBeenCalledTimes(1);
+    expect(f.invalidateIdentity.mock.invocationCallOrder[0]).toBeLessThan(f.refresh.mock.invocationCallOrder[0]);
+  });
+  it("does not clear the new account identity for a late auth error from the previous session", async () => {
+    let resolve!: (value: Response) => void;
+    const f = fixture(() => new Promise((done) => { resolve = done; }));
+    const work = f.confirm("fixture-order");
+    f.epoch.current += 1;
+    resolve(response(401, { error: "UNAUTHORIZED" }));
+    await work;
+    expect(f.invalidateIdentity).not.toHaveBeenCalled();
+  });
   it("keeps Partner phase while the request is pending, then commits only after 2xx", async () => {
     let resolve!: (value: Response) => void;
     const f = fixture(() => new Promise((done) => { resolve = done; }));

@@ -26,6 +26,28 @@ beforeEach(() => { state.gps = { state: "tracking", detail: "GPS OK", lastAckAt:
 afterEach(() => vi.unstubAllGlobals());
 
 describe("active shift server rendering (no device/network)", () => {
+  it("shows canonical account identity and own photo action even without GPS, preserving orders", () => {
+    state.gps = { state: "error", detail: "GPS no disponible", lastAckAt: 0 };
+    const employee = { id: "employee-1", name: "Nombre canónico", fullName: "María del Carmen García Fernández de la Torre", jobRole: "dispatch_coordinator", role: "support", photoUrl: null };
+    const html = renderToStaticMarkup(<ActiveShiftScreen {...props()} employeeIdentity={employee} onSelectOwnPhoto={vi.fn()} onRemoveOwnPhoto={vi.fn()} />);
+    expect(html).toContain(employee.fullName);
+    expect(html).toContain("Puesto: dispatch_coordinator · Rol activo: support");
+    expect(html).toContain("Sin foto");
+    expect(html).toContain("Añadir foto propia");
+    expect(html).toContain("Partner activo");
+    expect(html).toContain("Partner oferta");
+    expect(html).toContain("Reintentar GPS");
+    expect(html).toContain("account-active-header");
+    expect(html).toContain("Llamada directa al soporte");
+  });
+  it("removes all previous account identity when session-scoped identity is cleared", () => {
+    const html = renderToStaticMarkup(<ActiveShiftScreen {...props()} employeeIdentity={null} />);
+    expect(html).toContain("Nombre no disponible");
+    expect(html).toContain("Puesto: No disponible · Rol activo: No disponible");
+    expect(html).toContain("Sin foto");
+    expect(html).not.toContain("data:image");
+    expect(html).toContain("CONFIRMAR RETIRO");
+  });
   it("renders offered and assigned independently, with accept and pickup actions", () => {
     const html = renderToStaticMarkup(<ActiveShiftScreen {...props()}/>);
     expect(html).toContain("Ofertas pendientes de respuesta");

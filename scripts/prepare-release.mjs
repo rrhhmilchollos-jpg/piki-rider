@@ -16,7 +16,10 @@ function buildId() {
 }
 // A web build does not prove that a compatible signed Android update exists.
 // Compatibility enforcement must be explicitly authorized, never a build default.
-const forceUpdate = process.env.PIKI_FORCE_UPDATE === "true";
+// UI-only releases remain compatible with installed native packages.
+// A compatibility gate requires a separate, explicit release decision.
+const forceUpdate = process.env.PIKI_FORCE_UPDATE === "true"
+  && process.env.PIKI_ENFORCE_COMPATIBILITY_UPDATE === "true";
 const release = { surface, version, minimumVersion: forceUpdate ? version : "0.0.0", buildId: buildId(), forceUpdate };
 const publicDir = path.join(root, "public");
 fs.writeFileSync(path.join(publicDir, "release.json"), `${JSON.stringify(release, null, 2)}\n`);
