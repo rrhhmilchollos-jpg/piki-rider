@@ -1,5 +1,7 @@
 import { getStoredToken } from "../authStorage";
 import CodPaymentActions from "./CodPaymentActions";
+import AccountIdentity, { OwnPhotoAction } from "./AccountIdentity";
+import type { EmployeeIdentity } from "../accountIdentity";
 import { BellRing, Camera, CheckCircle2, ClipboardList, Clock3, Coins, Headphones, MapPin, Menu, MessageCircle, Minus, Navigation, Phone, Plus, RefreshCw, ShieldCheck, ShoppingBag, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { IScannerControls } from "@zxing/browser";
@@ -22,6 +24,11 @@ import "../rider-card-payment-delay.css";
 
 type Props = {
   shiftActive: boolean;
+  employeeIdentity?: EmployeeIdentity | null;
+  photoBusy?: boolean;
+  photoError?: string;
+  onSelectOwnPhoto?: (file: File) => void;
+  onRemoveOwnPhoto?: () => void;
   riderOperationalStatus: string;
   currentShift: CurrentShift;
   offers: RiderOffer[];
@@ -155,8 +162,23 @@ function PendingOfferCard({ order, disabled, onAccept }: { order: RiderOffer; di
   </section>;
 }
 
-export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, tipNotification, actionBusy = false, pickupRequest, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
+export default function ActiveShiftScreen({ shiftActive, employeeIdentity = null, photoBusy = false, photoError = "", onSelectOwnPhoto, onRemoveOwnPhoto, riderOperationalStatus, currentShift, offers, offersLoading, offersError, startedShiftNotice, toast, tipNotification, actionBusy = false, pickupRequest, onDismissStartNotice, onOpenOperations, onCallSupport, onOpenSupport, onOpenOrderChat, unreadMessageCount = 0, onRefreshOffers, onAcceptOffer, onOfferAction, onConfirmPickup, onConfirmDelivery, onError }: Props) {
   const gps = useRiderGpsSnapshot();
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    const map = header?.parentElement;
+    if (!header || !map) return;
+    const measure = () => map.style.setProperty("--account-header-height", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(header);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [employeeIdentity?.fullName, employeeIdentity?.jobRole, employeeIdentity?.role, photoError, photoBusy]);
   // The timer triggers expiry renders; a GPS subscription render must use the
   // current clock, not a tick from before the ACK arrived (up to five seconds).
   const [, setNow] = useState(() => Date.now());
@@ -305,14 +327,20 @@ export default function ActiveShiftScreen({ shiftActive, riderOperationalStatus,
     {tipNotification && <div className="rider-tip-bubble" role="status" aria-live="assertive"><span className="rider-tip-bubble-icon">€</span><span>{tipNotification}</span></div>}
     <section className="active-map real-google-map-section">
       <LiveGoogleMap active />
-      <header className="active-brand-header" aria-label="PIKI Rider">
-        <strong>PIKI <em>Rider</em></strong>
+      <header ref={headerRef} className="active-brand-header account-active-header" aria-label="PIKI Rider">
+        <strong className="active-header-brand">PIKI <em>Rider</em></strong>
+        <div className="active-header-account">
+          <AccountIdentity identity={employeeIdentity} />
+          {onSelectOwnPhoto && onRemoveOwnPhoto && <OwnPhotoAction identity={employeeIdentity} busy={photoBusy} error={photoError} onSelect={onSelectOwnPhoto} onRemove={onRemoveOwnPhoto} />}
+        </div>
+        <div className="active-header-controls">
+          <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : !gpsAllowed ? "Fuera de turno" : !gpsRecent ? "Revisar GPS" : offersLoading ? "Sincronizando" : "GPS confirmado"}</strong>{!offersError && gpsAllowed && gpsRecent && <i className="online-dot"/>}</div>
+          <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
+          <button type="button" className="active-support-call-button" onClick={onCallSupport} aria-label="Llamada directa al soporte" title="Llamada directa al soporte"><Phone size={22}/></button>
+          <button type="button" className="active-help-button active-help-message-button" onClick={onOpenSupport} aria-label={unreadMessageCount ? `Abrir mensajes y soporte: ${unreadMessageCount} sin leer` : "Abrir soporte"}><Headphones size={24}/>{unreadMessageCount > 0 && <b className="active-message-badge" aria-hidden="true">{unreadMessageCount > 9 ? "9+" : unreadMessageCount}</b>}</button>
+          {liveOrder && <button type="button" className="active-chat-header-button" onClick={() => onOpenOrderChat(liveOrder)} aria-label="Abrir chat con el cliente" title="Abrir chat con el cliente"><MessageCircle size={24}/></button>}
+        </div>
       </header>
-      <button type="button" className="active-menu-button" onClick={onOpenOperations} aria-label="Abrir operaciones"><Menu size={24}/></button>
-      <button type="button" className="active-support-call-button" onClick={onCallSupport} aria-label="Llamada directa al soporte" title="Llamada directa al soporte"><Phone size={22}/></button>
-      <button type="button" className="active-help-button active-help-message-button" onClick={onOpenSupport} aria-label={unreadMessageCount ? `Abrir mensajes y soporte: ${unreadMessageCount} sin leer` : "Abrir soporte"}><Headphones size={24}/>{unreadMessageCount > 0 && <b className="active-message-badge" aria-hidden="true">{unreadMessageCount > 9 ? "9+" : unreadMessageCount}</b>}</button>
-      {liveOrder && <button type="button" className="active-chat-header-button" onClick={() => onOpenOrderChat(liveOrder)} aria-label="Abrir chat con el cliente" title="Abrir chat con el cliente"><MessageCircle size={24}/></button>}
-      <div className="online-pill" aria-live="polite"><span>Estado</span><strong>{offersError ? "Sin conexión" : !gpsAllowed ? "Fuera de turno" : !gpsRecent ? "Revisar GPS" : offersLoading ? "Sincronizando" : "GPS confirmado"}</strong>{!offersError && gpsAllowed && gpsRecent && <i className="online-dot"/>}</div>
       {startedShiftNotice && <section className="active-start-dialog" role="dialog" aria-modal="true" aria-label="Jornada iniciada">
         <div className="active-start-icon"><Navigation size={28}/></div><h1>Turno activo. Tú conduces, PIKI coordina.</h1><p>Mantén la app visible para recibir asignaciones y avisos en tiempo real.</p><button type="button" onClick={onDismissStartNotice}>Entendido</button>
       </section>}

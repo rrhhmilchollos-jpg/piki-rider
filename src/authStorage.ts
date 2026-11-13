@@ -1,6 +1,7 @@
 const tokenKey = `piki-${location.hostname}-api-token`;
 const validationKey = `piki-${location.hostname}-employee-session-validated`;
 const emailKey = `piki-${location.hostname}-login-email`;
+const tokenChangedEvent = "piki-token-changed";
 
 export function getStoredToken(): string {
   sessionStorage.removeItem(validationKey);
@@ -11,6 +12,7 @@ export function storeToken(token: string): void {
   sessionStorage.removeItem(validationKey);
   localStorage.setItem(tokenKey, token);
   sessionStorage.setItem(tokenKey, token);
+  window.dispatchEvent(new Event(tokenChangedEvent));
 }
 
 export function markStoredTokenValidated(): void {
@@ -23,6 +25,24 @@ export function clearStoredToken(): void {
   sessionStorage.removeItem(tokenKey);
   sessionStorage.removeItem(validationKey);
   localStorage.removeItem(emailKey);
+  window.dispatchEvent(new Event(tokenChangedEvent));
+}
+
+/** Invalidate identity immediately for same-tab changes and cross-tab logout/login. */
+export function subscribeStoredToken(onChange: () => void): () => void {
+  const storageChanged = (event: StorageEvent) => {
+    if (event.key !== tokenKey && event.key !== null) return;
+    // localStorage is shared; do not resurrect this tab's stale sessionStorage copy.
+    sessionStorage.removeItem(tokenKey);
+    sessionStorage.removeItem(validationKey);
+    onChange();
+  };
+  window.addEventListener(tokenChangedEvent, onChange);
+  window.addEventListener("storage", storageChanged);
+  return () => {
+    window.removeEventListener(tokenChangedEvent, onChange);
+    window.removeEventListener("storage", storageChanged);
+  };
 }
 
 export function getStoredEmail(): string {

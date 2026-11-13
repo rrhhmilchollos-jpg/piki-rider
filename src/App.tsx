@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent } from "react";
 import { resolvePikiApiOrigin } from "./apiOrigin";
 import CookieConsent from "./components/CookieConsent";
@@ -39,6 +39,9 @@ import NotificationCenter from "./NotificationCenter";
 import EmployeeAuthGate from "./EmployeeAuthGate";
 import ActiveShiftScreen from "./components/ActiveShiftScreen";
 import RiderIncentivesPanel from "./components/RiderIncentivesPanel";
+import AccountIdentity, { OwnPhotoAction } from "./components/AccountIdentity";
+import { AccountIdentitySession, parseEmployeeIdentity, type RiderSessionPayload } from "./accountIdentity";
+import { patchOwnProfilePhoto, prepareProfilePhoto } from "./profilePhoto";
 import LiveGoogleMap from "./components/LiveGoogleMap";
 import GeofenceGuard from "./GeofenceGuard";
 import RiderSupportChatDialog, { type RiderSupportChatMessage } from "./components/RiderSupportChatDialog";
@@ -73,6 +76,7 @@ import {
   clearStoredToken,
   getStoredToken,
   storeToken,
+  subscribeStoredToken,
   markStoredTokenValidated,
 } from "./authStorage";
 import { isRiderAuthenticationErrorMessage, requiresRiderAuthentication } from "./apiAuthPolicy";
@@ -323,6 +327,11 @@ function RiderWorkspace() {
   const [status, setStatus] = useState<Status>("checking");
   const [authRequired, setAuthRequired] = useState(false);
   const [apiToken, setApiToken] = useState(() => getStoredToken());
+  const [identitySession] = useState(() => new AccountIdentitySession(apiToken));
+  const employeeIdentity = useSyncExternalStore(identitySession.subscribe, identitySession.getSnapshot, identitySession.getSnapshot);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
   const [applicationStatus, setApplicationStatus] =
     useState<ApplicationStatus>("idle");
   const [formEditing, setFormEditing] = useState(false);
@@ -448,7 +457,14 @@ function RiderWorkspace() {
     stopRiderDeviceGps();
     resetRiderGpsState();
   }, []);
+  const invalidateAccountIdentity = useCallback(() => {
+    identitySession.clearIdentity();
+    setPhotoBusy(false);
+    setPhotoError("");
+    setProfileOpen(false);
+  }, [identitySession]);
   const resetRiderScopedState = useCallback(() => {
+    invalidateAccountIdentity();
     riderArrivalAlerts.reset();
     riderShiftSyncRef.current.reset();
     shiftActiveRef.current = false;
@@ -495,21 +511,37 @@ function RiderWorkspace() {
     setSupportChatError("");
     setUnreadSupportMessages(0);
     setUnreadCustomerMessages(0);
-  }, [invalidateRiderGps, riderArrivalAlerts]);
+  }, [invalidateAccountIdentity, invalidateRiderGps, riderArrivalAlerts]);
   const endRiderSession = useCallback((message?: string) => {
     riderSessionEpochRef.current += 1;
     activeTokenRef.current = "";
+    identitySession.changeSession("");
     resetRiderScopedState();
     clearStoredToken();
     setApiToken("");
     setAuthRequired(true);
     setStatus("checking");
     if (message) setToast(message);
-  }, [resetRiderScopedState]);
+  }, [identitySession, resetRiderScopedState]);
+  const logoutRiderSession = useCallback(async () => {
+    const oldToken = activeTokenRef.current;
+    endRiderSession("Sesión cerrada. Se han eliminado los datos de esta cuenta del dispositivo.");
+    if (!oldToken) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 10_000);
+    try {
+      await fetch(`${apiOrigin}/api/v1/auth/employee/logout`, {
+        method: "POST", headers: authHeaders(oldToken), cache: "no-store", signal: controller.signal,
+      });
+      // Do not apply a revocation ACK to any later session/account.
+    } catch { /* Local logout is already complete, even offline or on timeout. */ }
+    finally { window.clearTimeout(timer); }
+  }, [endRiderSession]);
   const beginRiderSession = useCallback((token: string) => {
     riderSessionEpochRef.current += 1;
     resetRiderScopedState();
     activeTokenRef.current = token;
+    identitySession.changeSession(token);
     storeToken(token);
     setApiToken(token);
     // Con el token ya guardado, el dispositivo se registra en FCM para recibir
@@ -518,7 +550,51 @@ function RiderWorkspace() {
     void registerRiderPush(apiOrigin, token);
     setAuthRequired(false);
     setStatus("checking");
-  }, [resetRiderScopedState]);
+  }, [identitySession, resetRiderScopedState]);
+
+  useEffect(() => subscribeStoredToken(() => {
+    const token = getStoredToken();
+    if (token === activeTokenRef.current) return;
+    if (token) beginRiderSession(token);
+    else endRiderSession();
+  }), [beginRiderSession, endRiderSession]);
+
+  const saveOwnPhoto = useCallback(async (file: File | null) => {
+    const ticket = identitySession.beginPhotoUpdate();
+    if (!ticket) return;
+    setPhotoBusy(true);
+    setPhotoError("");
+    try {
+      const photoUrl = file ? await prepareProfilePhoto(file) : null;
+      if (!identitySession.isCurrentPhotoUpdate(ticket)) return;
+      const response = await patchOwnProfilePhoto(apiOrigin, apiToken, photoUrl);
+      if (!identitySession.isCurrentPhotoUpdate(ticket)) return;
+      if (!response.ok) {
+        const authenticationRequired = await requiresRiderAuthentication(response);
+        if (!identitySession.isCurrentPhotoUpdate(ticket)) return;
+        if (authenticationRequired) {
+          endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para cambiar tu foto.");
+          return;
+        }
+        if ([401, 403, 428].includes(response.status)) {
+          invalidateAccountIdentity();
+          setPhotoError("No se ha podido validar el acceso a tu foto. Vuelve a sincronizar tu cuenta.");
+          return;
+        }
+        throw new Error("No se ha guardado la foto. Inténtalo de nuevo.");
+      }
+      // The server ACK authorizes applying only the submitted photo, never roles.
+      if (identitySession.finishPhotoUpdate(ticket, photoUrl)) {
+        setPhotoBusy(false);
+        setToast(photoUrl ? "Foto propia actualizada." : "Foto propia eliminada.");
+      }
+    } catch (caught) {
+      if (identitySession.finishPhotoUpdate(ticket)) {
+        setPhotoBusy(false);
+        setPhotoError(caught instanceof Error ? caught.message : "No se ha guardado la foto.");
+      }
+    }
+  }, [apiToken, endRiderSession, identitySession, invalidateAccountIdentity]);
   const updateAudioPreferences = useCallback((patch: Partial<RiderAudioPreferences>) => {
     setAudioPreferences((current) => saveRiderAudioPreferences(riderId, { ...current, ...patch }));
     if (patch.alertsEnabled === false) {
@@ -633,6 +709,7 @@ function RiderWorkspace() {
     const sessionEpoch = riderSessionEpochRef.current;
     const token = apiToken;
     const shiftReadRevision = riderShiftSyncRef.current.beginRead();
+    const identityRead = identitySession.beginRead();
     const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current && token === activeTokenRef.current;
     const headers = authHeaders(token);
     try {
@@ -642,15 +719,16 @@ function RiderWorkspace() {
       );
       if (!isCurrentSession()) return;
       if (!sessionResponse.ok) {
+        if ([401, 403, 428].includes(sessionResponse.status)) {
+          invalidateAccountIdentity();
+        }
         const authenticationRequired = await requiresRiderAuthentication(sessionResponse);
         if (isCurrentSession() && authenticationRequired) {
           endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
         }
         return;
       }
-      const sessionData = (await sessionResponse.json()) as {
-        rider?: { id?: string; name?: string; email?: string; riderCode?: string; status?: string };
-      };
+      const sessionData = (await sessionResponse.json()) as RiderSessionPayload;
       if (!isCurrentSession()) return;
       const id = String(sessionData.rider?.id || "");
       const nextRiderStatus = String(sessionData.rider?.status || "");
@@ -659,7 +737,16 @@ function RiderWorkspace() {
         return;
       }
       const identityChanged = riderIdentityRef.current !== id;
+      const identityReadIsCurrent = identitySession.mayApplyRead(identityRead);
       if (riderIdentityRef.current && identityChanged) resetRiderScopedState();
+      const nextIdentity = parseEmployeeIdentity(sessionData);
+      const employeeChanged = identityReadIsCurrent && identitySession.getSnapshot()?.id !== nextIdentity?.id;
+      if (employeeChanged) {
+        setPhotoBusy(false);
+        setPhotoError("");
+        setProfileOpen(false);
+      }
+      if (identityReadIsCurrent) identitySession.applyRead(identityChanged ? identitySession.beginRead() : identityRead, nextIdentity);
       riderIdentityRef.current = id;
       if (identityChanged) {
         const preferences = loadRiderAudioPreferences(id);
@@ -672,9 +759,13 @@ function RiderWorkspace() {
       setRiderProfile({ name: String(sessionData.rider?.name || ""), email: String(sessionData.rider?.email || ""), riderCode: String(sessionData.rider?.riderCode || "") });
       if (isRiderGpsStatusBlocked(nextRiderStatus)) invalidateRiderGps();
       const isCurrentRider = () => isCurrentSession() && riderIdentityRef.current === id;
-      const requestPanel = (path: string) => fetch(`${apiOrigin}${path}`, {
-        headers, cache: "no-store", signal: AbortSignal.timeout(riderDataRequestTimeoutMs),
-      });
+      const requestPanel = async (path: string) => {
+        const response = await fetch(`${apiOrigin}${path}`, {
+          headers, cache: "no-store", signal: AbortSignal.timeout(riderDataRequestTimeoutMs),
+        });
+        if (isCurrentRider() && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
+        return response;
+      };
       await refreshRiderDataPanels({
         shift: async () => {
           const response = await requestPanel(`/api/v1/riders/${id}/shift`);
@@ -728,7 +819,7 @@ function RiderWorkspace() {
         window.setTimeout(() => loadRiderDataRef.current(), 0);
       }
     }
-  }, [apiToken, endRiderSession, invalidateRiderGps, resetRiderScopedState]);
+  }, [apiToken, endRiderSession, identitySession, invalidateAccountIdentity, invalidateRiderGps, resetRiderScopedState]);
   useEffect(() => {
     loadRiderDataRef.current = () => { void loadRiderData(); };
   }, [loadRiderData]);
@@ -804,6 +895,7 @@ function RiderWorkspace() {
         );
         signal.throwIfAborted();
         if (!response.ok) {
+          if (isCurrentSession() && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
           const requiresAuthentication = await requiresRiderAuthentication(response);
           signal.throwIfAborted();
           if (requiresAuthentication && isCurrentSession()) {
@@ -858,25 +950,32 @@ function RiderWorkspace() {
       window.removeEventListener("pageshow", refreshOffersWhenVisible);
       window.removeEventListener("online", refreshOffersWhenVisible);
     };
-  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, reconcileOfferSnapshot, audioPreferences.alertsEnabled, riderArrivalAlerts]);
+  }, [apiToken, riderId, playAssignmentAlert, endRiderSession, invalidateAccountIdentity, reconcileOfferSnapshot, audioPreferences.alertsEnabled, riderArrivalAlerts]);
   useEffect(() => {
     if (!apiToken || !riderId) return;
+    const epoch = riderSessionEpochRef.current;
+    const isCurrent = () => epoch === riderSessionEpochRef.current
+      && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId;
     return connectPikiRealtime({
       apiOrigin,
       token: apiToken,
       surface: "rider",
       onState: (connected) => {
-        if (!connected && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId) {
+        if (!connected && isCurrent()) {
           riderArrivalAlerts.reset();
         }
       },
       onAuthExpired: () => {
+        if (!isCurrent()) return;
         endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
       },
       onAuthorizationError: () => {
+        if (!isCurrent()) return;
+        invalidateAccountIdentity();
         setToast("Tu cuenta no tiene permiso para el canal de Riders. Contacta con Operaciones.");
       },
       onEvent: (event) => {
+        if (!isCurrent()) return;
         if (event.type === "rider.schedule_updated") {
           if (document.visibilityState === "visible") void loadRiderData();
           setToast("Tus horarios se han actualizado.");
@@ -915,7 +1014,7 @@ function RiderWorkspace() {
         void refreshOffersRef.current();
       },
     });
-  }, [apiToken, riderId, loadRiderData, endRiderSession, riderArrivalAlerts]);
+  }, [apiToken, riderId, loadRiderData, endRiderSession, invalidateAccountIdentity, riderArrivalAlerts]);
   useEffect(() => {
     if (!apiToken || !riderId || !shiftActive) {
       lastMobilityAlertRef.current = "";
@@ -1092,6 +1191,7 @@ function RiderWorkspace() {
         `${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`,
         { method: "POST", headers: authHeaders(apiToken) },
       );
+      if (sessionEpoch === riderSessionEpochRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data: unknown = await response.json();
       if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
       if (!response.ok) {
@@ -1133,6 +1233,7 @@ function RiderWorkspace() {
     action: "on_the_way",
   ) {
     if (orderActionBusy) return;
+    const sessionEpoch = riderSessionEpochRef.current;
     setOrderActionBusy(true);
     try {
       const endpoint = `/api/v1/orders/${orderId}/transitions`;
@@ -1149,6 +1250,7 @@ function RiderWorkspace() {
         },
         body: JSON.stringify(body),
       });
+      if (sessionEpoch === riderSessionEpochRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setToast(
@@ -1232,6 +1334,7 @@ function RiderWorkspace() {
           body: JSON.stringify(deliveryProofPayload(normalizedDeliveryQr)),
         },
       );
+      if (gpsSessionGeneration === riderGpsSessionGenerationRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setToast(
@@ -1259,6 +1362,7 @@ function RiderWorkspace() {
   }
   async function confirmPickup(orderId: string) {
     if (orderActionBusy) return;
+    const sessionEpoch = riderSessionEpochRef.current;
     const pickupCredential = window.prompt("Introduce el PIN del Partner o pega la URL del QR de recogida:")?.trim() || "";
     if (!pickupCredential) {
       setToast("Necesitas el PIN o QR que muestra el Partner para confirmar la recogida.");
@@ -1281,6 +1385,7 @@ function RiderWorkspace() {
           body: JSON.stringify({ pickupPin: pickupCredential }),
         },
       );
+      if (sessionEpoch === riderSessionEpochRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         pendingOrderStatesRef.current.delete(orderId);
@@ -1452,7 +1557,6 @@ function RiderWorkspace() {
       ? "Entendido, espera en el local. Hemos registrado el retraso y añadimos un aviso al cliente."
       : "Prueba a llamar al cliente desde el pedido. Si no responde en 5 minutos, marca el pedido como Estacionado y continúa la ruta.");
   }
-  const [profileOpen, setProfileOpen] = useState(false);
   const handleApiError = useCallback((message: string) => {
     if (isRiderAuthenticationErrorMessage(message)) {
       endRiderSession("Tu sesión ha caducado. Vuelve a iniciar sesión.");
@@ -1476,6 +1580,11 @@ function RiderWorkspace() {
         <ActiveShiftScreen
           key={riderId}
           shiftActive={shiftActive}
+          employeeIdentity={employeeIdentity}
+          photoBusy={photoBusy}
+          photoError={photoError}
+          onSelectOwnPhoto={(file) => { void saveOwnPhoto(file); }}
+          onRemoveOwnPhoto={() => { void saveOwnPhoto(null); }}
           riderOperationalStatus={riderOperationalStatus}
           currentShift={currentShift}
           offers={offers}
@@ -1563,7 +1672,7 @@ function RiderWorkspace() {
         />
       )}
       <main className={`main-content ${section === "Inicio" ? "home-main-content" : ""}`}>
-        <header className="topbar">
+        <header className="topbar account-topbar">
           <button
             className="menu-button"
             onClick={() => setOpen(true)}
@@ -1576,11 +1685,7 @@ function RiderWorkspace() {
             <span>Operativa de reparto</span>
             <span className="status-dot" />
           </div>
-          <div className="greeting-pill" title={riderProfile.email || undefined}>
-            <span className="greeting-hello">Hola</span>
-            <strong className="greeting-name">{riderProfile.name || "Rider"}</strong>
-            <span className="greeting-role">Rider</span>
-          </div>
+          <AccountIdentity identity={employeeIdentity} />
           <div className="topbar-actions">
             <NotificationCenter
               apiOrigin={apiOrigin}
@@ -1607,16 +1712,18 @@ function RiderWorkspace() {
                 aria-expanded={profileOpen}
                 aria-label="Abrir perfil"
               >
-                <span className="user-avatar">R</span>
+                <Settings size={21} aria-hidden="true" />
               </button>
               {profileOpen && (
                 <div className="profile-menu">
-                  <strong>{riderProfile.name || "Cuenta Rider"}</strong>
+                  <AccountIdentity identity={employeeIdentity} />
                   <span>{riderProfile.riderCode || riderProfile.email || "Perfil individual Rider"}</span>
+                  <OwnPhotoAction identity={employeeIdentity} busy={photoBusy} error={photoError}
+                    onSelect={(file) => { void saveOwnPhoto(file); }} onRemove={() => { void saveOwnPhoto(null); }} />
                   <button onClick={() => showSection("Cuenta")}>
                     Ver mi cuenta
                   </button>
-                  <button className="profile-logout" onClick={() => endRiderSession("Sesión cerrada. Se han eliminado los datos de esta cuenta del dispositivo.")}>
+                  <button className="profile-logout" onClick={logoutRiderSession}>
                     Cerrar sesión
                   </button>
                 </div>
@@ -2315,7 +2422,9 @@ function RiderWorkspace() {
                   <div className="rider-account-grid">
                     <article className="rider-account-card">
                       <span className="rider-account-label">PERFIL RIDER</span>
-                      <h2>{riderProfile.name || "Tu cuenta Rider"}</h2>
+                      <AccountIdentity identity={employeeIdentity} />
+                      <OwnPhotoAction identity={employeeIdentity} busy={photoBusy} error={photoError}
+                        onSelect={(file) => { void saveOwnPhoto(file); }} onRemove={() => { void saveOwnPhoto(null); }} />
                       <dl>
                         <div><dt>Email</dt><dd>{riderProfile.email || "Pendiente de sincronizar"}</dd></div>
                         <div><dt>Código Rider</dt><dd>{riderProfile.riderCode || "Pendiente de asignación"}</dd></div>
