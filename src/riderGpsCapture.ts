@@ -1,8 +1,8 @@
-import { Capacitor, registerPlugin } from "@capacitor/core";
-import type { BackgroundGeolocationPlugin, Location } from "@capacitor-community/background-geolocation";
+import { Capacitor } from "@capacitor/core";
+import type { Location } from "@capacitor-community/background-geolocation";
+import { BackgroundGeolocation } from "./riderBackgroundGeolocation";
 import { validGpsPoint, type GpsFix } from "./riderGpsPolicy";
 import { RIDER_GPS_STOP_EVENT } from "./riderGpsSession";
-const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>("BackgroundGeolocation");
 
 function validFreshFix(fix: GpsFix, since: number) {
   return validGpsPoint(fix) && Number.isFinite(fix.timestamp) && fix.timestamp >= since && fix.timestamp <= Date.now();

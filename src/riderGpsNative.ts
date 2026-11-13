@@ -1,6 +1,6 @@
 import { Capacitor, CapacitorHttp, registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
+import { BackgroundGeolocation } from "./riderBackgroundGeolocation";
 import { watchRiderBrowserGps } from "./riderGpsBrowser";
 import { riderResponseRequiresAuthentication } from "./apiAuthPolicy";
 import { isRiderGpsLocationAck, riderGpsHttpFailureDetail, riderGpsResponseCode, riderGpsTransportFailureDetail } from "./riderGpsResponse";
@@ -12,8 +12,6 @@ import {
   type RiderGpsDiagnosticEvent,
   type RiderGpsSnapshot,
 } from "./riderGpsTracker";
-
-const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>("BackgroundGeolocation");
 
 type PikiGpsDiagnosticsPlugin = {
   event: (input: { event: RiderGpsDiagnosticEvent }) => Promise<void>;
