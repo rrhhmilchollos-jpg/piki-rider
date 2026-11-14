@@ -33,7 +33,7 @@ type Pending = null | "release" | "capture";
 export default function CodPaymentActions({
   orderId,
   totalCents,
-  apiBaseUrl = "https://piki-api-37nr.onrender.com",
+  apiBaseUrl = "https://api.pikidelivery.com",
   token,
   onResolved,
   onError,
