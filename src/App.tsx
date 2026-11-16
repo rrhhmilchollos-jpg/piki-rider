@@ -329,6 +329,21 @@ function RiderWorkspace() {
   const [apiToken, setApiToken] = useState(() => getStoredToken());
   const [identitySession] = useState(() => new AccountIdentitySession(apiToken));
   const employeeIdentity = useSyncExternalStore(identitySession.subscribe, identitySession.getSnapshot, identitySession.getSnapshot);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -342,6 +357,10 @@ function RiderWorkspace() {
   const [startAudioConsent, setStartAudioConsent] = useState(false);
   const [audioPreferences, setAudioPreferences] = useState<RiderAudioPreferences>(defaultRiderAudioPreferences);
   const [showOperations, setShowOperations] = useState(false);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [section, showOperations]);
+
   const [startedShiftNotice, setStartedShiftNotice] = useState(false);
   const [riderId, setRiderId] = useState("");
   const [riderOperationalStatus, setRiderOperationalStatus] = useState("");
@@ -1146,6 +1165,17 @@ function RiderWorkspace() {
     setOpen(false);
     setProfileOpen(false);
   }
+  function openRiderOperations() {
+    setOpen(false);
+    setProfileOpen(false);
+    setSection("Inicio");
+    setShowOperations(true);
+  }
+  function returnToActiveShift() {
+    setOpen(false);
+    setProfileOpen(false);
+    setShowOperations(false);
+  }
   async function toggleShift(consentedAudioPreferences = audioPreferences) {
     if (shiftActive) {
       setToast("La jornada se cerrará automáticamente al finalizar tu slot.");
@@ -1594,7 +1624,7 @@ function RiderWorkspace() {
           toast={toast}
           tipNotification={tipNotification}
           onDismissStartNotice={() => setStartedShiftNotice(false)}
-          onOpenOperations={() => setShowOperations(true)}
+          onOpenOperations={openRiderOperations}
           onCallSupport={callSupport}
           onOpenSupport={() => { setUnreadSupportMessages(0); setShowOperations(true); showSection("Soporte"); if (supportTicketId) setSupportChatOpen(true); }}
           onOpenOrderChat={(order) => { setUnreadCustomerMessages(0); setOrderChatOrder(order); }}
@@ -1618,7 +1648,7 @@ function RiderWorkspace() {
     );
   return (
     <GpsRequiredGate><div className="app-shell"><CookieConsent />
-      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
+      <aside id="rider-navigation" className={`sidebar ${open ? "sidebar-open" : ""}`} aria-label="Navegación Rider">
         <div className="brand-block">
           <img className="brand-mark brand-logo" src="/piki-mascot.png" alt="PIKI" />
           <div>
@@ -1675,11 +1705,20 @@ function RiderWorkspace() {
         <header className="topbar account-topbar">
           <button
             className="menu-button"
+            type="button"
             onClick={() => setOpen(true)}
             aria-label="Abrir menú"
+            aria-expanded={open}
+            aria-controls="rider-navigation"
           >
             <Menu size={21} />
           </button>
+          {(showOperations && (shiftActive || hasPersistedOrder)) && (
+            <button type="button" className="rider-shift-return" onClick={returnToActiveShift} aria-label="Volver a la jornada activa">
+              <ChevronLeft size={17} aria-hidden="true" />
+              <span>Volver a jornada</span>
+            </button>
+          )}
           <div className="location-pill">
             <Bike size={16} />
             <span>Operativa de reparto</span>
