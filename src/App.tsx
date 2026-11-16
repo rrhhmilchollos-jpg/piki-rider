@@ -1209,7 +1209,7 @@ function RiderWorkspace() {
       setCurrentShift((previous) => ({
         ...previous,
         eligible: true,
-        selfStartAllowed: false,
+        selfStartAllowed: true,
         shift: confirmedShift,
       }));
       setShowOperations(false);

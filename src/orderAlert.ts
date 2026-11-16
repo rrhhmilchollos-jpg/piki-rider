@@ -78,7 +78,9 @@ export function playRiderShiftStart(preferences?: RiderAudioPreferences): boolea
   if (!allowed(preferences)) return false;
   if (usesAndroidNotifications()) return queueRiderNativeAlert("shift", true);
   const volume = volumeOf(preferences);
-  return playAsset("ui-shift-start.mp3", volume) || playAsset("piki-alert-15s.mp3", volume);
+  // The start-of-shift alert must be audible for 15–20 seconds. The short
+  // UI chime remains only as a fallback for installations missing the long asset.
+  return playAsset("piki-alert-15s.mp3", volume) || playAsset("ui-shift-start.mp3", volume);
 }
 
 export function playRiderOrderCancelled(preferences?: RiderAudioPreferences, orderId?: string): boolean {
