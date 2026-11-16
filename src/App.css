@@ -664,3 +664,54 @@ button, a, input, select, textarea { touch-action: manipulation; }
 .rider-map-center:hover { background: #f3f7ff; border-color: #0b2453; }
 .rider-map-center:focus-visible { outline: 3px solid rgba(109, 159, 244, .5); outline-offset: 2px; }
 @media (max-width: 580px) { .rider-map-center { top: 48px; right: 10px; padding: 9px 10px; } }
+
+
+/* Navegación Rider: drawer modal estable y retorno rápido a la jornada activa. */
+@media (max-width:1000px) {
+  .sidebar {
+    height:100dvh;
+    max-height:100dvh;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .menu-button { display:grid; place-items:center; }
+  .close-menu { display:block; margin-left:auto; background:transparent; border:0; color:#fff; }
+  .backdrop {
+    display:block;
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100dvh;
+    overscroll-behavior:contain;
+    touch-action:none;
+  }
+}
+.rider-shift-return {
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  min-height:40px;
+  padding:0 12px;
+  border:1px solid rgba(11,18,32,.1);
+  border-radius:999px;
+  background:var(--piki-lime);
+  color:var(--piki-ink);
+  font:700 12px 'DM Sans',sans-serif;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.rider-shift-return:focus-visible,
+.menu-button:focus-visible,
+.close-menu:focus-visible {
+  outline:3px solid #4d9b66;
+  outline-offset:3px;
+}
+@media (max-width:580px) {
+  .rider-shift-return { min-height:36px; padding:0 8px; font-size:11px; }
+}
+@media (max-width:380px) {
+  .rider-shift-return span { display:none; }
+}
