@@ -3,10 +3,11 @@ import { Capacitor } from "@capacitor/core";
 import { PIKI_RELEASE } from "./release-meta";
 import { resolvePikiApiOrigin } from "./apiOrigin";
 import { shouldShowPushConsent } from "./pushConsentPolicy";
+import { fetchRiderReleasePolicy } from "./riderReleaseNetwork";
+import "./riderReleaseStatus.css";
 import { getPwaOperationSafety, subscribePwaOperationSafety } from "./pwaOperationSafety";
 import {
   shouldDeferPwaActivation,
-  type ReleasePolicy,
 } from "./pwaUpdateRecovery";
 import {
   apiRequiresPikiSecurityUpdate,
@@ -28,8 +29,6 @@ type GateState = "checking" | "ready" | "required" | "error";
 
 const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
-const requestTimeoutMs = 8_000;
-const policyRetryDelaysMs = [0, 750, 2_000];
 const workerActivationTimeoutMs = 10_000;
 // La web/PWA usa Service Worker. Capacitor mantiene los assets del paquete
 // firmado: standalone no equivale a contenedor Android nativo.
@@ -66,34 +65,6 @@ export function installPikiReleaseHeaders(): void {
     if (input instanceof Request) return nativeFetch(new Request(input, { ...init, headers }));
     return nativeFetch(input, { ...init, headers });
   };
-}
-
-async function fetchPolicy(): Promise<ReleasePolicy> {
-  let lastError: unknown = new Error("VERSION_CHECK_FAILED");
-  for (const delay of policyRetryDelaysMs) {
-    if (delay) await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
-    try {
-      const query = new URLSearchParams({
-        surface: PIKI_RELEASE.surface,
-        clientVersion: PIKI_RELEASE.version,
-        clientBuildId: PIKI_RELEASE.buildId,
-      });
-      const response = await fetch(`${apiOrigin}/api/v1/app-version?${query}`, {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`VERSION_CHECK_${response.status}`);
-      return await response.json() as ReleasePolicy;
-    } catch (error) {
-      lastError = error;
-    } finally {
-      window.clearTimeout(timeout);
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error("VERSION_CHECK_FAILED");
 }
 
 function base64UrlToUint8Array(value: string): Uint8Array {
@@ -224,6 +195,10 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState("");
   const [updating, setUpdating] = useState(false);
   const [nativeSecurityUpdate, setNativeSecurityUpdate] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [safetyEpoch, setSafetyEpoch] = useState(0);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const targetRef = useRef<PikiPwaTarget | null>(null);
   const registrationRef = useRef<Promise<ServiceWorkerRegistration | null> | null>(null);
   const checkInFlightRef = useRef<Promise<void> | null>(null);
@@ -299,14 +274,15 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   }, [canApplyUpdate, forceFullReload]);
 
   const check = useCallback(async (reason: "initial" | "focus" | "visible" | "interval" | "manual") => {
-    if (!shouldCheckPikiVersion({ now: Date.now(), lastCheckedAt: lastCheckAtRef.current, visible: document.visibilityState === "visible", reason, needsDeferredActivation: state === "required" })) return;
+    if (!shouldCheckPikiVersion({ now: Date.now(), lastCheckedAt: lastCheckAtRef.current, visible: document.visibilityState === "visible", reason, needsDeferredActivation: stateRef.current === "required" })) return;
     if (checkInFlightRef.current) return checkInFlightRef.current;
     const work = (async () => {
       lastCheckAtRef.current = Date.now();
       try {
-        const policy = await fetchPolicy();
+        const policy = await fetchRiderReleasePolicy(window.fetch.bind(window), apiOrigin, PIKI_RELEASE);
         const securityRequired = apiRequiresPikiSecurityUpdate(policy, PIKI_RELEASE);
         const label = `${String(policy.version || policy.minimumVersion)} · ${String(policy.buildId || "")}`;
+        setDetail("");
         if (nativeApp) {
           setNativeSecurityUpdate(securityRequired);
           setRequiredVersion(label);
@@ -345,7 +321,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     })();
     checkInFlightRef.current = work;
     try { await work; } finally { checkInFlightRef.current = null; }
-  }, [getRegistration, state]);
+  }, [getRegistration]);
 
   useEffect(() => {
     installPikiReleaseHeaders();
@@ -355,11 +331,13 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") void check("visible");
     };
+    const onOnline = () => void check("manual");
     const unsubscribeSafety = subscribePwaOperationSafety((safety) => {
       safetyRef.current = safety;
+      setSafetyEpoch((value) => value + 1);
       if (!shouldDeferPwaActivation(safety)) {
         if (controllerChangedRef.current) void navigateToTarget(targetRef.current, true);
-        else if (state === "required") setState("required");
+        else if (stateRef.current === "required") setState("required");
       }
     });
     const onControllerChange = () => {
@@ -368,17 +346,19 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
       void navigateToTarget(targetRef.current, true);
     };
     window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
     document.addEventListener("visibilitychange", onVisibilityChange);
     navigator.serviceWorker?.addEventListener("controllerchange", onControllerChange);
     const timer = window.setInterval(() => void check("interval"), 5 * 60_000);
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
       unsubscribeSafety();
       window.clearInterval(timer);
     };
-  }, [check, navigateToTarget, state]);
+  }, [check, navigateToTarget]);
 
   const update = useCallback(async () => {
     if (nativeApp || updating) return;
@@ -414,6 +394,12 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     }
   }, [canApplyUpdate, forceFullReload, getRegistration, navigateToTarget, updating]);
 
+  const retryConnection = useCallback(async () => {
+    setRetrying(true);
+    try { await check("manual"); }
+    finally { setRetrying(false); }
+  }, [check]);
+
   useEffect(() => {
     // La PWA se actualiza sola cuando hay un build nuevo. Si el rider está
     // entregando, cobrando o rellenando un formulario, la activación se
@@ -421,9 +407,24 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     if (state !== "ready" || !availableBuild || updating || shouldDeferPwaActivation(safetyRef.current)) return;
     const timer = window.setTimeout(() => void update(), 250);
     return () => window.clearTimeout(timer);
-  }, [availableBuild, state, update, updating]);
+  }, [availableBuild, safetyEpoch, state, update, updating]);
 
   if (state === "checking") return <main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main>;
   if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI RIDERS · ACTUALIZACIÓN {nativeSecurityUpdate ? "DE APLICACIÓN" : "PWA"}</p><h1 id="piki-update-title">{nativeSecurityUpdate ? "Actualiza la aplicación para continuar" : "Hay una nueva versión lista"}</h1><p>{nativeSecurityUpdate ? `Esta aplicación necesita la versión firmada ${requiredVersion}. Instálala desde el canal firmado autorizado por PIKI o Google Play si es el canal configurado; los recursos embebidos no se actualizan desde una PWA.` : `El nuevo build web ${requiredVersion} se aplicará sin cerrar tu sesión ni borrar los datos guardados.`}</p>{detail && <p role="alert">{detail}</p>}{!nativeSecurityUpdate && <button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Aplicando nuevo build…" : "Actualizar PWA"}</button>}</section></main>;
-  return <>{state === "error" && <div role="status" style={{ position: "fixed", zIndex: 9998, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#fef3c7", color: "#78350f", fontSize: "13px" }}>Conexión de seguridad temporalmente no disponible. Puedes iniciar sesión; lo volveremos a comprobar automáticamente.{availableBuild && <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>}</div>}{availableBuild && <div role="status" style={{ position: "fixed", zIndex: 9997, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#e0f2fe", color: "#0c4a6e", fontSize: "13px" }}>Nueva versión de PWA disponible: {availableBuild}. <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>{detail && <div style={{ marginTop: "4px", fontSize: "12px" }}>{detail}</div>}</div>}{children}<PushConsentControl /></>;
+  return <>
+    {state === "error" && <aside role="status" className="rider-release-status">
+      <p><strong>No se ha podido comprobar la versión de Rider.</strong> Revisa tu conexión. Este aviso no confirma el estado de tu sesión, horarios o GPS.</p>
+      <div className="rider-release-status-actions">
+        <button type="button" onClick={() => void retryConnection()} disabled={retrying}>{retrying ? "Comprobando conexión…" : "Reintentar conexión"}</button>
+        {!nativeApp && <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : availableBuild ? "Actualizar PWA" : "Recargar aplicación"}</button>}
+      </div>
+      <div className="rider-release-status-detail">Versión instalada: {PIKI_RELEASE.version} · {PIKI_RELEASE.buildId}{detail && ` · ${detail}`}</div>
+    </aside>}
+    {availableBuild && state !== "error" && <aside role="status" className="rider-release-status rider-release-status--update">
+      <p>Nueva versión de PWA disponible: {availableBuild}.</p>
+      <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>
+      {detail && <div className="rider-release-status-detail">{detail}</div>}
+    </aside>}
+    {children}<PushConsentControl />
+  </>;
 }

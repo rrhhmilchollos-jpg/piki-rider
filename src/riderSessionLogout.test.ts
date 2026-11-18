@@ -47,6 +47,7 @@ function fixture() {
     shiftActiveRef: { current: true }, riderOrdersRef: { current: ["ORDER_A"] },
     cancelledOrderIdsRef: { current: new Set(["ORDER_A"]) }, knownOfferIdsRef: { current: new Set(["OFFER_A"]) },
     assignedOrderRef: { current: true }, riderRefreshQueuedRef: { current: true },
+    pendingOrderStatesRef: { current: new Map([["ORDER_A", { status: "accepted" }]]) },
     lastOfferAtRef: { current: 1 }, lastMobilityAlertRef: { current: "ALERT_A" }, lastAlertAtRef: { current: 1 },
   };
   let resolve!: (response: Response) => void, reject!: (error: Error) => void;
@@ -75,6 +76,7 @@ function expectCleared(f: ReturnType<typeof fixture>) {
   expect(f.state.setOffers).toEqual([]); expect(f.state.setShifts).toEqual([]); expect(f.state.setSupportChatMessages).toEqual([]);
   expect(f.state.setSupportChatDraft).toBe(""); expect(f.state.setPhotoBusy).toBe(false); expect(f.state.setProfileOpen).toBe(false);
   expect(f.refs.riderOrdersRef.current).toEqual([]); expect(f.refs.cancelledOrderIdsRef.current.size).toBe(0);
+  expect(f.refs.pendingOrderStatesRef.current.size).toBe(0); expect(f.state.setPickupRequest).toBeNull();
   expect(f.native.cancelRiderPushRegistration).toHaveBeenCalled(); expect(f.native.invalidateRiderGps).toHaveBeenCalled();
 }
 function replaceFromOtherTab(f: ReturnType<typeof fixture>, token: string | null) {

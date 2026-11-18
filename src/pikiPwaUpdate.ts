@@ -1,3 +1,5 @@
+import { withRequestDeadline } from "./requestDeadline";
+
 export type PikiReleaseIdentity = {
   surface: string;
   version: string;
@@ -100,16 +102,21 @@ export async function fetchPikiStaticRelease(
   origin: string,
   surface: string,
   cacheBuster: string | number = Date.now(),
+  timeoutMs = 8_000,
 ): Promise<PikiStaticRelease> {
   const url = pikiReleaseUrl(origin, cacheBuster);
-  const response = await fetcher(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json", "Cache-Control": "no-cache", Pragma: "no-cache" },
-  });
-  if (!response.ok) throw new Error(`RELEASE_CHECK_${response.status}`);
-  const release: unknown = await response.json();
-  if (!isValidPikiStaticRelease(release, surface)) throw new Error("El release web no corresponde a esta superficie.");
-  return release;
+  const controller = new AbortController();
+  return await withRequestDeadline(async (signal) => {
+    const response = await fetcher(url, {
+      cache: "no-store",
+      headers: { Accept: "application/json", "Cache-Control": "no-cache", Pragma: "no-cache" },
+      signal,
+    });
+    if (!response.ok) throw new Error(`RELEASE_CHECK_${response.status}`);
+    const release: unknown = await response.json();
+    if (!isValidPikiStaticRelease(release, surface)) throw new Error("El release web no corresponde a esta superficie.");
+    return release;
+  }, controller, timeoutMs);
 }
 
 export function pikiReloadMarker(surface: string, targetBuildId: string): string {

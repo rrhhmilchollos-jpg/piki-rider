@@ -84,4 +84,72 @@ describe("SSE deadlines", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it.each([
+    ["HTML proxy", "<html>Forbidden</html>"], ["plain proxy", "Forbidden"],
+    ["empty object", "{}"], ["malformed JSON", "{invalid"], ["null", "null"],
+    ["message only", JSON.stringify({ message: "FORBIDDEN" })],
+    ["role only", JSON.stringify({ role: "rider" })],
+    ["unknown code", JSON.stringify({ error: "PROXY_FORBIDDEN" })],
+    ["prefix code", JSON.stringify({ error: "FORBIDDEN_PROXY" })],
+    ["nested code", JSON.stringify({ error: { code: "FORBIDDEN" } })],
+    ["array", JSON.stringify([{ error: "FORBIDDEN" }])],
+  ])("retries a 403 %s without invalidating auth/identity", async (_label, body) => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(body, { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthExpired = vi.fn();
+    const onAuthorizationError = vi.fn();
+    const onState = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onState, onAuthExpired, onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onState).toHaveBeenCalledWith(false);
+    expect(onAuthExpired).not.toHaveBeenCalled();
+    expect(onAuthorizationError).not.toHaveBeenCalled();
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([{ code: "FORBIDDEN" }, { error: "AUTHENTICATION_REQUIRED" }])("stops once for an exact known JSON 403 signal %j", async (body) => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(body), { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onAuthorizationError).toHaveBeenCalledExactlyOnceWith(403);
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("bounds an unreadable 403 body and retries without discarding identity", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 403, ok: false, clone: () => ({ json: () => new Promise(() => {}) }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(17_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onAuthorizationError).not.toHaveBeenCalled();
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not invalidate a disposed session when a 403 body resolves late", async () => {
+    let resolve!: (body: unknown) => void;
+    const body = new Promise((done) => { resolve = done; });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 403, clone: () => ({ json: () => body }) }));
+    const onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(0);
+    stop();
+    resolve({ error: "FORBIDDEN" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onAuthorizationError).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

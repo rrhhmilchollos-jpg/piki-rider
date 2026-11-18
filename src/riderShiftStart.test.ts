@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { compile } from "./test/offlineComponent";
 import { parseRiderStartAcknowledgement, riderStartBlock, riderStartFailureMessage } from "./riderShiftStart";
 import { madridInstant } from "./shiftStartAlarms";
+import { withRequestDeadline } from "./requestDeadline";
 
 const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("App.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -28,10 +29,12 @@ function fixture(request: () => Promise<Response>) {
     console, Date, Error, shiftActive: false, shiftBusy: false, riderId: "fixture-rider", apiToken: "mock-only",
     parseRiderStartAcknowledgement, riderStartBlock, riderStartFailureMessage,
     apiOrigin: "https://mock.invalid", authHeaders: () => ({}),
+    withRequestDeadline, AbortController, riderDataRequestTimeoutMs: 15_000, invalidateAccountIdentity: vi.fn(),
     currentShift: { eligible: true, shift: { ...officialShift, status: "planned" } },
     riderOperationalStatus: "offline", isRiderGpsStatusBlocked: () => false,
     startConsentOpen: true, audioPreferences: { alertsEnabled: true, volume: 0.5 }, shifts: [],
     riderGpsSessionGenerationRef: { current: 1 }, riderSessionEpochRef: { current: 1 },
+    activeTokenRef: { current: "mock-only" }, riderIdentityRef: { current: "fixture-rider" },
     riderShiftSyncRef: { current: { beginStart: vi.fn(), finishStart: vi.fn() } },
     shiftActiveRef: { current: false }, audioContextRef: { current: null },
     setToast: toast, setShiftBusy: vi.fn(), setStartConsentOpen: vi.fn(),

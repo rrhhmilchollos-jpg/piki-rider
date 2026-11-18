@@ -33,6 +33,7 @@ function fixture(request: () => Promise<Response>, credential = "mock-only-pin")
     setOffers: (update: (previous: typeof offers) => typeof offers) => { offers = update(offers); },
     fetch: fetcher, loadRiderData: load, refreshOffersRef: { current: refresh },
     riderSessionEpochRef: epoch, invalidateAccountIdentity: invalidateIdentity,
+    activeTokenRef: { current: "mock-only" }, riderIdentityRef: { current: "fixture-rider" },
   };
   expect(target).toBeDefined();
   runInNewContext(compile(target!.getText(ast), "pickup.ts") + "\nthis.confirmPickup = confirmPickup;", context);

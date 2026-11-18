@@ -79,9 +79,10 @@ import {
   subscribeStoredToken,
   markStoredTokenValidated,
 } from "./authStorage";
-import { isRiderAuthenticationErrorMessage, requiresRiderAuthentication } from "./apiAuthPolicy";
+import { isRiderAuthenticationErrorMessage, requiresRiderAuthentication, riderResponseRequiresAuthentication } from "./apiAuthPolicy";
 import { deliveryProofPayload, normalizeDeliveryProof } from "./deliveryProof";
 import { isRiderPwaOperationActive, publishPwaOperationSafety } from "./pwaOperationSafety";
+import { withRequestDeadline } from "./requestDeadline";
 import { riderPickupStatusMessage, type RiderPickupRequest } from "./riderPickupStatus";
 import {
   buildMadridScheduleWeek,
@@ -326,6 +327,8 @@ function RiderWorkspace() {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("checking");
   const [authRequired, setAuthRequired] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [sessionError, setSessionError] = useState("");
   const [apiToken, setApiToken] = useState(() => getStoredToken());
   const [identitySession] = useState(() => new AccountIdentitySession(apiToken));
   const employeeIdentity = useSyncExternalStore(identitySession.subscribe, identitySession.getSnapshot, identitySession.getSnapshot);
@@ -371,6 +374,9 @@ function RiderWorkspace() {
   const [toast, setToast] = useState("");
   const [tipNotification, setTipNotification] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [slotsStatus, setSlotsStatus] = useState<"loading" | "error" | "success">("loading");
+  const [slotsError, setSlotsError] = useState("");
+  const [hasSyncedSlots, setHasSyncedSlots] = useState(false);
   const [scheduleWeekOffset, setScheduleWeekOffset] = useState(0);
   const [scheduleNow, setScheduleNow] = useState(() => new Date());
   const [stats, setStats] = useState<Stats>({
@@ -499,6 +505,7 @@ function RiderWorkspace() {
     invalidateRiderGps();
     riderOrdersRef.current = [];
     cancelledOrderIdsRef.current.clear();
+    pendingOrderStatesRef.current.clear();
     knownOfferIdsRef.current = null;
     assignedOrderRef.current = false;
     riderRefreshQueuedRef.current = false;
@@ -512,11 +519,16 @@ function RiderWorkspace() {
     setShiftBusy(false);
     setCurrentShift({ eligible: false });
     setShifts([]);
+    setSlotsStatus("loading");
+    setSlotsError("");
+    setHasSyncedSlots(false);
+    setSessionError("");
     setOffers([]);
     setCollapsedOfferIds(new Set());
     setOffersLoading(false);
     setOffersError("");
     setOrderActionBusy(false);
+    setPickupRequest(null);
     setStats({ completed: 0, cancelled: 0, accepted: 0, rating: "—", distance: "—", dailyDeliveries: [] });
     setCashWallet({ availableCents: 0, collectedCents: 0, handedOverCents: 0, collectedEntries: 0 });
     setStartedShiftNotice(false);
@@ -661,7 +673,7 @@ function RiderWorkspace() {
     publishPwaOperationSafety({
       // Keep updates deferred until the API has restored the authenticated
       // rider and its shift state; a running shift is an active operation too.
-      known: Boolean(apiToken && riderId && status === "ready"),
+      known: !apiToken || Boolean(riderId && status === "ready"),
       active: isRiderPwaOperationActive({
         activeOrder,
         shiftActive,
@@ -672,9 +684,9 @@ function RiderWorkspace() {
         applicationStatus,
         startConsentOpen,
         formEditing,
-      }),
+      }) || authBusy,
     });
-  }, [activeOrder, apiToken, applicationStatus, formEditing, orderActionBusy, riderId, shiftActive, shiftBusy, startConsentOpen, status, supportChatBusy, supportFormBusy]);
+  }, [activeOrder, apiToken, applicationStatus, authBusy, formEditing, orderActionBusy, riderId, shiftActive, shiftBusy, startConsentOpen, status, supportChatBusy, supportFormBusy]);
 
   const playAssignmentAlert = useCallback((offer?: RiderOffer) => {
     if (!audioPreferences.alertsEnabled) return;
@@ -737,29 +749,35 @@ function RiderWorkspace() {
     const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current && token === activeTokenRef.current;
     const headers = authHeaders(token);
     try {
-      const sessionResponse = await fetch(
-        `${apiOrigin}/api/v1/riders/session`,
-        { headers, cache: "no-store", signal: AbortSignal.timeout(riderDataRequestTimeoutMs) },
-      );
+      const { sessionResponse, sessionData } = await withRequestDeadline(async (signal) => {
+        const sessionResponse = await fetch(`${apiOrigin}/api/v1/riders/session`, { headers, cache: "no-store", signal });
+        if (isCurrentSession() && [401, 403, 428].includes(sessionResponse.status)) invalidateAccountIdentity();
+        const sessionData = await sessionResponse.json().catch(() => null) as (RiderSessionPayload & { code?: unknown; error?: unknown }) | null;
+        return { sessionResponse, sessionData };
+      }, new AbortController(), riderDataRequestTimeoutMs);
       if (!isCurrentSession()) return;
-      if (!sessionResponse.ok) {
-        if ([401, 403, 428].includes(sessionResponse.status)) {
-          invalidateAccountIdentity();
-        }
-        const authenticationRequired = await requiresRiderAuthentication(sessionResponse);
-        if (isCurrentSession() && authenticationRequired) {
+      const unlinked = [sessionData?.code, sessionData?.error].includes("RIDER_ACCOUNT_NOT_LINKED");
+      if (!sessionResponse.ok || unlinked) {
+        const authenticationRequired = riderResponseRequiresAuthentication(sessionResponse.status, sessionData);
+        if (authenticationRequired) {
           endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
+          return;
         }
+        if (unlinked) resetRiderScopedState();
+        setStatus("unavailable");
+        setSessionError(unlinked
+          ? "Esta sesión no tiene una cuenta Rider vinculada (RIDER_ACCOUNT_NOT_LINKED). Contacta con Fleet o vuelve a sincronizar."
+          : `No se ha podido sincronizar tu sesión Rider (HTTP ${sessionResponse.status}). Tu acceso guardado se conserva; vuelve a intentarlo.`);
+        setSlotsStatus("error");
+        setSlotsError("No se han podido sincronizar horarios");
         return;
       }
-      const sessionData = (await sessionResponse.json()) as RiderSessionPayload;
-      if (!isCurrentSession()) return;
-      const id = String(sessionData.rider?.id || "");
+      const id = String(sessionData?.rider?.id || "");
+      if (!id || !sessionData) {
+        throw new Error("La API no ha confirmado la cuenta Rider de esta sesión.");
+      }
       const nextRiderStatus = String(sessionData.rider?.status || "");
-      if (!id) {
-        resetRiderScopedState();
-        return;
-      }
+      setSessionError("");
       const identityChanged = riderIdentityRef.current !== id;
       const identityReadIsCurrent = identitySession.mayApplyRead(identityRead);
       if (riderIdentityRef.current && identityChanged) resetRiderScopedState();
@@ -814,10 +832,36 @@ function RiderWorkspace() {
           }
         },
         slots: async () => {
-          const response = await requestPanel(`/api/v1/riders/${id}/slots`);
-          if (!response.ok) return;
-          const data = await response.json() as { slots?: Array<Record<string, unknown>> };
-          if (isCurrentRider()) setShifts(Array.isArray(data.slots) ? data.slots.map(normalizeRiderShift) : []);
+          if (!isCurrentRider()) return;
+          setSlotsStatus("loading");
+          try {
+            const nextShifts = await withRequestDeadline(async (signal) => {
+              const response = await fetch(`${apiOrigin}/api/v1/riders/${id}/slots`, { headers, cache: "no-store", signal });
+              if (!isCurrentRider()) return null;
+              if ([401, 403, 428].includes(response.status)) invalidateAccountIdentity();
+              if (!response.ok) throw new Error("No se han podido sincronizar horarios");
+              const data = await response.json() as { slots?: unknown } | null;
+              if (!Array.isArray(data?.slots) || !data.slots.every((slot) => slot && typeof slot === "object" && !Array.isArray(slot))) {
+                throw new Error("Respuesta de horarios incompleta");
+              }
+              const normalized = data.slots.map((slot) => normalizeRiderShift(slot as Record<string, unknown>));
+              if (!normalized.every((shift) => shift.date && /^([01]\d|2[0-3]):[0-5]\d$/.test(shift.start)
+                && /^([01]\d|2[0-3]):[0-5]\d$/.test(shift.end)
+                && ["assigned", "pending", "planned", "active", "completed", "cancelled"].includes(shift.status))) {
+                throw new Error("Respuesta de horarios incompleta");
+              }
+              return normalized;
+            }, new AbortController(), riderDataRequestTimeoutMs);
+            if (!isCurrentRider() || !nextShifts) return;
+            setShifts(nextShifts);
+            setHasSyncedSlots(true);
+            setSlotsError("");
+            setSlotsStatus("success");
+          } catch {
+            if (!isCurrentRider()) return;
+            setSlotsStatus("error");
+            setSlotsError("No se han podido sincronizar horarios");
+          }
         },
         statistics: async () => {
           const response = await requestPanel("/api/v1/riders/statistics");
@@ -834,7 +878,12 @@ function RiderWorkspace() {
       });
       if (isCurrentRider()) setStatus("ready");
     } catch {
-      if (isCurrentSession()) setStatus("unavailable");
+      if (isCurrentSession()) {
+        setStatus("unavailable");
+        setSessionError("No se ha podido sincronizar tu sesión Rider. Tu acceso guardado se conserva; comprueba la conexión y vuelve a intentarlo.");
+        setSlotsStatus("error");
+        setSlotsError("No se han podido sincronizar horarios");
+      }
       /* Panels remain usable while the API is unavailable. */
     } finally {
       riderRefreshInFlightRef.current = false;
@@ -1204,31 +1253,39 @@ function RiderWorkspace() {
     const endpoint = "start";
     const gpsSessionGeneration = riderGpsSessionGenerationRef.current;
     const sessionEpoch = riderSessionEpochRef.current;
+    const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current
+      && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId
+      && gpsSessionGeneration === riderGpsSessionGenerationRef.current;
+    let startSubmitted = false;
     riderShiftSyncRef.current.beginStart();
     setShiftBusy(true);
     try {
       if (consentedAudioPreferences.alertsEnabled) {
         await requestRiderNotificationPermission();
-        if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+        if (!isCurrentSession()) return;
         void registerRiderPush(apiOrigin, apiToken);
         void syncShiftStartAlarms(shifts, { enabled: true });
       }
       if (!shiftActive) {
         const position = await captureRiderGps();
-        if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+        if (!isCurrentSession()) return;
         await publishRiderLocation(apiToken, riderId, {
           latitude: position.latitude, longitude: position.longitude, accuracy: position.accuracy,
         });
-        if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+        if (!isCurrentSession()) return;
       }
-      if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
-      const response = await fetch(
-        `${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`,
-        { method: "POST", headers: authHeaders(apiToken) },
-      );
-      if (sessionEpoch === riderSessionEpochRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
-      const data: unknown = await response.json();
-      if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+      if (!isCurrentSession()) return;
+      startSubmitted = true;
+      const { response, data } = await withRequestDeadline(async (signal) => {
+        const response = await fetch(
+          `${apiOrigin}/api/v1/riders/${riderId}/shift/${endpoint}`,
+          { method: "POST", headers: authHeaders(apiToken), signal },
+        );
+        if (isCurrentSession() && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
+        const data: unknown = await response.json();
+        return { response, data };
+      }, new AbortController(), riderDataRequestTimeoutMs);
+      if (!isCurrentSession()) return;
       if (!response.ok) {
         setToast(riderStartFailureMessage(data));
         return;
@@ -1254,9 +1311,12 @@ function RiderWorkspace() {
       }
       setToast("Jornada iniciada. Se cerrará automáticamente al finalizar el slot.");
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "No se pudo validar el turno con la API.");
+      if (!isCurrentSession()) return;
+      setToast(startSubmitted
+        ? "No se ha podido confirmar el inicio de jornada. Se consultará su estado antes de reintentar; no se repetirá el inicio automáticamente."
+        : error instanceof Error ? error.message : "No se pudo validar el turno con la API.");
     } finally {
-      if (sessionEpoch === riderSessionEpochRef.current) {
+      if (isCurrentSession()) {
         riderShiftSyncRef.current.finishStart();
         setShiftBusy(false);
         loadRiderDataRef.current();
@@ -1269,6 +1329,8 @@ function RiderWorkspace() {
   ) {
     if (orderActionBusy) return;
     const sessionEpoch = riderSessionEpochRef.current;
+    const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current
+      && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId;
     setOrderActionBusy(true);
     try {
       const endpoint = `/api/v1/orders/${orderId}/transitions`;
@@ -1285,8 +1347,10 @@ function RiderWorkspace() {
         },
         body: JSON.stringify(body),
       });
-      if (sessionEpoch === riderSessionEpochRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
+      if (!isCurrentSession()) return;
+      if ([401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data = await response.json().catch(() => ({}));
+      if (!isCurrentSession()) return;
       if (!response.ok) {
         setToast(
           data.message || data.error || "No se pudo actualizar el reparto.",
@@ -1298,12 +1362,13 @@ function RiderWorkspace() {
       setToast("Ruta iniciada. El Customer ya ve el seguimiento en tiempo real.");
       await loadRiderData();
     } catch {
+      if (!isCurrentSession()) return;
       setToast(
         "No se pudo conectar con la API. Se recargará el estado para evitar dobles acciones.",
       );
       await loadRiderData();
     } finally {
-      setOrderActionBusy(false);
+      if (isCurrentSession()) setOrderActionBusy(false);
     }
   }
   async function acceptRiderOfferAction(orderId: string) {
@@ -1337,7 +1402,11 @@ function RiderWorkspace() {
       return;
     }
     setOrderActionBusy(true);
+    const sessionEpoch = riderSessionEpochRef.current;
     const gpsSessionGeneration = riderGpsSessionGenerationRef.current;
+    const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current
+      && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId
+      && gpsSessionGeneration === riderGpsSessionGenerationRef.current;
     try {
       // Nunca confirmes contra una posición antigua del heartbeat. En móvil,
       // el último watchPosition puede tener varios segundos de retraso o
@@ -1346,14 +1415,15 @@ function RiderWorkspace() {
       if (riderId) {
         try {
           const freshPosition = await captureRiderGps(12_000);
-          if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+          if (!isCurrentSession()) return;
           await publishRiderLocation(apiToken, riderId, {
             latitude: freshPosition.latitude,
             longitude: freshPosition.longitude,
             accuracy: freshPosition.accuracy,
           });
-          if (gpsSessionGeneration !== riderGpsSessionGenerationRef.current) return;
+          if (!isCurrentSession()) return;
         } catch {
+          if (!isCurrentSession()) return;
           setToast("No se pudo obtener un GPS preciso. Activa la ubicación precisa y vuelve a intentarlo.");
           return;
         }
@@ -1369,8 +1439,10 @@ function RiderWorkspace() {
           body: JSON.stringify(deliveryProofPayload(normalizedDeliveryQr)),
         },
       );
-      if (gpsSessionGeneration === riderGpsSessionGenerationRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
+      if (!isCurrentSession()) return;
+      if ([401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data = await response.json().catch(() => ({}));
+      if (!isCurrentSession()) return;
       if (!response.ok) {
         setToast(
           data.message || data.error || "No se pudo confirmar la entrega.",
@@ -1387,17 +1459,20 @@ function RiderWorkspace() {
       );
       await loadRiderData();
     } catch {
+      if (!isCurrentSession()) return;
       setToast(
         "No se pudo confirmar por red. Comprueba el pedido antes de reintentar.",
       );
       await loadRiderData();
     } finally {
-      setOrderActionBusy(false);
+      if (isCurrentSession()) setOrderActionBusy(false);
     }
   }
   async function confirmPickup(orderId: string) {
     if (orderActionBusy) return;
     const sessionEpoch = riderSessionEpochRef.current;
+    const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current
+      && activeTokenRef.current === apiToken && riderIdentityRef.current === riderId;
     const pickupCredential = window.prompt("Introduce el PIN del Partner o pega la URL del QR de recogida:")?.trim() || "";
     if (!pickupCredential) {
       setToast("Necesitas el PIN o QR que muestra el Partner para confirmar la recogida.");
@@ -1420,8 +1495,10 @@ function RiderWorkspace() {
           body: JSON.stringify({ pickupPin: pickupCredential }),
         },
       );
-      if (sessionEpoch === riderSessionEpochRef.current && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
+      if (!isCurrentSession()) return;
+      if ([401, 403, 428].includes(response.status)) invalidateAccountIdentity();
       const data = await response.json().catch(() => ({}));
+      if (!isCurrentSession()) return;
       if (!response.ok) {
         pendingOrderStatesRef.current.delete(orderId);
         setPickupRequest(null);
@@ -1431,6 +1508,7 @@ function RiderWorkspace() {
             "El establecimiento no ha validado la recogida.",
         );
         await refreshOffersRef.current();
+        if (!isCurrentSession()) return;
         await loadRiderData();
         return;
       }
@@ -1449,7 +1527,9 @@ function RiderWorkspace() {
           "Recogida confirmada. Ruta al cliente iniciada automáticamente.",
       );
       await refreshOffersRef.current();
+      if (!isCurrentSession()) return;
       await loadRiderData();
+      if (!isCurrentSession()) return;
       // La respuesta de la mutación es la fuente de verdad inmediata. Si la
       // reconciliación REST llega desde una réplica con unos milisegundos de
       // retraso, no debemos volver a pintar la tarjeta de Partner.
@@ -1457,15 +1537,17 @@ function RiderWorkspace() {
         ? { ...offer, ...(confirmedOrder || {}), status: "on_the_way" }
         : offer));
     } catch {
+      if (!isCurrentSession()) return;
       pendingOrderStatesRef.current.delete(orderId);
       setPickupRequest({ orderId, status: "verifying" });
       setToast(
         "Recogida pendiente de verificar por un error de conexión. Sincroniza el pedido antes de reintentar; no se ha confirmado la ruta al cliente.",
       );
       await refreshOffersRef.current();
+      if (!isCurrentSession()) return;
       await loadRiderData();
     } finally {
-      setOrderActionBusy(false);
+      if (isCurrentSession()) setOrderActionBusy(false);
     }
   }
   async function submitSupportTicket(event: FormEvent<HTMLFormElement>) {
@@ -1626,11 +1708,18 @@ function RiderWorkspace() {
     setToast(message);
   }, [endRiderSession]);
 
+  const sessionSyncNotice = sessionError && (
+    <aside className="form-error" role="alert">
+      <p>{sessionError}</p>
+      <button type="button" className="secondary-button" onClick={() => void loadRiderData()}>Reintentar sincronización de sesión</button>
+    </aside>
+  );
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
         <EmployeeAuthGate
           apiOrigin={apiOrigin}
+          onBusyChange={setAuthBusy}
           onAuthenticated={(token) => { beginRiderSession(token); window.dispatchEvent(new Event("piki-authenticated")); }}
         />
       </main>
@@ -1638,6 +1727,7 @@ function RiderWorkspace() {
   if ((shiftActive || hasPersistedOrder) && !showOperations && riderId)
     return (
       <>
+        {sessionSyncNotice}
         <ActiveShiftScreen
           key={riderId}
           shiftActive={shiftActive}
@@ -1808,9 +1898,11 @@ function RiderWorkspace() {
               {toast}
             </div>
           )}
+          {sessionSyncNotice}
           {authRequired && (
             <EmployeeAuthGate
               apiOrigin={apiOrigin}
+              onBusyChange={setAuthBusy}
               onAuthenticated={beginRiderSession}
             />
           )}
@@ -2144,6 +2236,11 @@ function RiderWorkspace() {
                     lead="El Fleet de tu zona asigna los turnos. Solo tú puedes consultar tus horas y días disponibles."
                     icon={<CalendarDays />}
                   />
+                  {slotsError && <aside className="form-error" role="alert">
+                    <p>{slotsError}. {hasSyncedSlots ? "Se muestran los últimos horarios confirmados." : "Todavía no hay horarios confirmados."}</p>
+                    <button type="button" className="secondary-button" disabled={slotsStatus === "loading"} onClick={() => void loadRiderData()}>Reintentar horarios</button>
+                  </aside>}
+                  {slotsStatus === "loading" && <p role="status">Sincronizando horarios…</p>}
                   <div className="shift-toolbar">
                     <div>
                       <strong>Calendario de jornada</strong>
@@ -2183,8 +2280,8 @@ function RiderWorkspace() {
                   </div>
                   <aside className="schedule-today-status" aria-live="polite">
                     <span>HOY · ESTADO DE JORNADA</span>
-                    <strong>{shiftActive ? "Jornada activa" : todayShift?.start ? `${todayShift.start} – ${todayShift.end}` : "Sin turno asignado"}</strong>
-                    <small>{shiftActive ? "Estás disponible para recibir ofertas." : todayShift?.start ? (todayShift.zone || "Zona asignada") : "Fleet no ha asignado un tramo para hoy."}</small>
+                    <strong>{shiftActive ? "Jornada activa" : todayShift?.start ? `${todayShift.start} – ${todayShift.end}` : hasSyncedSlots ? "Sin turno asignado" : "Horarios pendientes de confirmar"}</strong>
+                    <small>{shiftActive ? "Estás disponible para recibir ofertas." : todayShift?.start ? (todayShift.zone || "Zona asignada") : hasSyncedSlots ? "Fleet no ha asignado un tramo para hoy." : "No se puede confirmar aún si tienes un turno asignado."}</small>
                   </aside>
                   <div className="schedule-grid">
                     {scheduleDays.map(({ date, day, displayDate, isToday, shift }) => (
@@ -2205,7 +2302,7 @@ function RiderWorkspace() {
                             <small>{shift.zone || "Zona asignada"}</small>
                           </>
                         ) : (
-                          <small>Sin turno asignado</small>
+                          <small>{hasSyncedSlots ? "Sin turno asignado" : "Pendiente de sincronizar"}</small>
                         )}
                       </article>
                     ))}

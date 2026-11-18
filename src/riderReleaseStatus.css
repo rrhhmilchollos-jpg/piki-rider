@@ -1,0 +1,30 @@
+.rider-release-status {
+  position: sticky;
+  top: 0;
+  z-index: 9997;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 12px;
+  border-bottom: 1px solid #f4d582;
+  background: #fff4cf;
+  color: #674409;
+  font: 13px/1.45 system-ui, sans-serif;
+}
+.rider-release-status--update {
+  background: #e5f3ff;
+  border-color: #b9d9ef;
+  color: #143f5a;
+}
+.rider-release-status p { margin: 0 0 8px; }
+.rider-release-status-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rider-release-status button {
+  min-height: 44px;
+  border: 1px solid currentColor;
+  border-radius: 9px;
+  background: #fff;
+  color: inherit;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rider-release-status button:disabled { opacity: .6; cursor: wait; }
+.rider-release-status-detail { margin-top: 8px; font-size: 11px; overflow-wrap: anywhere; }

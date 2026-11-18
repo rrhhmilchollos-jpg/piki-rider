@@ -25,9 +25,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     await Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset)));
-    // Rider is a PWA: activate new builds automatically instead of waiting
-    // for an employee to press an update button.
-    await self.skipWaiting();
+    // First installs activate normally; updates wait for the client to send
+    // SKIP_WAITING after confirming that no rider operation is active.
   })());
 });
 
@@ -39,9 +38,6 @@ self.addEventListener("activate", (event) => {
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     clients.forEach((client) => {
       client.postMessage({ type: "PIKI_SW_ACTIVATED", buildId: BUILD_ID });
-      // Reload already-open PWA windows so an old cached bundle is replaced
-      // immediately after the new worker takes control.
-      void client.navigate(client.url);
     });
   })());
 });

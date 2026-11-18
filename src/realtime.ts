@@ -11,7 +11,7 @@ type RealtimeInput = {
   onState?: (connected: boolean) => void;
   /** Called once; the stream is intentionally stopped so an expired token never floods 401s. */
   onAuthExpired?: (status: 401 | 428) => void;
-  /** A role/surface mismatch is permanent until an administrator changes permissions. */
+  /** Called once for a known structured auth/role denial, never a generic proxy 403. */
   onAuthorizationError?: (status: 403) => void;
 };
 
@@ -29,6 +29,18 @@ function retryDelayMs(attempt: number, retryAfterMs = 0): number {
 function retryAfterMs(response: Response): number {
   const retryAfter = Number.parseInt(response.headers.get("Retry-After") || "", 10);
   return Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : 0;
+}
+
+async function isExplicitAuthorizationFailure(response: Response): Promise<boolean> {
+  const data: unknown = await response.clone().json().catch(() => null);
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const body = data as Record<string, unknown>;
+  // Backend requireRole emits FORBIDDEN; serveRealtimeEvents emits
+  // AUTHENTICATION_REQUIRED. Never infer a role failure from proxy HTML,
+  // a free-text message, a role field alone or an unknown/prefix code.
+  return [body.error, body.code].some((code) =>
+    code === "FORBIDDEN" || code === "AUTHENTICATION_REQUIRED",
+  );
 }
 
 /** Authenticated SSE: bounded silence, resumable IDs and terminal auth failures. */
@@ -69,12 +81,16 @@ export function connectPikiRealtime(input: RealtimeInput) {
 
         if (response.status === 401 || response.status === 428) {
           if (await requiresRiderAuthentication(response)) {
+            if (controller.signal.aborted) return;
             input.onState?.(false);
             input.onAuthExpired?.(response.status);
             return;
           }
         }
-        if (response.status === 403) {
+        if (response.status === 403 && await withRequestDeadline(
+          () => isExplicitAuthorizationFailure(response), connection, realtimeConnectTimeoutMs,
+        )) {
+          if (controller.signal.aborted) return;
           input.onState?.(false);
           input.onAuthorizationError?.(response.status);
           return;

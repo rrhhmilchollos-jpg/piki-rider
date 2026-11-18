@@ -46,6 +46,8 @@ export async function loadOperationalZones(token: string): Promise<OperationalZo
   return result.zones || [];
 }
 
+export const riderLocationPublishTimeoutMs = 15_000;
+
 export async function publishRiderLocation(token: string, riderId: string, point: GeoCoordinate) {
   const path = `/api/v1/riders/${encodeURIComponent(riderId)}/location`;
   if (Capacitor.isNativePlatform()) {
@@ -62,7 +64,25 @@ export async function publishRiderLocation(token: string, riderId: string, point
     }
     return response.data;
   }
-  return apiJson(path, token, { method: "POST", body: JSON.stringify(point) });
+  // A late/absent response is an unknown outcome. Do not replay a location
+  // POST or fabricate an acknowledgement/fix; the caller owns GPS epochs.
+  return withRequestDeadline(async (signal) => {
+    const response = await fetch(apiUrl(path), {
+      method: "POST",
+      headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(point),
+      signal,
+    });
+    signal.throwIfAborted();
+    if (!response.ok) {
+      const details = await response.text();
+      signal.throwIfAborted();
+      throw new Error(`API ${response.status}: ${details}`);
+    }
+    const data: unknown = await response.json();
+    signal.throwIfAborted();
+    return data;
+  }, new AbortController(), riderLocationPublishTimeoutMs);
 }
 
 export async function loadMobilityAdvice(token: string, riderId: string, lowActivityMinutes: number): Promise<MobilityAdvice> {

@@ -2,9 +2,9 @@
 import { describe, expect, it, vi } from "vitest";
 import * as navigation from "./pikiPwaUpdate";
 import { shouldDeferPwaActivation } from "./pwaUpdateRecovery";
-import { jsx, loadComponent } from "./test/offlineComponent";
+import { findNode, jsx, loadComponent } from "./test/offlineComponent";
 
-function fixture({ active = false, known = true, stage = "", worker = true } = {}) {
+function fixture({ active = false, known = true, stage = "", worker = true, gate = "ready", newBuild = true } = {}) {
   const safety = { known, active };
   const beginAt = (at: string) => { if (stage === at) safety.active = true; };
   const postMessage = vi.fn();
@@ -22,7 +22,7 @@ function fixture({ active = false, known = true, stage = "", worker = true } = {
     keys: vi.fn(async () => { beginAt("keys"); return ["fixture-a", "fixture-b"]; }),
     delete: vi.fn(async () => { beginAt("delete"); return true; }),
   };
-  const states: unknown[] = ["ready", "", "1.0.15 · fixture-new", "", false, false];
+  const states: unknown[] = [gate, "", newBuild ? "1.0.15 · fixture-new" : "", "", false, false, false, 0];
   let index = 0;
   const callbacks: (() => Promise<void>)[] = [];
   const component = loadComponent("src/pikiRelease.tsx", {
@@ -34,6 +34,7 @@ function fixture({ active = false, known = true, stage = "", worker = true } = {
     "react/jsx-runtime": jsx, "@capacitor/core": { Capacitor: { isNativePlatform: () => false } },
     "./release-meta": { PIKI_RELEASE: { surface: "rider", version: "1.0.15", buildId: "fixture-current" } },
     "./apiOrigin": { resolvePikiApiOrigin: () => "https://api.mock.invalid" }, "./pushConsentPolicy": {},
+    "./riderReleaseNetwork": { fetchRiderReleasePolicy: vi.fn() },
     "./pwaOperationSafety": { getPwaOperationSafety: () => ({ ...safety }) },
     "./pwaUpdateRecovery": { shouldDeferPwaActivation },
     "./pikiPwaUpdate": { ...navigation,
@@ -50,14 +51,26 @@ function fixture({ active = false, known = true, stage = "", worker = true } = {
     navigator: { onLine: true, serviceWorker }, caches: cache,
     sessionStorage: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() },
   });
-  component.PikiReleaseGate({ children: null });
+  const tree = component.PikiReleaseGate({ children: null });
   const update = callbacks.find((callback) => callback.toString().includes("Descargando la nueva versión"))!;
   const forceReload = callbacks.find((callback) => callback.toString().includes("getRegistrations"))!;
   expect(update).toBeDefined();
-  return { update, forceReload, serviceWorker, registration, postMessage, reload, replace, cache, unregister, states, safety };
+  return { tree, update, forceReload, serviceWorker, registration, postMessage, reload, replace, cache, unregister, states, safety };
 }
 
 describe("manual PWA callback — offline components, no real browser/SW", () => {
+  it("offers a connection retry and safe reload even when no different build is known", () => {
+    const f = fixture({ gate: "error", newBuild: false });
+    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Reintentar conexión")).toBeDefined();
+    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Recargar aplicación")).toBeDefined();
+    expect(findNode(f.tree, (node) => node.tag === "aside" && node.props.className === "rider-release-status")).toBeDefined();
+  });
+
+  it("does not stack an update notice over the error notice", () => {
+    const f = fixture({ gate: "error" });
+    expect(findNode(f.tree, (node) => node.props.className === "rider-release-status rider-release-status--update")).toBeUndefined();
+  });
+
   it.each(["jornada", "entrega", "checkout", "formulario"])("defers an active %s at entry", async () => {
     const f = fixture({ active: true }); await f.update();
     expect(f.serviceWorker.register).not.toHaveBeenCalled();
