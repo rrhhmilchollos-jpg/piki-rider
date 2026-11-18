@@ -326,6 +326,19 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
           if (target) void getRegistration();
         }
       } catch (error) {
+        // La API puede estar temporalmente inaccesible desde una red móvil,
+        // pero el release estático de Vercel puede seguir disponible. Leerlo
+        // aquí permite descubrir la actualización y ofrecer una recarga
+        // manual en lugar de dejar al Rider sin salida.
+        if (!nativeApp) {
+          try {
+            const release = await fetchPikiStaticRelease(window.fetch.bind(window), window.location.origin, PIKI_RELEASE.surface);
+            targetRef.current = getPikiWebTarget(release, PIKI_RELEASE);
+            setAvailableBuild(targetRef.current ? `${targetRef.current.version} · ${targetRef.current.buildId}` : "");
+          } catch {
+            // Conservamos el aviso de red original si tampoco responde Vercel.
+          }
+        }
         setDetail(error instanceof Error ? error.message : "No se pudo comprobar la versión.");
         setState("error");
       }
@@ -412,5 +425,5 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
 
   if (state === "checking") return <main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main>;
   if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI RIDERS · ACTUALIZACIÓN {nativeSecurityUpdate ? "DE APLICACIÓN" : "PWA"}</p><h1 id="piki-update-title">{nativeSecurityUpdate ? "Actualiza la aplicación para continuar" : "Hay una nueva versión lista"}</h1><p>{nativeSecurityUpdate ? `Esta aplicación necesita la versión firmada ${requiredVersion}. Instálala desde el canal firmado autorizado por PIKI o Google Play si es el canal configurado; los recursos embebidos no se actualizan desde una PWA.` : `El nuevo build web ${requiredVersion} se aplicará sin cerrar tu sesión ni borrar los datos guardados.`}</p>{detail && <p role="alert">{detail}</p>}{!nativeSecurityUpdate && <button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Aplicando nuevo build…" : "Actualizar PWA"}</button>}</section></main>;
-  return <>{state === "error" && <div role="status" style={{ position: "fixed", zIndex: 9998, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#fef3c7", color: "#78350f", fontSize: "13px" }}>Conexión de seguridad temporalmente no disponible. Puedes iniciar sesión; lo volveremos a comprobar automáticamente.</div>}{availableBuild && <div role="status" style={{ position: "fixed", zIndex: 9997, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#e0f2fe", color: "#0c4a6e", fontSize: "13px" }}>Nueva versión de PWA disponible: {availableBuild}. <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>{detail && <div style={{ marginTop: "4px", fontSize: "12px" }}>{detail}</div>}</div>}{children}<PushConsentControl /></>;
+  return <>{state === "error" && <div role="status" style={{ position: "fixed", zIndex: 9998, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#fef3c7", color: "#78350f", fontSize: "13px" }}>Conexión de seguridad temporalmente no disponible. Puedes iniciar sesión; lo volveremos a comprobar automáticamente.{availableBuild && <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>}</div>}{availableBuild && <div role="status" style={{ position: "fixed", zIndex: 9997, top: 0, left: 0, right: 0, padding: "8px", textAlign: "center", background: "#e0f2fe", color: "#0c4a6e", fontSize: "13px" }}>Nueva versión de PWA disponible: {availableBuild}. <button type="button" onClick={() => void update()} disabled={updating} style={{ marginLeft: "8px", border: 0, borderRadius: "6px", padding: "4px 8px", fontWeight: 700 }}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>{detail && <div style={{ marginTop: "4px", fontSize: "12px" }}>{detail}</div>}</div>}{children}<PushConsentControl /></>;
 }
