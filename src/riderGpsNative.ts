@@ -78,7 +78,7 @@ export function createRiderGpsTracker(
           stale: false,
           // The installed Android service requests high-accuracy updates every
           // 1 s; a displacement filter suppresses them while stationary.
-          // Rate limiting remains in the 25 m / 60 s publication policy.
+          // Rate limiting remains in the 25 m / 30 s publication policy.
           distanceFilter: 0,
         }, (location, error) => {
           if (!callbacks.isCurrent()) return;

@@ -230,7 +230,7 @@ export class RiderGpsTracker {
       if (generation === this.generation) {
         this.lastPublishedPoint = point;
         // Cadence is measured between confirmed sends, not ACK latency plus
-        // 60 s (which could push a 30 s browser sampler to a 90 s gap).
+        // 30 s (which could push a 30 s browser sampler beyond the target).
         this.lastPublishedAt = sentAt;
         this.diagnose("send_ack");
         this.emit({

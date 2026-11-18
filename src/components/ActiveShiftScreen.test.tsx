@@ -36,7 +36,7 @@ describe("active shift server rendering (no device/network)", () => {
     expect(html).toContain("Añadir foto propia");
     expect(html).toContain("Partner activo");
     expect(html).toContain("Partner oferta");
-    expect(html).toContain("Reintentar GPS");
+    expect(html).toContain("Actualizar ubicación / Sincronizar estado");
     expect(html).toContain("account-active-header");
     expect(html).toContain("Llamada directa al soporte");
   });
@@ -66,11 +66,11 @@ describe("active shift server rendering (no device/network)", () => {
     expect(html).toMatch(/disabled=""[^>]*>[\s\S]*?CONFIRMAR RETIRO/);
     expect(html).not.toContain("Buscando pedidos");
   });
-  it("shows a stale ACK as attention needed, not online, and exposes GPS restart", () => {
+  it("shows a stale ACK as attention needed and keeps manual GPS/status sync available", () => {
     state.gps.lastAckAt = Date.now() - 91_000;
     const html = renderToStaticMarkup(<ActiveShiftScreen {...props()}/>);
     expect(html).toContain("Revisar GPS");
-    expect(html).toContain("Reintentar GPS");
+    expect(html).toContain("Actualizar ubicación / Sincronizar estado");
     expect(html).not.toContain("En línea");
   });
   it("never allows acceptance of an expired persisted offer", () => {
@@ -123,7 +123,7 @@ describe("active shift server rendering (no device/network)", () => {
     expect(html).toContain("HTTP 409 · RIDER_SESSION_NOT_ACTIVE");
     expect(html).toContain("Turno activo");
     expect(html).toContain("Partner activo");
-    expect(html).toContain("Reintentar GPS");
+    expect(html).toContain("Actualizar ubicación / Sincronizar estado");
     expect(html).not.toContain("Fuera de turno");
   });
 });
