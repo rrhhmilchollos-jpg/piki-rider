@@ -46,12 +46,11 @@ export function subscribeStoredToken(onChange: () => void): () => void {
 }
 
 export function getStoredEmail(): string {
-  return localStorage.getItem(emailKey) || "";
+  localStorage.removeItem(emailKey);
+  return "";
 }
 
-export function storeEmail(email: string): void {
-  localStorage.setItem(emailKey, email.trim().toLowerCase());
-}
+export function storeEmail(_email: string): void { /* No recordar identidades en dispositivos compartidos. */ }
 export function forgetEmail(): void {
   try { localStorage.removeItem(emailKey); } catch { /* noop */ }
 }
