@@ -1,10 +1,10 @@
 # PIKI Riders PWA
 
-Aplicación web progresiva (PWA) para riders de PIKI. El proyecto es únicamente web: React + Vite + TypeScript. No contiene Android, iOS ni Capacitor.
+Aplicación de reparto de PIKI desarrollada con React, Vite y TypeScript. El canal web se distribuye como PWA. Las actualizaciones de una PWA se publican en Vercel; una instalación Android nativa, si se utiliza, tiene su propio paquete firmado.
 
 ## Producción
 
-- Aplicación: `https://riders.pikidelivery.com`
+- Aplicación e instalación PWA: `https://rider.pikidelivery.com`
 - API central: `https://api.pikidelivery.com`
 
 ## Desarrollo local
@@ -35,10 +35,12 @@ El despliegue publica `dist/`. Cada build ejecuta `scripts/prepare-release.mjs`,
 
 ## Instalación en el móvil
 
-Abre `https://riders.pikidelivery.com` en Chrome y usa **Añadir a pantalla de inicio** o **Instalar aplicación**. La aplicación instalada es la PWA del dominio; no se debe generar ni instalar una APK con PWABuilder para actualizar el contenido web.
+Abre **`https://rider.pikidelivery.com`**, en singular, en Chrome y usa **Añadir a pantalla de inicio** o **Instalar aplicación**. No generes una APK con PWABuilder para actualizar la PWA.
+
+Si el icono antiguo abre el subdominio plural, instala primero desde el dominio correcto. Inicia sesión normalmente y concede los permisos del nuevo origen. Comprueba que funciona antes de retirar el icono antiguo. No borres los datos del navegador ni transfieras contraseñas o tokens entre dominios. Realiza la recuperación sin jornada, pedido ni formulario activo.
 
 ## Actualizaciones automáticas
 
-El service worker se registra con `updateViaCache: "none"`, instala un caché nuevo por `buildId`, elimina los cachés anteriores y activa el nuevo worker con `skipWaiting()` y `clients.claim()`. El hosting debe enviar `/`, `/sw.js`, `/release.json` y `/manifest.json` con `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`.
+El service worker usa `updateViaCache: "none"` y cachés por `buildId`. El cliente solicita `SKIP_WAITING` únicamente cuando conoce que no hay una operación activa; las actualizaciones se aplazan durante una jornada, pedido o formulario. El worker no fuerza la navegación de las ventanas durante `activate`.
 
-La configuración equivalente para Vercel está en `vercel.json`. Si el dominio se sirve desde Render, añade esas cuatro reglas en **Render Dashboard → Static Site → Headers**. La guía completa está en [`docs/pwa-deployment.md`](docs/pwa-deployment.md).
+El hosting debe enviar `/`, `/sw.js`, `/release.json` y `/manifest.json` con `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`. La configuración Vercel está en `vercel.json`; la guía completa está en [`docs/pwa-deployment.md`](docs/pwa-deployment.md).
