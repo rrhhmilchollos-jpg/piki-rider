@@ -29,6 +29,7 @@ type GateState = "checking" | "ready" | "required" | "error";
 const apiOrigin = resolvePikiApiOrigin(import.meta.env.VITE_API_URL);
 const apiHost = new URL(apiOrigin, window.location.origin).origin;
 const requestTimeoutMs = 8_000;
+const policyRetryDelaysMs = [0, 750, 2_000];
 const workerActivationTimeoutMs = 10_000;
 // La web/PWA usa Service Worker. Capacitor mantiene los assets del paquete
 // firmado: standalone no equivale a contenedor Android nativo.
@@ -68,24 +69,31 @@ export function installPikiReleaseHeaders(): void {
 }
 
 async function fetchPolicy(): Promise<ReleasePolicy> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
-  try {
-    const query = new URLSearchParams({
-      surface: PIKI_RELEASE.surface,
-      clientVersion: PIKI_RELEASE.version,
-      clientBuildId: PIKI_RELEASE.buildId,
-    });
-    const response = await fetch(`${apiOrigin}/api/v1/app-version?${query}`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`VERSION_CHECK_${response.status}`);
-    return await response.json() as ReleasePolicy;
-  } finally {
-    window.clearTimeout(timeout);
+  let lastError: unknown = new Error("VERSION_CHECK_FAILED");
+  for (const delay of policyRetryDelaysMs) {
+    if (delay) await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+    try {
+      const query = new URLSearchParams({
+        surface: PIKI_RELEASE.surface,
+        clientVersion: PIKI_RELEASE.version,
+        clientBuildId: PIKI_RELEASE.buildId,
+      });
+      const response = await fetch(`${apiOrigin}/api/v1/app-version?${query}`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`VERSION_CHECK_${response.status}`);
+      return await response.json() as ReleasePolicy;
+    } catch (error) {
+      lastError = error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
+  throw lastError instanceof Error ? lastError : new Error("VERSION_CHECK_FAILED");
 }
 
 function base64UrlToUint8Array(value: string): Uint8Array {
