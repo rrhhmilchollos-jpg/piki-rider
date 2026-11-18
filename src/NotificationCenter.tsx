@@ -24,8 +24,36 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
   const [error, setError] = useState("");
   const requestInFlight = useRef<Promise<void> | null>(null);
   const lastLoadedAt = useRef(0);
+  const mounted = useRef(true);
+  const generation = useRef(0);
+  const contextRef = useRef({ apiOrigin, token, surface });
+  if (contextRef.current.apiOrigin !== apiOrigin || contextRef.current.token !== token || contextRef.current.surface !== surface) {
+    contextRef.current = { apiOrigin, token, surface };
+  }
+  const context = contextRef.current;
+  const itemsContext = useRef<typeof context | null>(null);
+  const isCurrent = (epoch: number) => mounted.current && generation.current === epoch && contextRef.current === context;
+  useEffect(() => {
+    mounted.current = true;
+    generation.current++;
+    requestInFlight.current = null;
+    lastLoadedAt.current = 0;
+    itemsContext.current = null;
+    setOpen(false);
+    setItems([]);
+    setUnreadCount(0);
+    setLoading(false);
+    setError("");
+    return () => {
+      mounted.current = false;
+      generation.current++;
+      requestInFlight.current = null;
+    };
+  }, [context]);
   const load = useCallback(async (force = false) => {
-    if (!token) return;
+    const isCurrent = (epoch: number) => mounted.current && generation.current === epoch && contextRef.current === context;
+    const epoch = generation.current;
+    if (!token || !isCurrent(epoch)) return;
     const now = Date.now();
     if (!force && now - lastLoadedAt.current < 5_000) return;
     if (requestInFlight.current) return requestInFlight.current;
@@ -37,33 +65,41 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
           credentials: "include",
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
-        if (await requiresRiderAuthentication(response)) { onUnauthorized?.(); return; }
+        if (!isCurrent(epoch)) return;
+        const unauthorized = await requiresRiderAuthentication(response);
+        if (!isCurrent(epoch)) return;
+        if (unauthorized) { onUnauthorized?.(); return; }
         if (!response.ok) throw new Error("No se pudieron cargar los avisos.");
         const payload = await response.json() as InboxResponse;
+        if (!isCurrent(epoch)) return;
+        itemsContext.current = context;
         setItems(Array.isArray(payload.notifications) ? payload.notifications : []);
         setUnreadCount(Math.max(0, Number(payload.unreadCount || 0)));
         setError("");
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "No se pudieron cargar los avisos.");
+        if (isCurrent(epoch)) setError(cause instanceof Error ? cause.message : "No se pudieron cargar los avisos.");
       } finally {
-        lastLoadedAt.current = Date.now();
-        setLoading(false);
+        if (isCurrent(epoch)) {
+          lastLoadedAt.current = Date.now();
+          setLoading(false);
+        }
       }
     })();
     requestInFlight.current = request;
     void request.finally(() => {
-      if (requestInFlight.current === request) requestInFlight.current = null;
+      if (isCurrent(epoch) && requestInFlight.current === request) requestInFlight.current = null;
     });
     return request;
-  }, [apiOrigin, onUnauthorized, surface, token]);
+  }, [apiOrigin, onUnauthorized, surface, token, context]);
 
   useEffect(() => {
-    const unread = items.filter((item) => !item.readAt);
+    if (!mounted.current || contextRef.current !== context) return;
+    const unread = itemsContext.current === context ? items.filter((item) => !item.readAt) : [];
     onUnreadChange?.({
       support: unread.filter((item) => item.category === "support").length,
       customer: unread.filter((item) => item.category === "message").length,
     });
-  }, [items, onUnreadChange]);
+  }, [items, onUnreadChange, context]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void load(true), 0);
@@ -87,25 +123,31 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
   }, [load]);
 
   const markAllRead = async () => {
-    if (!token || unreadCount === 0) return;
+    const epoch = generation.current;
+    if (!token || unreadCount === 0 || !isCurrent(epoch)) return;
     try {
       const response = await fetch(`${apiOrigin}/api/v1/notifications/read-all`, {
         method: "PATCH",
         credentials: "include",
         headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
       });
-      if (await requiresRiderAuthentication(response)) { onUnauthorized?.(); return; }
+      if (!isCurrent(epoch)) return;
+      const unauthorized = await requiresRiderAuthentication(response);
+      if (!isCurrent(epoch)) return;
+      if (unauthorized) { onUnauthorized?.(); return; }
       if (!response.ok) throw new Error("No se pudieron marcar como leídos.");
       const readAt = new Date().toISOString();
-      setItems((current) => current.map((item) => item.readAt ? item : { ...item, readAt }));
+      setItems((current) => isCurrent(epoch) ? current.map((item) => item.readAt ? item : { ...item, readAt }) : current);
       setUnreadCount(0);
       setError("");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudieron marcar como leídos.");
+      if (isCurrent(epoch)) setError(cause instanceof Error ? cause.message : "No se pudieron marcar como leídos.");
     }
   };
 
   const openNotification = async (item: InboxItem) => {
+    const epoch = generation.current;
+    if (!token || !isCurrent(epoch)) return;
     if (!item.readAt) {
       try {
         const response = await fetch(`${apiOrigin}/api/v1/notifications/${encodeURIComponent(item.id)}/read`, {
@@ -113,16 +155,20 @@ export default function NotificationCenter({ apiOrigin, token, surface, onUnread
           credentials: "include",
           headers: { Authorization: `Bearer ${token}`, "X-PIKI-Surface": surface },
         });
-        if (await requiresRiderAuthentication(response)) { onUnauthorized?.(); return; }
+        if (!isCurrent(epoch)) return;
+        const unauthorized = await requiresRiderAuthentication(response);
+        if (!isCurrent(epoch)) return;
+        if (unauthorized) { onUnauthorized?.(); return; }
         if (!response.ok) throw new Error("No se pudo marcar el aviso como leído.");
         const readAt = new Date().toISOString();
-        setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate));
-        setUnreadCount((count) => Math.max(0, count - 1));
+        setItems((current) => isCurrent(epoch) ? current.map((candidate) => candidate.id === item.id ? { ...candidate, readAt } : candidate) : current);
+        setUnreadCount((count) => isCurrent(epoch) ? Math.max(0, count - 1) : count);
       } catch {
         // Keep the saved notice/unread count; navigation does not depend on the receipt.
-        setError("No se pudo marcar el aviso como leído. Puedes reintentarlo.");
+        if (isCurrent(epoch)) setError("No se pudo marcar el aviso como leído. Puedes reintentarlo.");
       }
     }
+    if (!isCurrent(epoch)) return;
     setOpen(false);
     const destination = item.url.startsWith("/") && !item.url.startsWith("//") ? item.url : "/";
     window.location.assign(destination);
