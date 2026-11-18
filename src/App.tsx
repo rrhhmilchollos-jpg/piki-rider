@@ -411,6 +411,11 @@ function RiderWorkspace() {
   const [supportChatOrderLabel, setSupportChatOrderLabel] = useState("");
   const [supportPeerTyping, setSupportPeerTyping] = useState(false);
   const [unreadSupportMessages, setUnreadSupportMessages] = useState(0);
+  const [advanceStep, setAdvanceStep] = useState(1);
+  const [advanceForm, setAdvanceForm] = useState({ riderCode: "", fullName: "", email: "", amount: "", note: "" });
+  const [advanceBusy, setAdvanceBusy] = useState(false);
+  const [advanceMessage, setAdvanceMessage] = useState("");
+  const [advanceError, setAdvanceError] = useState("");
   const [unreadCustomerMessages, setUnreadCustomerMessages] = useState(0);
   const [orderChatOrder, setOrderChatOrder] = useState<RiderOffer | null>(null);
   const riderOrdersRef = useRef<RiderOffer[]>([]);
@@ -1484,6 +1489,32 @@ function RiderWorkspace() {
       setSupportChatOpen(true);
     } catch (error) { setSupportFormMessage(error instanceof Error ? error.message : "No se pudo enviar la incidencia."); } finally { setSupportFormBusy(false); }
   }
+  function openAdvanceRequest() {
+    setAdvanceStep(1);
+    setAdvanceForm({ riderCode: riderProfile.riderCode, fullName: riderProfile.name, email: riderProfile.email, amount: "", note: "" });
+    setAdvanceMessage(""); setAdvanceError("");
+  }
+  function advanceNext() {
+    setAdvanceError("");
+    if (advanceStep === 1 && advanceForm.riderCode.trim() !== riderProfile.riderCode.trim()) { setAdvanceError("Introduce tu ID de Rider exactamente como aparece en tu perfil."); return; }
+    if (advanceStep === 2 && (!advanceForm.fullName.trim() || !advanceForm.email.trim())) { setAdvanceError("Completa nombre y correo electrónico."); return; }
+    if (advanceStep < 3) setAdvanceStep((value) => value + 1);
+  }
+  async function submitAdvanceRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiToken || !riderId || advanceBusy) return;
+    const amountCents = Math.round(Number(advanceForm.amount.replace(",", ".")) * 100);
+    if (!Number.isInteger(amountCents) || amountCents <= 0) { setAdvanceError("Indica un importe válido en euros."); return; }
+    setAdvanceBusy(true); setAdvanceError(""); setAdvanceMessage("");
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/riders/${riderId}/advances`, { method: "POST", headers: { ...authHeaders(apiToken), "Content-Type": "application/json", "X-PIKI-Surface": "rider" }, body: JSON.stringify({ riderCode: advanceForm.riderCode.trim(), fullName: advanceForm.fullName.trim(), email: advanceForm.email.trim(), amountCents, note: advanceForm.note.trim() }) });
+      const data = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      if (!response.ok) throw new Error(data.message || data.error || "No se pudo enviar la solicitud.");
+      setAdvanceMessage("Solicitud enviada. El departamento de Administración la está revisando; recibirás una actualización en tu cuenta.");
+      setAdvanceStep(4);
+    } catch (reason) { setAdvanceError(reason instanceof Error ? reason.message : "No se pudo enviar la solicitud."); }
+    finally { setAdvanceBusy(false); }
+  }
   const refreshSupportChat = useCallback(async () => {
     if (!apiToken || !riderId || !supportTicketId) return;
     try {
@@ -2349,6 +2380,22 @@ function RiderWorkspace() {
                       Atención guiada por ManyChat · WhatsApp Business
                     </span>
                   </div>
+                  <section className="advance-rider-support-card" aria-label="Dudas sobre tu anticipo">
+                    <div className="advance-rider-support-heading">
+                      <div><span>NÓMINAS Y PAGOS</span><h2>Dudas sobre tu anticipo</h2><p>Solicita hasta el 70% de la liquidación ya generada. El sistema solo admite solicitudes hasta el día 20 de cada mes.</p></div>
+                      <WalletCards size={28} aria-hidden="true" />
+                    </div>
+                    {advanceStep !== 4 ? <>
+                      <div className="advance-rider-steps" aria-label="Pasos de la solicitud"><b className={advanceStep >= 1 ? "active" : ""}>1 <span>ID Rider</span></b><i /><b className={advanceStep >= 2 ? "active" : ""}>2 <span>Identidad</span></b><i /><b className={advanceStep >= 3 ? "active" : ""}>3 <span>Importe</span></b></div>
+                      {!advanceMessage && <form onSubmit={submitAdvanceRequest} className="advance-rider-form">
+                        {advanceStep === 1 && <label>ID de Rider<input required value={advanceForm.riderCode} onChange={(event) => setAdvanceForm({ ...advanceForm, riderCode: event.target.value })} placeholder="PIKI-R-…" /><small>Lo encontrarás en tu perfil de Rider.</small></label>}
+                        {advanceStep === 2 && <div className="advance-rider-form-grid"><label>Nombre y apellidos<input required value={advanceForm.fullName} onChange={(event) => setAdvanceForm({ ...advanceForm, fullName: event.target.value })} /></label><label>Correo electrónico<input required type="email" value={advanceForm.email} onChange={(event) => setAdvanceForm({ ...advanceForm, email: event.target.value })} /></label></div>}
+                        {advanceStep === 3 && <div className="advance-rider-form-grid"><label>Importe solicitado (€)<input required type="number" min="0.01" step="0.01" value={advanceForm.amount} onChange={(event) => setAdvanceForm({ ...advanceForm, amount: event.target.value })} placeholder="0,00" /><small>Administración comprobará automáticamente el límite disponible del 70%.</small></label><label>Comentario (opcional)<textarea rows={3} value={advanceForm.note} onChange={(event) => setAdvanceForm({ ...advanceForm, note: event.target.value })} placeholder="Información adicional para Administración…" /></label></div>}
+                        {advanceError && <p className="form-error" role="alert">{advanceError}</p>}
+                        <div className="advance-rider-form-actions">{advanceStep > 1 && <button type="button" className="secondary-button" onClick={() => { setAdvanceError(""); setAdvanceStep((value) => value - 1); }}>Atrás</button>}{advanceStep < 3 ? <button type="button" className="primary-button" onClick={advanceNext}>Continuar</button> : <button type="submit" className="primary-button" disabled={advanceBusy}>{advanceBusy ? "Enviando…" : "Enviar solicitud"}</button>}</div>
+                      </form>}
+                    </> : <div className="advance-rider-success" role="status"><strong>Solicitud enviada correctamente</strong><p>{advanceMessage}</p><button type="button" className="secondary-button" onClick={openAdvanceRequest}>Nueva solicitud</button></div>}
+                  </section>
                   <section className="support-incident-filter" aria-label="Filtro rápido de incidencias">
                     <div>
                       <span>CHATBOT DE INCIDENCIAS</span>
