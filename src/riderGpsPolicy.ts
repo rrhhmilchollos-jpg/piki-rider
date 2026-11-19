@@ -19,7 +19,7 @@ const blockedRiderStatuses = new Set([
 
 /** Publication filter only: the native provider must also deliver stationary fixes. */
 export const riderGpsMinimumPublishDistanceMeters = 25;
-/** Keep a bounded proof-of-life while stationary without producing a dense location trail. */
+/** Keep a bounded proof-of-life while stationary without approaching the API's 90 s freshness cutoff. */
 export const riderGpsStationaryHeartbeatMs = 30_000;
 
 export function isRiderGpsStatusBlocked(status?: string | null) {
