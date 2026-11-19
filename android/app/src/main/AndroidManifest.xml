@@ -13,6 +13,7 @@
         <service
             android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="location"
             tools:replace="android:exported" />
 
@@ -50,6 +51,8 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Android 10+ requires this permission for location updates while backgrounded. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
