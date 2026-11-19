@@ -127,7 +127,7 @@ describe("Visible browser stationary GPS", () => {
     expect(f.latest().lastFixAt).toBe(capturedAt);
   });
 
-  it("requests a NEW stationary fix every 30 s but publishes only at 60 s, not on timer ticks", async () => {
+  it("requests and publishes a NEW stationary fix every 30 s within the 90 s freshness window", async () => {
     const sent = deferred<ReturnType<typeof browserAckResponse>>();
     fetchMock.mockImplementationOnce(() => sent.promise);
     const f = fixture();
@@ -140,14 +140,11 @@ describe("Visible browser stationary GPS", () => {
     expect(geolocation.getCurrentPosition.mock.calls[0][2]).toEqual({ enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 });
     requests[0].success(position());
     await settle();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const firstAck = f.latest().lastAckAt;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(f.latest().lastAckAt).toBe(firstAck);
     requests[1].success(position());
     await settle();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(f.latest().lastAckAt).toBe(Date.now());
     const realAck = f.latest().lastAckAt;
     const realFix = f.latest().lastFixAt;
@@ -155,7 +152,7 @@ describe("Visible browser stationary GPS", () => {
     // The third capture is deliberately unresolved: no duplicate request,
     // no reused coordinates, no invented lastFixAt/ACK despite more ticks.
     expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(3);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(f.latest().lastAckAt).toBe(realAck);
     expect(f.latest().lastFixAt).toBe(realFix);
   });
@@ -395,7 +392,7 @@ describe("Android stationary provider", () => {
     expect(native.removeWatcher).toHaveBeenCalledWith({ id: "native-1" });
   });
 
-  it("uses distanceFilter 0 / stale false, real native timestamps and the existing 60 s publish policy", async () => {
+  it("uses distanceFilter 0 / stale false, real native timestamps and the 30 s publish policy", async () => {
     native.android = true;
     const f = fixture();
     await f.tracker.start();
@@ -406,23 +403,21 @@ describe("Android stationary provider", () => {
     expect(native.post).toHaveBeenCalledTimes(1);
     expect(native.post.mock.calls[0][0]).toMatchObject({ data: coords, connectTimeout: 15_000, readTimeout: 15_000 });
     expect(f.latest().lastFixAt).toBe(first.time);
-    const firstAck = f.latest().lastAckAt;
     // OS/provider still supplies genuinely new fixes while coordinates stay put.
     for (let i = 0; i < 59; i++) {
       await vi.advanceTimersByTimeAsync(1_000);
       nativeCallbacks[0](location());
       await settle();
     }
-    expect(native.post).toHaveBeenCalledTimes(1);
-    expect(f.latest().lastAckAt).toBe(firstAck);
+    expect(native.post).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1_000);
     nativeCallbacks[0](first); // old/repeated callback must not refresh ACK
     nativeCallbacks[0](location(null)); // native time is never fabricated
     await settle();
-    expect(native.post).toHaveBeenCalledTimes(1);
+    expect(native.post).toHaveBeenCalledTimes(2);
     nativeCallbacks[0](location());
     await settle();
-    expect(native.post).toHaveBeenCalledTimes(2);
+    expect(native.post).toHaveBeenCalledTimes(3);
     expect(f.latest().lastFixAt).toBe(Date.now());
     expect(geolocation.watchPosition).not.toHaveBeenCalled();
     expect(geolocation.getCurrentPosition).not.toHaveBeenCalled();
@@ -431,7 +426,7 @@ describe("Android stationary provider", () => {
     await settle();
     nativeCallbacks[0](location());
     expect(native.removeWatcher).toHaveBeenCalledWith({ id: "native-1" });
-    expect(native.post).toHaveBeenCalledTimes(2);
+    expect(native.post).toHaveBeenCalledTimes(3);
   });
 
   it("treats revoked Android location permission as terminal and removes the native watcher", async () => {
