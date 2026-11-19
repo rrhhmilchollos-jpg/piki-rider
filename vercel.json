@@ -2,6 +2,14 @@
   "framework": "vite",
   "headers": [
     {
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "public, no-cache, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/auth/actualizar.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, no-cache, max-age=0, must-revalidate" }]
+    },
+    {
       "source": "/release.json",
       "headers": [
         {
@@ -44,10 +52,6 @@
     {
       "source": "/(.*)",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, max-age=0, must-revalidate"
-        },
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"

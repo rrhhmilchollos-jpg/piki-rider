@@ -14,6 +14,8 @@
   color: #143f5a;
 }
 .rider-release-status p { margin: 0 0 8px; }
+.rider-release-status--control { background: #f8fafc; border-color: #dce3ea; color: #263847; }
+.rider-release-status--control .rider-release-status-actions { align-items: center; justify-content: space-between; }
 .rider-release-status-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .rider-release-status button {
   min-height: 44px;

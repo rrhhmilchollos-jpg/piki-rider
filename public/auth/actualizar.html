@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Preparar actualización · PIKI Rider</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101910; color: #f6f8ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px; }
+    main { max-width: 600px; margin: auto; }
+    header { display: flex; align-items: center; gap: 16px; }
+    img { width: 72px; height: 72px; }
+    h1 { font-size: clamp(1.5rem, 6vw, 2rem); line-height: 1.15; margin: 0; }
+    h2 { font-size: 1.15rem; }
+    p, li { line-height: 1.6; }
+    section { margin-top: 24px; padding: 20px; border: 1px solid #3b4c30; border-radius: 16px; background: #1a2618; }
+    button { width: 100%; min-height: 52px; border: 0; border-radius: 12px; padding: 12px; font: inherit; font-weight: 750; background: #d6ee38; color: #15200e; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+    a { color: #d6ee38; overflow-wrap: anywhere; }
+    #status { border-left: 3px solid #d6ee38; padding-left: 12px; }
+    #release { overflow-wrap: anywhere; }
+    li + li { margin-top: 10px; }
+    ol { padding-left: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><img src="/piki-mascot-192.png" alt="PIKI" width="72" height="72"><h1>Preparar actualización<br>PIKI Rider</h1></header>
+    <p>Para la app web instalada en Android. Preparar no significa aplicar: no se fuerza el cambio mientras otras ventanas puedan seguir trabajando.</p>
+    <section aria-label="Preparación manual">
+      <p>Esta página no solicita contraseñas, no borra datos ni consulta tu jornada, entregas o ubicación. Tú debes comprobar si hay trabajo activo.</p>
+      <button id="prepare" type="button">Preparar actualización</button>
+      <p id="status" role="status" aria-live="polite">Necesitas conexión. Pulsa el botón para verificar la publicación y preparar el proceso seguro.</p>
+      <p id="release">Publicación: todavía no verificada. La versión instalada en tu app no se verifica desde esta página.</p>
+      <noscript><p>Activa JavaScript en Chrome para preparar la actualización. No se ha preparado nada.</p></noscript>
+    </section>
+    <section aria-labelledby="steps">
+      <h2 id="steps">Después de una preparación confirmada</h2>
+      <p>Una actualización en espera todavía no está aplicada. Para permitir el cambio normal, sin interrumpir trabajo:</p>
+      <ol>
+        <li>Terminar la entrega y la jornada si están activas.</li>
+        <li>Cerrar TODAS las ventanas de PIKI Rider y esta página, incluidas las pestañas de Chrome.</li>
+        <li>Abrir de nuevo desde el icono correcto o la dirección canónica:<br><a href="https://rider.pikidelivery.com/">https://rider.pikidelivery.com/</a></li>
+      </ol>
+      <p>Comprueba la versión al volver a la app. Esta página no confirma qué versión está ejecutando otra ventana.</p>
+    </section>
+    <section aria-labelledby="domain">
+      <h2 id="domain">Si el icono abre «riders», con s</h2>
+      <p>Si esa dirección falla con NXDOMAIN, esta página no puede reparar el dominio ni cambiar la dirección del icono instalado en Android. Abre la dirección canónica «rider», sin s, en Chrome e instala PIKI Rider desde allí. Después utiliza solo el icono de esa dirección. No necesitas borrar la app anterior ni sus cachés.</p>
+      <p>Sin conexión o si la verificación falla, no des la actualización por preparada: recupera la conexión y vuelve a intentarlo.</p>
+    </section>
+  </main>
+  <script>
+    const button = document.getElementById('prepare');
+    const status = document.getElementById('status');
+    const releaseText = document.getElementById('release');
+    const LIMIT_MS = 10000;
+    let busy = false;
+
+    async function bounded(work, onTimeout = () => {}) {
+      let timer;
+      try {
+        return await Promise.race([
+          Promise.resolve().then(work),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => { onTimeout(); reject(new Error('timeout')); }, LIMIT_MS);
+          }),
+        ]);
+      } finally { clearTimeout(timer); }
+    }
+
+    function validRelease(data) {
+      return data && data.surface === 'rider'
+        && typeof data.version === 'string' && /^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(data.version)
+        && data.version.length <= 64 && typeof data.buildId === 'string'
+        && /^[a-zA-Z0-9._-]{1,128}$/.test(data.buildId);
+    }
+
+    function installationState(registration) {
+      return new Promise((resolve) => {
+        const deadline = Date.now() + 8000;
+        function check() {
+          if (registration.waiting) return resolve('waiting');
+          if (!registration.installing) return resolve(registration.active ? 'active' : 'unknown');
+          if (Date.now() >= deadline) return resolve('unknown');
+          setTimeout(check, 200);
+        }
+        check();
+      });
+    }
+
+    button.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true; button.disabled = true;
+      let releaseVerified = false;
+      releaseText.textContent = 'Publicación: verificando. Versión instalada no verificada.';
+      status.textContent = 'Verificando la publicación pública…';
+      try {
+        if (!('serviceWorker' in navigator)) throw new Error('unsupported');
+        const abort = new AbortController();
+        const release = await bounded(async () => {
+          const response = await fetch('/release.json', {
+            cache: 'no-store', credentials: 'omit', mode: 'same-origin', redirect: 'error', signal: abort.signal,
+          });
+          if (!response.ok || response.redirected) throw new Error('release');
+          const data = await response.json();
+          if (!validRelease(data)) throw new Error('release');
+          return data;
+        }, () => abort.abort());
+        releaseText.textContent = `Publicación Rider verificada: ${release.version} · build ${release.buildId}. No es prueba de la versión instalada.`;
+        releaseVerified = true;
+        status.textContent = 'Preparando el service worker; no se fuerza su activación…';
+        const registration = await bounded(() => navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }));
+        await bounded(() => registration.update());
+        const state = await installationState(registration);
+        status.textContent = state === 'waiting'
+          ? 'Preparación confirmada: hay una actualización en espera, no aplicada. Sigue los tres pasos de cierre cuando termines el trabajo.'
+          : state === 'active'
+            ? 'Comprobación terminada: hay un worker activo, pero no se detectó una actualización en espera. Puede que no haya cambios; no se ha verificado su build ni la versión de tu app. Si sigue antigua, sigue los pasos de cierre al terminar el trabajo.'
+            : 'Instalación no confirmada. No des la actualización por preparada. Comprueba la conexión y vuelve a intentarlo.';
+      } catch {
+        if (!releaseVerified) releaseText.textContent = 'Publicación no verificada. Versión instalada no verificada.';
+        status.textContent = 'No se pudo confirmar la preparación (sin conexión, tiempo agotado o publicación no válida). No continúes como si estuviera preparada. Recupera la conexión y reintenta. Una petición ya iniciada puede terminar por sí sola; aquí no se fuerza la activación.';
+      } finally { busy = false; button.disabled = false; }
+    });
+  </script>
+</body>
+</html>

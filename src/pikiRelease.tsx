@@ -6,6 +6,7 @@ import { shouldShowPushConsent } from "./pushConsentPolicy";
 import { fetchRiderReleasePolicy } from "./riderReleaseNetwork";
 import "./riderReleaseStatus.css";
 import { getPwaOperationSafety, subscribePwaOperationSafety } from "./pwaOperationSafety";
+import { withRequestDeadline } from "./requestDeadline";
 import {
   shouldDeferPwaActivation,
 } from "./pwaUpdateRecovery";
@@ -34,13 +35,17 @@ const workerActivationTimeoutMs = 10_000;
 // firmado: standalone no equivale a contenedor Android nativo.
 const nativeApp = Capacitor.isNativePlatform();
 
+async function pwaStep<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  return withRequestDeadline(operation, new AbortController(), workerActivationTimeoutMs);
+}
+
 async function registerWorker(): Promise<ServiceWorkerRegistration | null> {
   if (isPikiNativePwaGuard(nativeApp) || !("serviceWorker" in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register("/sw.js", {
+    const registration = await pwaStep(() => navigator.serviceWorker.register("/sw.js", {
       scope: "/",
       updateViaCache: "none",
-    });
+    }));
     return registration;
   } catch {
     // La aplicación sigue funcionando aunque Android tarde en actualizar el SW.
@@ -206,6 +211,8 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   const safetyRef = useRef(getPwaOperationSafety());
   const activationRequestedRef = useRef(false);
   const controllerChangedRef = useRef(false);
+  const updateInFlightRef = useRef(false);
+  const navigationStartedRef = useRef(false);
 
   const canApplyUpdate = useCallback(() => {
     // Read the published state now, not only the state captured at the click.
@@ -225,23 +232,45 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
 
   const forceFullReload = useCallback(async (target: PikiPwaTarget | null) => {
     if (!canApplyUpdate()) return;
+    // Do not remove the offline shell until a real, uncached app document
+    // can be downloaded. The control header bypasses older PIKI workers.
+    if (!navigator.onLine) throw new Error("Sin conexión. La caché se conserva; vuelve a intentarlo cuando tengas Internet.");
+    await pwaStep(async (signal) => {
+      const url = new URL("/", window.location.origin);
+      url.searchParams.set("piki_update_probe", String(Date.now()));
+      const response = await window.fetch(url, {
+        cache: "no-store", credentials: "omit", signal,
+        headers: { Accept: "text/html", "Cache-Control": "no-store" },
+      });
+      if (!response.ok || !/text\/html/i.test(response.headers.get("content-type") || "")) {
+        throw new Error("No se puede descargar la aplicación. La caché y tu sesión se conservan.");
+      }
+      const html = await response.text();
+      if (!/<(?:!doctype|html)\b/i.test(html)) throw new Error("La descarga no contiene la aplicación. Vuelve a intentarlo.");
+    });
+    if (!canApplyUpdate()) return;
     try {
       if (target) clearPikiTargetNavigation(sessionStorage, PIKI_RELEASE.surface, target.buildId);
       if ("serviceWorker" in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
+        const registrations = await pwaStep(() => navigator.serviceWorker.getRegistrations());
         if (!canApplyUpdate()) return;
         for (const registration of registrations) {
+          const workers = [registration.active, registration.waiting, registration.installing];
+          if (registration.scope !== new URL("/", window.location.origin).href
+            || !workers.some((worker) => worker && new URL(worker.scriptURL).origin === window.location.origin
+              && new URL(worker.scriptURL).pathname === "/sw.js")) continue;
           if (!canApplyUpdate()) return;
-          await registration.unregister().catch(() => undefined);
+          await pwaStep(() => registration.unregister()).catch(() => undefined);
           if (!canApplyUpdate()) return;
         }
       }
       if (typeof caches !== "undefined") {
-        const keys = await caches.keys();
+        const keys = await pwaStep(() => caches.keys());
         if (!canApplyUpdate()) return;
         for (const key of keys) {
+          if (!key.startsWith("piki-rider-")) continue;
           if (!canApplyUpdate()) return;
-          await caches.delete(key).catch(() => undefined);
+          await pwaStep(() => caches.delete(key)).catch(() => undefined);
           if (!canApplyUpdate()) return;
         }
       }
@@ -254,13 +283,25 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
 
   const navigateToTarget = useCallback((target: PikiPwaTarget | null, manualRetry = false) => {
     if (!canApplyUpdate()) return false;
+    if (navigationStartedRef.current) return true;
+    if (!target) {
+      if (!navigator.onLine) return false;
+      // A newer worker can be installed even when the page already runs the
+      // current web build. Keep that worker and its offline cache intact.
+      navigationStartedRef.current = true;
+      window.location.replace(pikiForcedReloadUrl(window.location.href, String(Date.now())));
+      return true;
+    }
     if (!canNavigateToPikiTarget({ target, current: PIKI_RELEASE, online: navigator.onLine, safe: true, storage: sessionStorage, manualRetry })) {
       if (manualRetry) {
         // Reintento manual: el build nuevo ya se intentó cargar antes y el
         // service worker sigue sirviendo el antiguo. Limpiamos caché y
         // recargamos de verdad en lugar de dejar al rider sin salida.
         setDetail("Reintentando la actualización completa: se borra la caché de la app…");
-        void forceFullReload(target);
+        void forceFullReload(target).catch((error) => {
+          setDetail(error instanceof Error ? error.message : "No se pudo recuperar la aplicación. La sesión se conserva.");
+          setUpdating(false);
+        });
         return true;
       }
       setUpdating(false);
@@ -269,6 +310,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     }
     markPikiTargetNavigation(sessionStorage, PIKI_RELEASE.surface, target!.buildId);
     if (!canApplyUpdate()) return false;
+    navigationStartedRef.current = true;
     window.location.replace(pikiTargetNavigationUrl(window.location.href, target!.buildId));
     return true;
   }, [canApplyUpdate, forceFullReload]);
@@ -361,15 +403,25 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   }, [check, navigateToTarget]);
 
   const update = useCallback(async () => {
-    if (nativeApp || updating) return;
+    if (nativeApp || updating || updateInFlightRef.current) return;
+    if (!navigator.onLine) {
+      setDetail("Sin conexión. No se borra la caché ni se cierra tu sesión; vuelve a intentarlo con Internet.");
+      return;
+    }
     if (!canApplyUpdate()) return;
+    updateInFlightRef.current = true;
+    navigationStartedRef.current = false;
     setUpdating(true);
     setDetail("Descargando la nueva versión…");
     try {
+      const release = await fetchPikiStaticRelease(window.fetch.bind(window), window.location.origin, PIKI_RELEASE.surface);
+      targetRef.current = getPikiWebTarget(release, PIKI_RELEASE);
+      setAvailableBuild(targetRef.current ? `${targetRef.current.version} · ${targetRef.current.buildId}` : "");
+      if (!canApplyUpdate()) return;
       const registration = await getRegistration();
       if (!canApplyUpdate()) return;
       if (registration) {
-        try { await registration.update(); } catch { /* sin red para comprobar */ }
+        try { await pwaStep(() => registration.update()); } catch { /* el fallback comprueba la descarga real */ }
         if (!canApplyUpdate()) return;
         const waiting = await waitForPikiWaitingWorker(registration, workerActivationTimeoutMs);
         if (!canApplyUpdate()) return;
@@ -385,11 +437,16 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
         }
       }
       if (!canApplyUpdate()) return;
+      if (!targetRef.current) {
+        setDetail(`Versión ${PIKI_RELEASE.version} cargada. No se ha publicado un build web distinto; tu sesión y la caché se conservan.`);
+        return;
+      }
       setDetail("Limpiando la caché y recargando…");
       await forceFullReload(targetRef.current);
     } catch (error) {
       setDetail(error instanceof Error ? error.message : "No se pudo actualizar. Recarga la página.");
     } finally {
+      updateInFlightRef.current = false;
       setUpdating(false);
     }
   }, [canApplyUpdate, forceFullReload, getRegistration, navigateToTarget, updating]);
@@ -409,22 +466,31 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [availableBuild, safetyEpoch, state, update, updating]);
 
-  if (state === "checking") return <main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main>;
+  const manualControl = !nativeApp && !availableBuild && state !== "error" ? <aside aria-label="Actualización de PIKI Rider" className="rider-release-status rider-release-status--control">
+    <div className="rider-release-status-actions">
+      <span>PIKI Rider · Versión {PIKI_RELEASE.version}</span>
+      <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar aplicación"}</button>
+    </div>
+    {detail && <div role="status" className="rider-release-status-detail">{detail}</div>}
+  </aside> : null;
+
+  if (state === "checking") return <>{manualControl}<main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main></>;
   if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI RIDERS · ACTUALIZACIÓN {nativeSecurityUpdate ? "DE APLICACIÓN" : "PWA"}</p><h1 id="piki-update-title">{nativeSecurityUpdate ? "Actualiza la aplicación para continuar" : "Hay una nueva versión lista"}</h1><p>{nativeSecurityUpdate ? `Esta aplicación necesita la versión firmada ${requiredVersion}. Instálala desde el canal firmado autorizado por PIKI o Google Play si es el canal configurado; los recursos embebidos no se actualizan desde una PWA.` : `El nuevo build web ${requiredVersion} se aplicará sin cerrar tu sesión ni borrar los datos guardados.`}</p>{detail && <p role="alert">{detail}</p>}{!nativeSecurityUpdate && <button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Aplicando nuevo build…" : "Actualizar PWA"}</button>}</section></main>;
   return <>
     {state === "error" && <aside role="status" className="rider-release-status">
       <p><strong>No se ha podido comprobar la versión de Rider.</strong> Revisa tu conexión. Este aviso no confirma el estado de tu sesión, horarios o GPS.</p>
       <div className="rider-release-status-actions">
         <button type="button" onClick={() => void retryConnection()} disabled={retrying}>{retrying ? "Comprobando conexión…" : "Reintentar conexión"}</button>
-        {!nativeApp && <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : availableBuild ? "Actualizar PWA" : "Recargar aplicación"}</button>}
+        {!nativeApp && <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar aplicación"}</button>}
       </div>
       <div className="rider-release-status-detail">Versión instalada: {PIKI_RELEASE.version} · {PIKI_RELEASE.buildId}{detail && ` · ${detail}`}</div>
     </aside>}
     {availableBuild && state !== "error" && <aside role="status" className="rider-release-status rider-release-status--update">
       <p>Nueva versión de PWA disponible: {availableBuild}.</p>
-      <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar PWA"}</button>
+      <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar aplicación"}</button>
       {detail && <div className="rider-release-status-detail">{detail}</div>}
     </aside>}
+    {manualControl}
     {children}<PushConsentControl />
   </>;
 }
