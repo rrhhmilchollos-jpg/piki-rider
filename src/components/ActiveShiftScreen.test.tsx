@@ -55,7 +55,17 @@ describe("active shift server rendering (no device/network)", () => {
     expect(html).toContain("Partner activo");
     expect(html).toContain("ACEPTAR PEDIDO");
     expect(html).toContain("CONFIRMAR RETIRO");
+    expect(html).toContain("active-sheet-grab-bar");
+    expect(html).toContain("Minimizar tarjeta de pedidos");
     expect(html).not.toContain("is-collapsed");
+  });
+  it("shows the draggable card handle while searching without offers", () => {
+    const p = props();
+    p.offers = [];
+    const html = renderToStaticMarkup(<ActiveShiftScreen {...p} />);
+    expect(html).toContain("Buscando pedidos");
+    expect(html).toContain("active-sheet-grab-bar");
+    expect(html).toContain("Minimizar tarjeta de pedidos");
   });
   it("does not hide either card after a failed sync and disables stale confirmation actions", () => {
     const html = renderToStaticMarkup(<ActiveShiftScreen {...props()} offersError="offline"/>);

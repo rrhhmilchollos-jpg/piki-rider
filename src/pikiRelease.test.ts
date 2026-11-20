@@ -67,10 +67,10 @@ function fixture({ active = false, known = true, stage = "", worker = true, gate
 }
 
 describe("manual PWA callback — offline components, no real browser/SW", () => {
-  it("always shows an update button and installed version when the build is current", () => {
+  it("does not show a full-width update bar when the build is current", () => {
     const f = fixture({ newBuild: false });
-    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Actualizar aplicación")).toBeDefined();
-    expect(findNode(f.tree, (node) => node.tag === "aside" && node.props["aria-label"] === "Actualización de PIKI Rider")).toBeDefined();
+    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Actualizar aplicación")).toBeUndefined();
+    expect(findNode(f.tree, (node) => node.tag === "aside" && String(node.props.className || "").includes("rider-release-status"))).toBeUndefined();
   });
   it("keeps the current worker and caches when there is no new web build", async () => {
     const f = fixture({ newBuild: false, worker: false });
@@ -88,9 +88,9 @@ describe("manual PWA callback — offline components, no real browser/SW", () =>
     expect(f.cache.delete).not.toHaveBeenCalled();
     expect(f.replace).toHaveBeenCalledTimes(1);
   });
-  it("shows the same update control during the initial version check", () => {
+  it("does not show the update bar during the initial version check", () => {
     const f = fixture({ gate: "checking", newBuild: false });
-    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Actualizar aplicación")).toBeDefined();
+    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Actualizar aplicación")).toBeUndefined();
   });
   it("does not clear caches or register workers while offline", async () => {
     const f = fixture({ worker: false });
@@ -144,11 +144,10 @@ describe("manual PWA callback — offline components, no real browser/SW", () =>
     expect(f.serviceWorker.register).toHaveBeenCalledTimes(1);
     expect(f.replace).toHaveBeenCalledTimes(1);
   });
-  it("offers a connection retry and safe reload even when no different build is known", () => {
+  it("keeps the release gate quiet when the version check fails", () => {
     const f = fixture({ gate: "error", newBuild: false });
-    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Reintentar conexión")).toBeDefined();
-    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Actualizar aplicación")).toBeDefined();
-    expect(findNode(f.tree, (node) => node.tag === "aside" && node.props.className === "rider-release-status")).toBeDefined();
+    expect(findNode(f.tree, (node) => node.tag === "button" && node.props.children === "Reintentar conexión")).toBeUndefined();
+    expect(findNode(f.tree, (node) => node.tag === "aside" && String(node.props.className || "").includes("rider-release-status"))).toBeUndefined();
   });
 
   it("does not stack an update notice over the error notice", () => {

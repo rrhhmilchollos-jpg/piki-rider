@@ -200,7 +200,6 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState("");
   const [updating, setUpdating] = useState(false);
   const [nativeSecurityUpdate, setNativeSecurityUpdate] = useState(false);
-  const [retrying, setRetrying] = useState(false);
   const [safetyEpoch, setSafetyEpoch] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -451,12 +450,6 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     }
   }, [canApplyUpdate, forceFullReload, getRegistration, navigateToTarget, updating]);
 
-  const retryConnection = useCallback(async () => {
-    setRetrying(true);
-    try { await check("manual"); }
-    finally { setRetrying(false); }
-  }, [check]);
-
   useEffect(() => {
     // La PWA se actualiza sola cuando hay un build nuevo. Si el rider está
     // entregando, cobrando o rellenando un formulario, la activación se
@@ -466,31 +459,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [availableBuild, safetyEpoch, state, update, updating]);
 
-  const manualControl = !nativeApp && !availableBuild && state !== "error" ? <aside aria-label="Actualización de PIKI Rider" className="rider-release-status rider-release-status--control">
-    <div className="rider-release-status-actions">
-      <span>PIKI Rider · Versión {PIKI_RELEASE.version}</span>
-      <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar aplicación"}</button>
-    </div>
-    {detail && <div role="status" className="rider-release-status-detail">{detail}</div>}
-  </aside> : null;
-
-  if (state === "checking") return <>{manualControl}<main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main></>;
+  if (state === "checking") return <main aria-live="polite" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px" }}>Comprobando la versión segura de PIKI…</main>;
   if (state === "required") return <main aria-labelledby="piki-update-title" style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui", padding: "24px", background: "#f8fafc" }}><section role="dialog" aria-modal="true" style={{ maxWidth: "480px", padding: "28px", background: "white", borderRadius: "16px", boxShadow: "0 12px 40px rgba(15,23,42,.15)" }}><p style={{ fontWeight: 700, color: "#b45309" }}>PIKI RIDERS · ACTUALIZACIÓN {nativeSecurityUpdate ? "DE APLICACIÓN" : "PWA"}</p><h1 id="piki-update-title">{nativeSecurityUpdate ? "Actualiza la aplicación para continuar" : "Hay una nueva versión lista"}</h1><p>{nativeSecurityUpdate ? `Esta aplicación necesita la versión firmada ${requiredVersion}. Instálala desde el canal firmado autorizado por PIKI o Google Play si es el canal configurado; los recursos embebidos no se actualizan desde una PWA.` : `El nuevo build web ${requiredVersion} se aplicará sin cerrar tu sesión ni borrar los datos guardados.`}</p>{detail && <p role="alert">{detail}</p>}{!nativeSecurityUpdate && <button type="button" onClick={() => void update()} disabled={updating} style={{ padding: "12px 16px", border: 0, borderRadius: "9px", background: "#111827", color: "white", fontWeight: 700 }}>{updating ? "Aplicando nuevo build…" : "Actualizar PWA"}</button>}</section></main>;
-  return <>
-    {state === "error" && <aside role="status" className="rider-release-status">
-      <p><strong>No se ha podido comprobar la versión de Rider.</strong> Revisa tu conexión. Este aviso no confirma el estado de tu sesión, horarios o GPS.</p>
-      <div className="rider-release-status-actions">
-        <button type="button" onClick={() => void retryConnection()} disabled={retrying}>{retrying ? "Comprobando conexión…" : "Reintentar conexión"}</button>
-        {!nativeApp && <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar aplicación"}</button>}
-      </div>
-      <div className="rider-release-status-detail">Versión instalada: {PIKI_RELEASE.version} · {PIKI_RELEASE.buildId}{detail && ` · ${detail}`}</div>
-    </aside>}
-    {availableBuild && state !== "error" && <aside role="status" className="rider-release-status rider-release-status--update">
-      <p>Nueva versión de PWA disponible: {availableBuild}.</p>
-      <button type="button" onClick={() => void update()} disabled={updating}>{updating ? "Actualizando…" : "Actualizar aplicación"}</button>
-      {detail && <div className="rider-release-status-detail">{detail}</div>}
-    </aside>}
-    {manualControl}
-    {children}<PushConsentControl />
-  </>;
+  return <>{children}<PushConsentControl /></>;
 }

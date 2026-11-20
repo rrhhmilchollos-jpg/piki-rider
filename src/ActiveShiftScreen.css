@@ -151,10 +151,12 @@
 
 /* Modo navegación: control amarillo y resumen mínimo sobre el mapa. */
 .active-shift-shell .active-bottom-sheet { transition: padding .2s ease, background .2s ease; }
-.active-shift-shell .active-sheet-handle { position: absolute; top: 18px; right: 18px; z-index: 3; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: #ffd522; color: #16251f; box-shadow: 0 8px 18px rgba(24,34,28,.18); cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
-.active-shift-shell .active-sheet-handle:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(24,34,28,.24); }
-.active-shift-shell .active-sheet-handle:active { transform: scale(.96); }
-.active-shift-shell .active-sheet-handle:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.active-shift-shell .active-sheet-handle { position: absolute; top: 9px; left: 50%; z-index: 3; display: flex; align-items: center; justify-content: center; gap: 7px; width: 86px; height: 32px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #53636b; cursor: grab; touch-action: none; transform: translateX(-50%); transition: background .16s ease, transform .16s ease; }
+.active-shift-shell .active-sheet-handle:hover { background: #f1f4f2; }
+.active-shift-shell .active-sheet-handle:active { cursor: grabbing; transform: translateX(-50%) scale(.96); }
+.active-shift-shell .active-sheet-handle:focus-visible { outline: 3px solid #173b63; outline-offset: 3px; }
+.active-shift-shell .active-sheet-handle-icon { display: grid; place-items: center; }
+.active-shift-shell .active-sheet-handle-icon { background: transparent !important; }
 .active-shift-shell .active-order-summary { display: none; }
 .active-shift-shell .active-order-summary-label { display: inline-flex; align-items: center; gap: 7px; color: #66806f; font-size: 11px; font-weight: 850; letter-spacing: .13em; }
 .active-shift-shell .active-order-summary-label i { width: 8px; height: 8px; border-radius: 50%; background: #45a65b; box-shadow: 0 0 0 4px rgba(69,166,91,.14); }
@@ -165,7 +167,7 @@
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-order-summary { display: grid; gap: 8px; margin: 0; padding: 0 4px; }
 .active-shift-shell .active-bottom-sheet.is-collapsed .active-sheet-expanded-content { display: none; }
 @media (prefers-reduced-motion: reduce) { .active-shift-shell .active-sheet-handle, .active-shift-shell .active-bottom-sheet { transition: none; } }
-@media (max-width: 580px) { .active-shift-shell .active-sheet-handle { top: 14px; right: 14px; width: 44px; height: 44px; } .active-shift-shell .active-bottom-sheet.is-collapsed { padding: 70px 20px 18px; } .active-shift-shell .active-order-summary strong { font-size: 19px; } .active-shift-shell .active-order-summary p { font-size: 13px; } }
+@media (max-width: 580px) { .active-shift-shell .active-sheet-handle { top: 8px; width: 82px; height: 32px; } .active-shift-shell .active-bottom-sheet.is-collapsed { padding: 58px 20px 18px; } .active-shift-shell .active-order-summary strong { font-size: 19px; } .active-shift-shell .active-order-summary p { font-size: 13px; } }
 
 /* test deploy */
 
@@ -177,7 +179,7 @@
 .active-shift-shell .phase-customer .exact-active-label { color:#16567e; }
 
 /* Tarjeta Rider: arrastre sobre el mapa, número de pedido y productos visibles. */
-.active-shift-shell .active-sheet-handle{touch-action:none;cursor:grab;display:flex;flex-direction:column;align-items:center;gap:5px}
+.active-shift-shell .active-sheet-handle{touch-action:none;cursor:grab;display:flex;flex-direction:row;align-items:center;gap:7px}
 .active-shift-shell .active-sheet-handle:active{cursor:grabbing}
 .active-shift-shell .active-sheet-grab-bar{display:block;width:54px;height:5px;border-radius:999px;background:#aeb8bd;box-shadow:0 1px 0 rgba(0,0,0,.08)}
 .active-shift-shell .exact-active-label>span:first-child{display:grid;gap:5px}
