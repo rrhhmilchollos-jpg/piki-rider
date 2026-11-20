@@ -148,7 +148,7 @@ function ActiveOrderCard({ order }: { order: RiderOffer }) {
   </div>;
 }
 
-function PendingOfferCard({ order, disabled, onAccept }: { order: RiderOffer; disabled: boolean; onAccept: (id: string) => void }) {
+export function PendingOfferCard({ order, disabled, onAccept }: { order: RiderOffer; disabled: boolean; onAccept: (id: string) => void }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
