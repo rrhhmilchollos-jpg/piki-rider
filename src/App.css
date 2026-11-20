@@ -716,6 +716,10 @@ button, a, input, select, textarea { touch-action: manipulation; }
 @media (max-width:580px) {
   .rider-shift-return { min-height:36px; padding:0 8px; font-size:11px; }
 }
+/* Evita que el overscroll del navegador móvil active pull-to-refresh. */
+html, body, #root {
+  overscroll-behavior-y: contain;
+}
 @media (max-width:380px) {
   .rider-shift-return span { display:none; }
 }
