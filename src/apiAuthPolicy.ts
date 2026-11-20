@@ -3,34 +3,30 @@ const explicitAuthenticationErrors = new Set([
   "INVALID_TOKEN",
   "TOKEN_EXPIRED",
   "SESSION_EXPIRED",
-  "UNAUTHORIZED",
   "PASSWORD_CHANGE_REQUIRED",
 ]);
 
 type AuthenticationErrorBody = {
   code?: unknown;
   error?: unknown;
-  message?: unknown;
 };
 
 function isExplicitAuthenticationSignal(value: unknown): boolean {
-  const signal = String(value ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]+/g, "_");
-  return [...explicitAuthenticationErrors].some((error) =>
-    signal === error || signal.startsWith(`${error}:`) || signal.startsWith(`${error}_`),
-  );
+  // Match exact machine codes only. Generic "Unauthorized" (even uppercase),
+  // transformed free text and upstream-suffixed codes are ambiguous proxies.
+  return typeof value === "string" && explicitAuthenticationErrors.has(value);
 }
 
 function bodyRequiresAuthentication(body: AuthenticationErrorBody): boolean {
-  return [body.error, body.code, body.message].some(isExplicitAuthenticationSignal);
+  // Free-text messages such as a proxy's {"message":"Unauthorized"} are not
+  // evidence that this bearer token was rejected by the authentication API.
+  return [body.error, body.code].some(isExplicitAuthenticationSignal);
 }
 
 /** Native HTTP and fetch must use the same explicit authentication evidence. */
 export function riderResponseRequiresAuthentication(status: number, body: unknown): boolean {
   if (status !== 401 && status !== 403 && status !== 428) return false;
-  return Boolean(body && typeof body === "object" && bodyRequiresAuthentication(body as AuthenticationErrorBody));
+  return Boolean(body && typeof body === "object" && !Array.isArray(body) && bodyRequiresAuthentication(body as AuthenticationErrorBody));
 }
 
 /**
@@ -39,11 +35,11 @@ export function riderResponseRequiresAuthentication(status: number, body: unknow
  * CDN's generic 401 page is not sufficient evidence that the token expired.
  */
 export function isRiderAuthenticationErrorMessage(message: string): boolean {
-  const jsonStart = message.indexOf("{");
-  if (jsonStart < 0) return false;
+  const prefix = /^API\s+(401|403|428):\s*/.exec(message);
+  if (!prefix) return false;
   try {
-    const body = JSON.parse(message.slice(jsonStart)) as AuthenticationErrorBody;
-    return Boolean(body && typeof body === "object" && bodyRequiresAuthentication(body));
+    const body: unknown = JSON.parse(message.slice(prefix[0].length));
+    return riderResponseRequiresAuthentication(Number(prefix[1]), body);
   } catch {
     return false;
   }

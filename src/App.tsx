@@ -328,6 +328,7 @@ function RiderWorkspace() {
   const [status, setStatus] = useState<Status>("checking");
   const [authRequired, setAuthRequired] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
+  const [authNotice, setAuthNotice] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [apiToken, setApiToken] = useState(() => getStoredToken());
   const [identitySession] = useState(() => new AccountIdentitySession(apiToken));
@@ -557,11 +558,11 @@ function RiderWorkspace() {
     setApiToken("");
     setAuthRequired(true);
     setStatus("checking");
-    if (message) setToast(message);
+    setAuthNotice(message ?? "");
   }, [identitySession, resetRiderScopedState]);
   const logoutRiderSession = useCallback(async () => {
     const oldToken = activeTokenRef.current;
-    endRiderSession("Sesión cerrada. Se han eliminado los datos de esta cuenta del dispositivo.");
+    endRiderSession("Sesión local cerrada.");
     if (!oldToken) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 10_000);
@@ -585,6 +586,7 @@ function RiderWorkspace() {
     // en silencio y la app sigue funcionando con las alarmas locales.
     void registerRiderPush(apiOrigin, token);
     setAuthRequired(false);
+    setAuthNotice("");
     setStatus("checking");
   }, [identitySession, resetRiderScopedState]);
 
@@ -609,7 +611,7 @@ function RiderWorkspace() {
         const authenticationRequired = await requiresRiderAuthentication(response);
         if (!identitySession.isCurrentPhotoUpdate(ticket)) return;
         if (authenticationRequired) {
-          endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para cambiar tu foto.");
+          endRiderSession("La API requiere que inicies sesión de nuevo para cambiar tu foto.");
           return;
         }
         if ([401, 403, 428].includes(response.status)) {
@@ -760,7 +762,7 @@ function RiderWorkspace() {
       if (!sessionResponse.ok || unlinked) {
         const authenticationRequired = riderResponseRequiresAuthentication(sessionResponse.status, sessionData);
         if (authenticationRequired) {
-          endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
+          endRiderSession("La API requiere que inicies sesión de nuevo para recibir ofertas.");
           return;
         }
         if (unlinked) resetRiderScopedState();
@@ -972,7 +974,7 @@ function RiderWorkspace() {
           const requiresAuthentication = await requiresRiderAuthentication(response);
           signal.throwIfAborted();
           if (requiresAuthentication && isCurrentSession()) {
-            endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
+            endRiderSession("La API requiere que inicies sesión de nuevo para recibir ofertas.");
           }
           throw new Error("No se han podido sincronizar los pedidos");
         }
@@ -1040,7 +1042,7 @@ function RiderWorkspace() {
       },
       onAuthExpired: () => {
         if (!isCurrent()) return;
-        endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para recibir ofertas.");
+        endRiderSession("La API requiere que inicies sesión de nuevo para recibir ofertas.");
       },
       onAuthorizationError: () => {
         if (!isCurrent()) return;
@@ -1702,7 +1704,7 @@ function RiderWorkspace() {
   }
   const handleApiError = useCallback((message: string) => {
     if (isRiderAuthenticationErrorMessage(message)) {
-      endRiderSession("Tu sesión ha caducado. Vuelve a iniciar sesión.");
+      endRiderSession("La API requiere que inicies sesión de nuevo.");
       return;
     }
     setToast(message);
@@ -1717,6 +1719,7 @@ function RiderWorkspace() {
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
+        {authNotice && <p className="form-error" role="status">{authNotice}</p>}
         <EmployeeAuthGate
           apiOrigin={apiOrigin}
           onBusyChange={setAuthBusy}
@@ -1856,7 +1859,7 @@ function RiderWorkspace() {
                 const token = apiToken;
                 return () => {
                   if (sessionEpoch !== riderSessionEpochRef.current || token !== activeTokenRef.current) return;
-                  endRiderSession("Tu sesión ha caducado. Inicia sesión de nuevo para ver tus avisos.");
+                  endRiderSession("La API requiere que inicies sesión de nuevo para ver tus avisos.");
                 };
               })()}
               onUnreadChange={({ support, customer }) => {

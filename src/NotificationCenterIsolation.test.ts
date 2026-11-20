@@ -10,7 +10,7 @@ const source = readFileSync(new URL("./NotificationCenter.tsx", import.meta.url)
 const compiled = compile(source, "NotificationCenter.tsx");
 const notice = (owner: string) => ({ id: "shared-id", category: "support", title: `${owner} notice`, body: owner, url: `/${owner}`, readAt: null, createdAt: "2026-11-11T00:00:00Z" });
 const inbox = (owner: string) => new Response(JSON.stringify({ notifications: [notice(owner)], unreadCount: 2 }), { status: 200 });
-const unauthorized = () => new Response('{"error":"AUTHENTICATION_REQUIRED"}', { status: 401 });
+const unauthorized = (status = 401) => new Response('{"error":"AUTHENTICATION_REQUIRED"}', { status });
 function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (error: Error) => void;
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
@@ -125,10 +125,10 @@ describe("NotificationCenter generation isolation — real component, offline ho
         expect(f.onUnauthorized).not.toHaveBeenCalled(); expect(f.assign).not.toHaveBeenCalled();
       });
     }
-    it(`${action}: rechecks ownership after delayed explicit-auth JSON`, async () => {
+    it.each([401, 403])(`${action}: rechecks ownership after delayed explicit-auth HTTP %s JSON`, async status => {
       const f = fixture(); await f.prepare(); const body = deferred<unknown>();
       const json = vi.fn(() => body.promise);
-      f.fetcher.mockResolvedValueOnce({ status: 401, ok: false, clone: () => ({ json }) } as unknown as Response);
+      f.fetcher.mockResolvedValueOnce({ status, ok: false, clone: () => ({ json }) } as unknown as Response);
       const work = f.act(action); await settle(); expect(json).toHaveBeenCalledOnce();
       f.render({ token: "mock-B" }); f.fetcher.mockResolvedValueOnce(inbox("B")); await f.load(); f.render();
       const snapshot = f.snapshot(); body.resolve({ error: "AUTHENTICATION_REQUIRED" });
@@ -172,8 +172,8 @@ describe("App's actual NotificationCenter unauthorized callback", () => {
 });
 
 describe("NotificationCenter isolation positive controls", () => {
-  it.each(["load", "all", "one"])("%s still reports legitimate current-session authentication failures", async action => {
-    const f = fixture(); await f.prepare(); f.fetcher.mockResolvedValueOnce(unauthorized());
+  it.each(["load", "all", "one"].flatMap(action => [401, 403].map(status => ({ action, status }))))("$action still reports legitimate current-session HTTP $status authentication failures", async ({ action, status }) => {
+    const f = fixture(); await f.prepare(); f.fetcher.mockResolvedValueOnce(unauthorized(status));
     await f.act(action); await settle();
     expect(f.onUnauthorized).toHaveBeenCalledOnce();
     expect(f.assign).not.toHaveBeenCalled();

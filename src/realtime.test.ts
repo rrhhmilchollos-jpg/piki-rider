@@ -85,6 +85,35 @@ describe("SSE deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it.each([401, 403].flatMap(status => ["Unauthorized", "unauthorized", "UNAUTHORIZED", "AUTHENTICATION_REQUIRED:UPSTREAM", "AUTHENTICATION_REQUIRED_UPSTREAM"].map(error => ({ status, error }))))("retries ambiguous JSON HTTP $status $error instead of terminating", async ({ status, error }) => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ error }), { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthExpired = vi.fn();
+    const onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthExpired, onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onAuthExpired).not.toHaveBeenCalled();
+    expect(onAuthorizationError).not.toHaveBeenCalled();
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([401, 403])("retries a message-only proxy response HTTP %s", async status => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{"message":"Unauthorized"}', { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthExpired = vi.fn(), onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthExpired, onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onAuthExpired).not.toHaveBeenCalled();
+    expect(onAuthorizationError).not.toHaveBeenCalled();
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each([
     ["HTML proxy", "<html>Forbidden</html>"], ["plain proxy", "Forbidden"],
     ["empty object", "{}"], ["malformed JSON", "{invalid"], ["null", "null"],
@@ -111,16 +140,48 @@ describe("SSE deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each([{ code: "FORBIDDEN" }, { error: "AUTHENTICATION_REQUIRED" }])("stops once for an exact known JSON 403 signal %j", async (body) => {
+  it("stops once for a structured JSON 403 role denial without reporting an invalid token", async () => {
+    const body = { code: "FORBIDDEN" };
     const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(body), { status: 403 }));
     vi.stubGlobal("fetch", fetchMock);
     const onAuthorizationError = vi.fn();
-    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthorizationError });
+    const onAuthExpired = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthorizationError, onAuthExpired });
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(onAuthorizationError).toHaveBeenCalledExactlyOnceWith(403);
+    expect(onAuthExpired).not.toHaveBeenCalled();
     stop();
     await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([401, 403])("stops once and reports explicit API authentication failure HTTP %s", async status => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{"error":"AUTHENTICATION_REQUIRED"}', { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onAuthExpired = vi.fn(), onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthExpired, onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(onAuthExpired).toHaveBeenCalledExactlyOnceWith(status);
+    expect(onAuthorizationError).not.toHaveBeenCalled();
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([401, 403])("cannot terminate a disposed session on a late explicit HTTP %s body", async status => {
+    let resolve!: (body: unknown) => void;
+    const body = new Promise(done => { resolve = done; });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status, clone: () => ({ json: () => body }) }));
+    const onAuthExpired = vi.fn(), onAuthorizationError = vi.fn();
+    const stop = connectPikiRealtime({ apiOrigin: "https://api.invalid", token: "fake", surface: "rider", onEvent: vi.fn(), onAuthExpired, onAuthorizationError });
+    await vi.advanceTimersByTimeAsync(0);
+    stop();
+    resolve({ error: "AUTHENTICATION_REQUIRED" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onAuthExpired).not.toHaveBeenCalled();
+    expect(onAuthorizationError).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
 

@@ -1,5 +1,5 @@
 import { withRequestDeadline } from "./requestDeadline";
-import { requiresRiderAuthentication } from "./apiAuthPolicy";
+import { riderResponseRequiresAuthentication } from "./apiAuthPolicy";
 
 export type PikiRealtimeEvent = { id?: string; type: string; payload: Record<string, unknown>; occurredAt?: string };
 
@@ -9,9 +9,9 @@ type RealtimeInput = {
   surface: "partner" | "fleet" | "admin" | "rider";
   onEvent: (event: PikiRealtimeEvent) => void;
   onState?: (connected: boolean) => void;
-  /** Called once; the stream is intentionally stopped so an expired token never floods 401s. */
-  onAuthExpired?: (status: 401 | 428) => void;
-  /** Called once for a known structured auth/role denial, never a generic proxy 403. */
+  /** Called once for an explicit authentication failure; the stream then stops. */
+  onAuthExpired?: (status: 401 | 403 | 428) => void;
+  /** Called once for a known structured role denial, never a generic proxy 403. */
   onAuthorizationError?: (status: 403) => void;
 };
 
@@ -31,16 +31,14 @@ function retryAfterMs(response: Response): number {
   return Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : 0;
 }
 
-async function isExplicitAuthorizationFailure(response: Response): Promise<boolean> {
+async function classifyFailure(response: Response): Promise<"authentication" | "authorization" | null> {
   const data: unknown = await response.clone().json().catch(() => null);
-  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if (riderResponseRequiresAuthentication(response.status, data)) return "authentication";
+  if (response.status !== 403 || !data || typeof data !== "object" || Array.isArray(data)) return null;
   const body = data as Record<string, unknown>;
-  // Backend requireRole emits FORBIDDEN; serveRealtimeEvents emits
-  // AUTHENTICATION_REQUIRED. Never infer a role failure from proxy HTML,
-  // a free-text message, a role field alone or an unknown/prefix code.
-  return [body.error, body.code].some((code) =>
-    code === "FORBIDDEN" || code === "AUTHENTICATION_REQUIRED",
-  );
+  // Backend requireRole emits FORBIDDEN for a role denial. Proxy text,
+  // role alone and unknown or suffixed codes are not sufficient evidence.
+  return [body.error, body.code].some((code) => code === "FORBIDDEN") ? "authorization" : null;
 }
 
 /** Authenticated SSE: bounded silence, resumable IDs and terminal auth failures. */
@@ -79,21 +77,22 @@ export function connectPikiRealtime(input: RealtimeInput) {
         }), connection, realtimeConnectTimeoutMs);
         if (controller.signal.aborted) return;
 
-        if (response.status === 401 || response.status === 428) {
-          if (await requiresRiderAuthentication(response)) {
-            if (controller.signal.aborted) return;
+        if (response.status === 401 || response.status === 403 || response.status === 428) {
+          const status = response.status;
+          const failure = await withRequestDeadline(
+            () => classifyFailure(response), connection, realtimeConnectTimeoutMs,
+          );
+          if (controller.signal.aborted) return;
+          if (failure === "authentication") {
             input.onState?.(false);
-            input.onAuthExpired?.(response.status);
+            input.onAuthExpired?.(status);
             return;
           }
-        }
-        if (response.status === 403 && await withRequestDeadline(
-          () => isExplicitAuthorizationFailure(response), connection, realtimeConnectTimeoutMs,
-        )) {
-          if (controller.signal.aborted) return;
-          input.onState?.(false);
-          input.onAuthorizationError?.(response.status);
-          return;
+          if (status === 403 && failure === "authorization") {
+            input.onState?.(false);
+            input.onAuthorizationError?.(status);
+            return;
+          }
         }
         if (response.status === 429) {
           nextDelay = retryAfterMs(response);

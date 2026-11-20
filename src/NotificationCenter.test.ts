@@ -7,10 +7,16 @@ const item = { id: "fixture", category: "support", title: "Aviso guardado", body
 const cases = [
   { name: "HTML 401 proxy", status: 401, body: "<html>Unauthorized</html>", logout: false },
   { name: "generic JSON 401", status: 401, body: '{"error":"UPSTREAM_ERROR"}', logout: false },
+  { name: "message-only JSON 401 proxy", status: 401, body: '{"message":"Unauthorized"}', logout: false },
+  ...[401, 403].flatMap(status => ["Unauthorized", "unauthorized", "UNAUTHORIZED", "AUTHENTICATION_REQUIRED:UPSTREAM", "AUTHENTICATION_REQUIRED_UPSTREAM"].map(error => ({
+    name: `ambiguous ${status} ${error}`, status, body: JSON.stringify({ error }), logout: false,
+  }))),
+  { name: "prefixed upstream code 401", status: 401, body: '{"error":"AUTHENTICATION_REQUIRED_UPSTREAM"}', logout: false },
   { name: "malformed JSON 401", status: 401, body: "{bad", logout: false },
   { name: "temporary 503", status: 503, body: "unavailable", logout: false },
   { name: "network exception", status: 0, body: "", logout: false },
   { name: "explicit 401", status: 401, body: '{"error":"AUTHENTICATION_REQUIRED"}', logout: true },
+  { name: "canonical explicit 403", status: 403, body: '{"error":"AUTHENTICATION_REQUIRED"}', logout: true },
   { name: "explicit 403", status: 403, body: '{"code":"TOKEN_EXPIRED"}', logout: true },
   { name: "password change 428", status: 428, body: '{"error":"PASSWORD_CHANGE_REQUIRED"}', logout: true },
 ];

@@ -85,11 +85,20 @@ function replaceFromOtherTab(f: ReturnType<typeof fixture>, token: string | null
 }
 
 describe("Explicit Rider logout revocation (offline)", () => {
+  it("keeps a neutral login notice until a new session begins", () => {
+    const f = fixture();
+    f.endRiderSession("La API requiere que inicies sesión de nuevo.");
+    expect(f.state.setAuthNotice).toBe("La API requiere que inicies sesión de nuevo.");
+    expect(source).toContain('{authNotice && <p className="form-error" role="status">{authNotice}</p>}');
+    f.beginRiderSession("SYNTHETIC_B");
+    expect(f.state.setAuthNotice).toBe("");
+  });
   it("clears all scoped memory/storage synchronously, sends one bodyless POST with the captured Bearer and stays cleared on network failure", async () => {
     const f = fixture();
     f.fetch.mockImplementationOnce((_url, _init) => { expectCleared(f); return new Promise<Response>((_resolve, reject) => { f.reject = reject; }); });
     const pending = f.logoutRiderSession();
     expectCleared(f); expect(f.fetch).toHaveBeenCalledOnce();
+    expect(f.state.setAuthNotice).toBe("Sesión local cerrada.");
     const [url, init] = f.fetch.mock.calls[0];
     expect(url).toBe("https://offline.example.invalid/api/v1/auth/employee/logout");
     expect(init).toMatchObject({ method: "POST", cache: "no-store", headers: { Authorization: "Bearer SYNTHETIC_A" } });
@@ -134,6 +143,20 @@ describe("Explicit Rider logout revocation (offline)", () => {
     replaceFromOtherTab(f, null); expectCleared(f); expect(f.fetch).not.toHaveBeenCalled();
     f.beginRiderSession("SYNTHETIC_D"); f.endRiderSession("Tu sesión ha caducado.");
     expectCleared(f); expect(f.fetch).not.toHaveBeenCalled();
+  });
+
+  it("invalidates pending identity and photo tickets on an explicit auth failure, including same-token relogin", () => {
+    const f = fixture();
+    const read = f.identitySession.beginRead();
+    const photo = f.identitySession.beginPhotoUpdate()!;
+    f.endRiderSession("La API requiere que inicies sesión de nuevo.");
+    expectCleared(f);
+    expect(f.fetch).not.toHaveBeenCalled(); // local closure does not claim remote revocation
+    f.beginRiderSession("SYNTHETIC_A"); f.seedIdentity("B");
+    const before = f.identitySession.getSnapshot();
+    expect(f.identitySession.mayApplyRead(read)).toBe(false);
+    expect(f.identitySession.finishPhotoUpdate(photo, "data:image/jpeg;base64,AQID")).toBe(false);
+    expect(f.identitySession.getSnapshot()).toBe(before);
   });
 
   it("wires revocation only to the explicit profile logout button, not session callbacks", () => {

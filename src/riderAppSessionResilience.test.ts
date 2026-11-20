@@ -131,11 +131,41 @@ describe("App session and slots resilience — real callbacks, offline", () => {
     expect(f.reset).toHaveBeenCalledOnce();
     expect(f.end).not.toHaveBeenCalled();
   });
-  it("still ends an explicitly expired session", async () => {
+  it.each([401, 403])("ends the current session on an explicit API authentication failure (HTTP %s)", async status => {
     const f = fixture();
-    f.sessionRequest.mockResolvedValueOnce(response(401, { error: "TOKEN_EXPIRED" }));
+    f.sessionRequest.mockResolvedValueOnce(response(status, { error: "AUTHENTICATION_REQUIRED" }));
     await f.refresh();
-    expect(f.end).toHaveBeenCalledOnce();
+    expect(f.end).toHaveBeenCalledExactlyOnceWith("La API requiere que inicies sesión de nuevo para recibir ofertas.");
+  });
+  it.each([401, 403].flatMap(status => ["Unauthorized", "unauthorized", "UNAUTHORIZED", "AUTHENTICATION_REQUIRED:UPSTREAM", "AUTHENTICATION_REQUIRED_UPSTREAM"].map(error => ({ status, error }))))("does not log out on ambiguous HTTP $status error $error", async ({ status, error }) => {
+    const f = fixture();
+    await f.refresh();
+    const previous = f.state.setShifts;
+    f.sessionRequest.mockResolvedValueOnce(response(status, { error }));
+    await f.refresh();
+    expect(f.end).not.toHaveBeenCalled();
+    expect(f.reset).not.toHaveBeenCalled();
+    expect(f.state.setShifts).toBe(previous);
+    expect(f.state.setStatus).toBe("unavailable");
+  });
+  it.each([401, 403])("does not end a session for a proxy's message-only HTTP %s", async status => {
+    const f = fixture();
+    f.sessionRequest.mockResolvedValueOnce(response(status, { message: "Unauthorized" }));
+    await f.refresh();
+    expect(f.end).not.toHaveBeenCalled();
+    expect(f.reset).not.toHaveBeenCalled();
+  });
+  it.each([401, 403])("ignores a late explicit authentication body after the session epoch changes (HTTP %s)", async status => {
+    const f = fixture();
+    let finish!: (body: unknown) => void;
+    f.sessionRequest.mockResolvedValueOnce({ ok: false, status, json: () => new Promise(done => { finish = done; }) } as Response);
+    const work = f.refresh();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    f.epoch.current++;
+    finish({ error: "AUTHENTICATION_REQUIRED" });
+    await work;
+    expect(f.end).not.toHaveBeenCalled();
+    expect(f.reset).not.toHaveBeenCalled();
   });
   it("keeps rider-scoped data when a successful session response is malformed", async () => {
     const f = fixture();
@@ -200,5 +230,35 @@ describe("App PWA and calendar source contracts", () => {
     expect(source.match(/onBusyChange=\{setAuthBusy\}/g)).toHaveLength(2);
     expect(source).toContain('const [identitySession] = useState(() => new AccountIdentitySession(apiToken));');
     expect(source).toContain("identitySession.mayApplyRead(identityRead)");
+  });
+});
+
+describe("App SSE authentication callback — current session only", () => {
+  let effect: ts.ArrowFunction | undefined;
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === "useEffect") {
+      const candidate = node.arguments[0];
+      if (candidate && ts.isArrowFunction(candidate) && candidate.getText(ast).includes("connectPikiRealtime")) effect = candidate;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  if (!effect) throw new Error("Real SSE effect not found");
+
+  it.each([401, 403].flatMap(status => ["current", "epoch", "token", "rider"].map(change => ({ status, change }))))("HTTP $status ends only the $change captured session", ({ status, change }) => {
+    const epoch = { current: 1 }, token = { current: "mock-A" }, rider = { current: "rider-A" };
+    const endRiderSession = vi.fn();
+    let input!: { onAuthExpired: (status: number) => void };
+    runInNewContext(compile(`(${effect!.getText(ast)})();`, "sse-effect.ts"), {
+      apiOrigin: "https://offline.invalid", apiToken: "mock-A", riderId: "rider-A",
+      riderSessionEpochRef: epoch, activeTokenRef: token, riderIdentityRef: rider,
+      endRiderSession, connectPikiRealtime: (value: typeof input) => { input = value; },
+    });
+    if (change === "epoch") epoch.current++;
+    if (change === "token") token.current = "mock-B";
+    if (change === "rider") rider.current = "rider-B";
+    input.onAuthExpired(status);
+    if (change === "current") expect(endRiderSession).toHaveBeenCalledExactlyOnceWith("La API requiere que inicies sesión de nuevo para recibir ofertas.");
+    else expect(endRiderSession).not.toHaveBeenCalled();
   });
 });
