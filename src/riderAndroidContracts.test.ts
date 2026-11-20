@@ -9,7 +9,8 @@ describe("Android source contracts — not device tests", () => {
     expect(manifest).toMatch(/<service[\s\S]*?BackgroundGeolocationService[\s\S]*?android:exported="false"[\s\S]*?tools:replace="android:exported"/);
     expect(manifest).toContain('android:name="android.permission.CAMERA"');
     expect(manifest).not.toContain("android.permission.RECORD_AUDIO");
-    expect(manifest).not.toMatch(/uses-permission[^>]*ACCESS_BACKGROUND_LOCATION|uses-permission[^>]*USE_EXACT_ALARM/);
+    expect(manifest).toContain('android:name="android.permission.ACCESS_BACKGROUND_LOCATION"');
+    expect(manifest).not.toContain('android:name="android.permission.USE_EXACT_ALARM"');
   });
   it("does not force audio volume, DND bypass, hardware buttons or fullscreen", () => {
     const java = read("android/app/src/main/java/com/pikidelivery/rider/PikiRiderNotificationsPlugin.java");
