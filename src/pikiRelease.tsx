@@ -4,6 +4,7 @@ import { PIKI_RELEASE } from "./release-meta";
 import { resolvePikiApiOrigin } from "./apiOrigin";
 import { shouldShowPushConsent } from "./pushConsentPolicy";
 import { fetchRiderReleasePolicy } from "./riderReleaseNetwork";
+import { createRiderFetch } from "./riderNetwork";
 import "./riderReleaseStatus.css";
 import { getPwaOperationSafety, subscribePwaOperationSafety } from "./pwaOperationSafety";
 import { withRequestDeadline } from "./requestDeadline";
@@ -59,16 +60,17 @@ export function installPikiReleaseHeaders(): void {
   if (state.__pikiReleaseFetchInstalled) return;
   state.__pikiReleaseFetchInstalled = true;
   const nativeFetch = window.fetch.bind(window);
+  const riderFetch = createRiderFetch(nativeFetch);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url, window.location.origin);
-    if (url.origin !== apiHost) return nativeFetch(input, init);
+    if (url.origin !== apiHost) return riderFetch(input, init);
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
     new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
     headers.set("X-PIKI-Surface", PIKI_RELEASE.surface);
     headers.set("X-PIKI-Client-Version", PIKI_RELEASE.version);
     headers.set("X-PIKI-Client-Build", PIKI_RELEASE.buildId);
-    if (input instanceof Request) return nativeFetch(new Request(input, { ...init, headers }));
-    return nativeFetch(input, { ...init, headers });
+    if (input instanceof Request) return riderFetch(new Request(input, { ...init, headers }));
+    return riderFetch(input, { ...init, headers });
   };
 }
 

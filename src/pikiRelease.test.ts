@@ -38,6 +38,7 @@ function fixture({ active = false, known = true, stage = "", worker = true, gate
     "./release-meta": { PIKI_RELEASE: { surface: "rider", version: "1.0.15", buildId: "fixture-current" } },
     "./apiOrigin": { resolvePikiApiOrigin: () => "https://api.mock.invalid" }, "./pushConsentPolicy": {},
     "./riderReleaseNetwork": { fetchRiderReleasePolicy: vi.fn() },
+    "./riderNetwork": { createRiderFetch: (fetcher: typeof fetch) => fetcher },
     "./pwaOperationSafety": { getPwaOperationSafety: () => ({ ...safety }) },
     "./pwaUpdateRecovery": { shouldDeferPwaActivation },
     "./requestDeadline": { withRequestDeadline },
