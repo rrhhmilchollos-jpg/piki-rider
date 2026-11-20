@@ -16,8 +16,8 @@ describe("Android notification audio bindings", () => {
     expect(Object.values(RIDER_NATIVE_CHANNELS).map((channel) => channel.sound)).toEqual([
       "start_shift.wav", "new_order_rider.wav", "order_cancelled.wav", "arrived_store.wav", "arrived_customer.wav",
     ]);
-    expect(RIDER_NATIVE_CHANNELS.arrived_store.id).toBe("piki_arrived_store");
-    expect(RIDER_NATIVE_CHANNELS.arrived_customer.id).toBe("piki_arrived_customer");
+    expect(RIDER_NATIVE_CHANNELS.arrived_store.id).toBe("piki_arrived_store_v2");
+    expect(RIDER_NATIVE_CHANNELS.arrived_customer.id).toBe("piki_arrived_customer_v2");
   });
   it("prepares all five channels and remains inert on web", async () => {
     expect(await prepareRiderNativeChannels()).toMatchObject({ arrived_store: true, arrived_customer: true });

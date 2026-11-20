@@ -2,11 +2,11 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 
 export const RIDER_NATIVE_CHANNELS = {
-  shift: { id: "piki_shift_start", sound: "start_shift.wav" },
-  order: { id: "piki_new_order_rider", sound: "new_order_rider.wav" },
-  cancelled: { id: "piki_order_cancelled", sound: "order_cancelled.wav" },
-  arrived_store: { id: "piki_arrived_store", sound: "arrived_store.wav" },
-  arrived_customer: { id: "piki_arrived_customer", sound: "arrived_customer.wav" },
+  shift: { id: "piki_shift_start_v2", sound: "start_shift.wav" },
+  order: { id: "piki_new_order_rider_v2", sound: "new_order_rider.wav" },
+  cancelled: { id: "piki_order_cancelled_v2", sound: "order_cancelled.wav" },
+  arrived_store: { id: "piki_arrived_store_v2", sound: "arrived_store.wav" },
+  arrived_customer: { id: "piki_arrived_customer_v2", sound: "arrived_customer.wav" },
 } as const;
 type Kind = keyof typeof RIDER_NATIVE_CHANNELS;
 const DeviceNotifications = registerPlugin<{

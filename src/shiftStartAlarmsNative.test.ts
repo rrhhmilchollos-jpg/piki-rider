@@ -26,7 +26,7 @@ afterEach(async () => { await clearShiftStartAlarms(); vi.unstubAllGlobals(); vi
 describe("native calendar synchronization", () => {
   it("programs the real sound with an explicit channel and no permission request", async () => {
     expect(await syncShiftStartAlarms([shift], { enabled: true })).toBe(1);
-    expect(device.schedule).toHaveBeenCalledWith({ notifications: [expect.objectContaining({ channelId: "piki_shift_start", sound: "start_shift.wav" })] });
+    expect(device.schedule).toHaveBeenCalledWith({ notifications: [expect.objectContaining({ channelId: "piki_shift_start_v2", sound: "start_shift.wav" })] });
     expect(device.requestPermissions).not.toHaveBeenCalled();
     expect(device.checkExactNotificationSetting).toHaveBeenCalled();
   });

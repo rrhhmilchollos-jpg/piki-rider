@@ -3,7 +3,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import type { Shift } from "./types/rider";
 import { prepareRiderNativeChannels } from "./riderNativeNotifications";
 
-export const SHIFT_CHANNEL_ID = "piki_shift_start";
+export const SHIFT_CHANNEL_ID = "piki_shift_start_v2";
 export const SHIFT_SOUND_NAME = "start_shift";
 const ALARM_ID_PREFIX = 740_000;
 const STORAGE_KEY = "piki.shiftStartAlarms.v1";

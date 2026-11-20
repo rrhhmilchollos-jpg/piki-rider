@@ -31,11 +31,11 @@ public class PikiRiderNotificationsPlugin extends Plugin {
     private final Set<Integer> arrivalIds = new HashSet<>();
 
     private String channelFor(String kind) {
-        if ("shift".equals(kind)) return "piki_shift_start";
-        if ("order".equals(kind)) return "piki_new_order_rider";
-        if ("cancelled".equals(kind)) return "piki_order_cancelled";
-        if ("arrived_store".equals(kind)) return "piki_arrived_store";
-        if ("arrived_customer".equals(kind)) return "piki_arrived_customer";
+        if ("shift".equals(kind)) return "piki_shift_start_v2";
+        if ("order".equals(kind)) return "piki_new_order_rider_v2";
+        if ("cancelled".equals(kind)) return "piki_order_cancelled_v2";
+        if ("arrived_store".equals(kind)) return "piki_arrived_store_v2";
+        if ("arrived_customer".equals(kind)) return "piki_arrived_customer_v2";
         return null;
     }
 

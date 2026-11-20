@@ -16,7 +16,7 @@ describe("madridInstant", () => {
   });
 
   it("mantiene la identidad del canal y del recurso de audio", () => {
-    expect(SHIFT_CHANNEL_ID).toBe("piki_shift_start");
+    expect(SHIFT_CHANNEL_ID).toBe("piki_shift_start_v2");
     expect(SHIFT_SOUND_NAME).toBe("start_shift");
   });
 });
