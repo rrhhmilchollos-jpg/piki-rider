@@ -27,6 +27,7 @@ function fixture(request: () => Promise<Response>) {
   const fetcher = vi.fn(request);
   const context: Record<string, unknown> = {
     console, Date, Error, shiftActive: false, shiftBusy: false, riderId: "fixture-rider", apiToken: "mock-only",
+    hasConfirmedShift: true,
     parseRiderStartAcknowledgement, riderStartBlock, riderStartFailureMessage,
     apiOrigin: "https://mock.invalid", authHeaders: () => ({}),
     withRequestDeadline, AbortController, riderDataRequestTimeoutMs: 15_000, invalidateAccountIdentity: vi.fn(),
@@ -78,6 +79,14 @@ describe("toggleShift real handler — offline confirmation contract", () => {
     await f.start();
     expect(f.sound).not.toHaveBeenCalled();
     expect(f.active).not.toHaveBeenCalledWith(true);
+  });
+  it.each(["jornada_completa", "sin_plan", "plan_invalido"])("does not capture GPS or submit start for the official %s blocker", async blockReason => {
+    const f = fixture(async () => response(200, officialAck));
+    f.context.currentShift = { eligible: false, selfStartAllowed: false, blockReason, shift: { ...officialShift, status: "planned" } };
+    await f.start();
+    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.context.captureRiderGps).not.toHaveBeenCalled();
+    expect(f.sound).not.toHaveBeenCalled();
   });
   it("keeps the start pending and silent until the official active acknowledgement arrives", async () => {
     let resolve!: (value: Response) => void;
@@ -155,5 +164,14 @@ describe("official start acknowledgement and known blockers", () => {
   it("maps actual authorization and GPS errors without claiming an out-of-hours cause", () => {
     expect(riderStartFailureMessage({ error: "RIDER_ACCESS_DENIED" })).toContain("no tiene acceso");
     expect(riderStartFailureMessage({ error: "FRESH_LOCATION_REQUIRED" })).toContain("GPS real");
+  });
+  it("explains the weekly quota independently from authentication or a missing slot", () => {
+    const currentShift = { eligible: false, selfStartAllowed: false, blockReason: "jornada_completa", weeklyHours: 40, workedMinutesThisWeek: 2437, remainingMinutes: 0 };
+    expect(riderStartBlock({ riderId: "fixture", riderStatus: "offline", currentShift })).toMatchObject({ label: "LÍMITE SEMANAL ALCANZADO" });
+    expect(riderStartBlock({ riderId: "fixture", riderStatus: "offline", currentShift })?.message).toContain("volver a iniciar sesión no amplía");
+    expect(riderStartFailureMessage({ error: "SHIFT_WEEKLY_LIMIT_REACHED" })).toContain("jornada semanal");
+  });
+  it("keeps an explicit selfStartAllowed denial blocked even with an eligible legacy field", () => {
+    expect(riderStartBlock({ riderId: "fixture", riderStatus: "offline", currentShift: { eligible: true, selfStartAllowed: false } })).not.toBeNull();
   });
 });

@@ -18,7 +18,7 @@ visit(ast);
 if (!target) throw new Error("toggleShift not found");
 const activeSlot = { date: "2026-11-18", startTime: "12:00", endTime: "00:00", status: "active", riderId: "fixture-rider" };
 const activeAck = { locationRequired: false, rider: { id: "fixture-rider", status: "available" }, shift: activeSlot };
-function fixture() {
+function fixture(hasConfirmedShift = true) {
   const epoch = { current: 1 }, gps = { current: 1 };
   const token = { current: "mock-only" }, rider = { current: "fixture-rider" };
   const busy = vi.fn(), toast = vi.fn(), active = vi.fn(), sound = vi.fn(), refresh = vi.fn(), finish = vi.fn();
@@ -29,7 +29,7 @@ function fixture() {
   const notice = vi.fn(), current = vi.fn(), operations = vi.fn(), consent = vi.fn(), prime = vi.fn();
   const start = runInNewContext(compile(`${target!.getText(ast)}\ntoggleShift;`, "shift.ts"), {
     console, Date, Error, withRequestDeadline, AbortController, riderDataRequestTimeoutMs: 100,
-    shiftActive: false, shiftBusy: false, riderId: "fixture-rider", apiToken: "mock-only",
+    shiftActive: false, shiftBusy: false, hasConfirmedShift, riderId: "fixture-rider", apiToken: "mock-only",
     currentShift: { eligible: true, shift: { ...activeSlot, status: "assigned" } }, riderOperationalStatus: "offline",
     audioPreferences: { alertsEnabled: false }, startConsentOpen: true, shifts: [],
     riderSessionEpochRef: epoch, riderGpsSessionGenerationRef: gps,
@@ -50,6 +50,14 @@ function fixture() {
 afterEach(() => vi.useRealTimers());
 
 describe("App shift start deadline — offline real handler", () => {
+  it("does not initiate consent, GPS or start before the current rider's shift is confirmed", async () => {
+    const f = fixture(false);
+    await f.start();
+    expect(f.toast).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("pendiente de confirmar"));
+    for (const effect of [f.consent, f.permission, f.capture, f.publish, f.fetcher, f.busy, f.active, f.sound, f.refresh, f.finish]) {
+      expect(effect).not.toHaveBeenCalled();
+    }
+  });
   it.each(["fetch", "body"])("settles an abort-ignoring %s at the deadline, releases busy, and only reads status", async stage => {
     vi.useFakeTimers();
     const f = fixture();

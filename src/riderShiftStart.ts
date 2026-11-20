@@ -32,6 +32,9 @@ export function riderStartFailureMessage(body: unknown, unconfirmed = false): st
   switch (value?.error) {
     case "FRESH_LOCATION_REQUIRED": return "Jornada bloqueada: activa y comparte una posición GPS real antes de continuar.";
     case "SHIFT_OUTSIDE_SCHEDULE": return "No hay un turno asignado disponible en esta franja. Revisa Horarios o contacta con Fleet.";
+    case "SHIFT_WEEKLY_LIMIT_REACHED": return "Has alcanzado tu jornada semanal contratada. Contacta con Fleet para revisar tus fichajes; volver a iniciar sesión no amplía el límite.";
+    case "SHIFT_PLAN_REQUIRED": return "Falta tu plan contractual de jornada. Contacta con Fleet para que lo complete.";
+    case "SHIFT_PLAN_INVALID": return "Tu plan contractual de jornada necesita revisión. Contacta con Fleet antes de iniciar.";
     case "RIDER_ACCESS_DENIED": return "Esta sesión no tiene acceso a la cuenta Rider. Inicia sesión con la cuenta correspondiente.";
     case "AUTHENTICATION_REQUIRED":
     case "RIDER_EMPLOYEE_SESSION_REQUIRED": return "Tu sesión Rider no está validada. Inicia sesión de nuevo.";
@@ -46,6 +49,16 @@ export function riderStartFailureMessage(body: unknown, unconfirmed = false): st
 export function riderStartBlock(input: { riderId: string; riderStatus: string; currentShift: CurrentShift }): { label: string; message: string } | null {
   if (!input.riderId) return { label: "SESIÓN NO VALIDADA", message: "No hay una cuenta Rider vinculada y validada en esta sesión." };
   if (isRiderGpsStatusBlocked(input.riderStatus)) return { label: "ALTA NO OPERATIVA", message: "Tu alta Rider sigue pendiente o no está operativa. Contacta con Fleet antes de iniciar jornada." };
-  if (input.currentShift.eligible) return null;
+  const reason = input.currentShift.blockReason;
+  const knownBlock = reason === "jornada_completa"
+    ? { label: "LÍMITE SEMANAL ALCANZADO", message: riderStartFailureMessage({ error: "SHIFT_WEEKLY_LIMIT_REACHED" }) }
+    : reason === "sin_plan"
+      ? { label: "PLAN CONTRACTUAL PENDIENTE", message: riderStartFailureMessage({ error: "SHIFT_PLAN_REQUIRED" }) }
+      : reason === "plan_invalido"
+        ? { label: "PLAN CONTRACTUAL NO VÁLIDO", message: riderStartFailureMessage({ error: "SHIFT_PLAN_INVALID" }) }
+        : null;
+  if (knownBlock) return { ...knownBlock, message: typeof input.currentShift.blockMessage === "string" && input.currentShift.blockMessage.trim()
+    ? input.currentShift.blockMessage : knownBlock.message };
+  if (input.currentShift.eligible && input.currentShift.selfStartAllowed !== false) return null;
   return { label: "SIN TURNO DISPONIBLE", message: "La API no confirma un turno disponible ahora. Revisa Horarios o contacta con Fleet. El sonido del recordatorio no inicia la jornada." };
 }

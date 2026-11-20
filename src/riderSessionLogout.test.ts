@@ -76,6 +76,7 @@ function expectCleared(f: ReturnType<typeof fixture>) {
   expect(f.state.setOffers).toEqual([]); expect(f.state.setShifts).toEqual([]); expect(f.state.setSupportChatMessages).toEqual([]);
   expect(f.state.setSupportChatDraft).toBe(""); expect(f.state.setPhotoBusy).toBe(false); expect(f.state.setProfileOpen).toBe(false);
   expect(f.refs.riderOrdersRef.current).toEqual([]); expect(f.refs.cancelledOrderIdsRef.current.size).toBe(0);
+  expect(f.state.setHasConfirmedShift).toBe(false); expect(f.state.setShiftSyncError).toBe("");
   expect(f.refs.pendingOrderStatesRef.current.size).toBe(0); expect(f.state.setPickupRequest).toBeNull();
   expect(f.native.cancelRiderPushRegistration).toHaveBeenCalled(); expect(f.native.invalidateRiderGps).toHaveBeenCalled();
 }

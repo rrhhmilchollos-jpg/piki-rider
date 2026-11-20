@@ -15,6 +15,15 @@ describe("Rider shift snapshot contract", () => {
     expect(riderSnapshotHasActiveShift(current)).toBe(true);
     expect(riderSnapshotHasActiveShift(future)).toBe(false);
   });
+  it("separates quota denial from the API's explicit current open shift", () => {
+    const current = parseRiderShiftSnapshot({ eligible: false, selfStartAllowed: false, hasActiveShift: true, blockReason: "jornada_completa", shift: { ...assigned, status: "active" } })!;
+    expect(riderSnapshotHasActiveShift(current)).toBe(true);
+    expect(riderSnapshotHasActiveShift({ ...current, hasActiveShift: false })).toBe(false);
+    expect(riderSnapshotHasActiveShift({ ...current, shift: { ...current.shift!, status: "completed" } })).toBe(false);
+  });
+  it("rejects a malformed explicit open-shift indicator instead of granting activity", () => {
+    expect(parseRiderShiftSnapshot({ eligible: true, hasActiveShift: "true", shift: { ...assigned, status: "active" } })).toBeNull();
+  });
 
   it.each([null, {}, { eligible: false }, { shift: null }, { eligible: "false", shift: null }, { eligible: false, shift: {} }, { eligible: false, shift: { status: "unknown" } }])("rejects an incomplete response instead of declaring a closed shift: %j", (body) => {
     expect(parseRiderShiftSnapshot(body)).toBeNull();

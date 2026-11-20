@@ -356,6 +356,8 @@ function RiderWorkspace() {
   const [formEditing, setFormEditing] = useState(false);
   const [error, setError] = useState("");
   const [shiftActive, setShiftActive] = useState(false);
+  const [hasConfirmedShift, setHasConfirmedShift] = useState(false);
+  const [shiftSyncError, setShiftSyncError] = useState("");
   const [shiftBusy, setShiftBusy] = useState(false);
   const [startConsentOpen, setStartConsentOpen] = useState(false);
   const [startAudioConsent, setStartAudioConsent] = useState(false);
@@ -517,6 +519,8 @@ function RiderWorkspace() {
     setRiderOperationalStatus("");
     setRiderProfile({ name: "", email: "", riderCode: "" });
     setShiftActive(false);
+    setHasConfirmedShift(false);
+    setShiftSyncError("");
     setShiftBusy(false);
     setCurrentShift({ eligible: false });
     setShifts([]);
@@ -675,7 +679,7 @@ function RiderWorkspace() {
     publishPwaOperationSafety({
       // Keep updates deferred until the API has restored the authenticated
       // rider and its shift state; a running shift is an active operation too.
-      known: !apiToken || Boolean(riderId && status === "ready"),
+      known: !apiToken || Boolean(riderId && status === "ready" && hasConfirmedShift),
       active: isRiderPwaOperationActive({
         activeOrder,
         shiftActive,
@@ -688,7 +692,7 @@ function RiderWorkspace() {
         formEditing,
       }) || authBusy,
     });
-  }, [activeOrder, apiToken, applicationStatus, authBusy, formEditing, orderActionBusy, riderId, shiftActive, shiftBusy, startConsentOpen, status, supportChatBusy, supportFormBusy]);
+  }, [activeOrder, apiToken, applicationStatus, authBusy, formEditing, hasConfirmedShift, orderActionBusy, riderId, shiftActive, shiftBusy, startConsentOpen, status, supportChatBusy, supportFormBusy]);
 
   const playAssignmentAlert = useCallback((offer?: RiderOffer) => {
     if (!audioPreferences.alertsEnabled) return;
@@ -746,7 +750,7 @@ function RiderWorkspace() {
     riderRefreshInFlightRef.current = true;
     const sessionEpoch = riderSessionEpochRef.current;
     const token = apiToken;
-    const shiftReadRevision = riderShiftSyncRef.current.beginRead();
+    let shiftReadRevision = riderShiftSyncRef.current.beginRead();
     const identityRead = identitySession.beginRead();
     const isCurrentSession = () => sessionEpoch === riderSessionEpochRef.current && token === activeTokenRef.current;
     const headers = authHeaders(token);
@@ -782,7 +786,10 @@ function RiderWorkspace() {
       setSessionError("");
       const identityChanged = riderIdentityRef.current !== id;
       const identityReadIsCurrent = identitySession.mayApplyRead(identityRead);
-      if (riderIdentityRef.current && identityChanged) resetRiderScopedState();
+      if (riderIdentityRef.current && identityChanged) {
+        resetRiderScopedState();
+        shiftReadRevision = riderShiftSyncRef.current.beginRead();
+      }
       const nextIdentity = parseEmployeeIdentity(sessionData);
       const employeeChanged = identityReadIsCurrent && identitySession.getSnapshot()?.id !== nextIdentity?.id;
       if (employeeChanged) {
@@ -803,34 +810,45 @@ function RiderWorkspace() {
       setRiderProfile({ name: String(sessionData.rider?.name || ""), email: String(sessionData.rider?.email || ""), riderCode: String(sessionData.rider?.riderCode || "") });
       if (isRiderGpsStatusBlocked(nextRiderStatus)) invalidateRiderGps();
       const isCurrentRider = () => isCurrentSession() && riderIdentityRef.current === id;
-      const requestPanel = async (path: string) => {
+      const requestPanel = async (path: string, signal = AbortSignal.timeout(riderDataRequestTimeoutMs)) => {
         const response = await fetch(`${apiOrigin}${path}`, {
-          headers, cache: "no-store", signal: AbortSignal.timeout(riderDataRequestTimeoutMs),
+          headers, cache: "no-store", signal,
         });
         if (isCurrentRider() && [401, 403, 428].includes(response.status)) invalidateAccountIdentity();
         return response;
       };
       await refreshRiderDataPanels({
         shift: async () => {
-          const response = await requestPanel(`/api/v1/riders/${id}/shift`);
-          if (!response.ok) return;
-          const data = parseRiderShiftSnapshot(await response.json());
-          if (!isCurrentRider() || !data || !riderShiftSyncRef.current.mayApply(shiftReadRevision)) return;
-          const wasActive = shiftActiveRef.current;
-          const nextShiftActive = riderSnapshotHasActiveShift(data) && !isRiderGpsStatusBlocked(nextRiderStatus);
-          setCurrentShift(data);
-          shiftActiveRef.current = nextShiftActive;
-          setShiftActive(nextShiftActive);
-          // Repeated assigned snapshots must not cancel permissions/GPS capture
-          // while a start is pending. Stop only a confirmed active -> inactive transition.
-          if (wasActive && !nextShiftActive) {
-            invalidateRiderGps();
-            setStartedShiftNotice(false);
-            setToast(data.shift?.status === "completed"
-              ? "La API ha confirmado el cierre de tu jornada."
-              : data.shift?.status === "cancelled"
-                ? "Fleet ha cancelado tu turno. Contacta con Fleet si no corresponde."
-                : "La API ya no confirma una jornada activa. Revisa Horarios o contacta con Fleet.");
+          try {
+            const data = await withRequestDeadline(async (signal) => {
+              const response = await requestPanel(`/api/v1/riders/${id}/shift`, signal);
+              if (!response.ok) throw new Error("No se ha podido sincronizar la jornada");
+              const snapshot = parseRiderShiftSnapshot(await response.json());
+              if (!snapshot) throw new Error("Respuesta de jornada incompleta");
+              return snapshot;
+            }, new AbortController(), riderDataRequestTimeoutMs);
+            if (!isCurrentRider() || !riderShiftSyncRef.current.mayApply(shiftReadRevision)) return;
+            const wasActive = shiftActiveRef.current;
+            const nextShiftActive = riderSnapshotHasActiveShift(data) && !isRiderGpsStatusBlocked(nextRiderStatus);
+            setCurrentShift(data);
+            shiftActiveRef.current = nextShiftActive;
+            setShiftActive(nextShiftActive);
+            setHasConfirmedShift(true);
+            setShiftSyncError("");
+            // Repeated assigned snapshots must not cancel permissions/GPS capture
+            // while a start is pending. Stop only a confirmed active -> inactive transition.
+            if (wasActive && !nextShiftActive) {
+              invalidateRiderGps();
+              setStartedShiftNotice(false);
+              setToast(data.shift?.status === "completed"
+                ? "La API ha confirmado el cierre de tu jornada."
+                : data.shift?.status === "cancelled"
+                  ? "Fleet ha cancelado tu turno. Contacta con Fleet si no corresponde."
+                  : "La API ya no confirma una jornada activa. Revisa Horarios o contacta con Fleet.");
+            }
+          } catch {
+            if (!isCurrentRider() || !riderShiftSyncRef.current.mayApply(shiftReadRevision)) return;
+            setShiftSyncError("No se ha podido confirmar tu jornada. Comprueba la conexión y reintenta; no se iniciará otra jornada automáticamente.");
           }
         },
         slots: async () => {
@@ -1246,6 +1264,10 @@ function RiderWorkspace() {
   async function toggleShift(consentedAudioPreferences = audioPreferences) {
     if (shiftActive) {
       setToast("La jornada se cerrará automáticamente al finalizar tu slot.");
+      return;
+    }
+    if (!hasConfirmedShift) {
+      setToast("La jornada está pendiente de confirmar. Reintenta la recuperación antes de iniciar.");
       return;
     }
     if (!riderId || shiftBusy) {
@@ -1727,6 +1749,12 @@ function RiderWorkspace() {
       <button type="button" className="secondary-button" onClick={() => void loadRiderData()}>Reintentar sincronización de sesión</button>
     </aside>
   );
+  const shiftSyncNotice = shiftSyncError && (
+    <aside className="form-error" role="alert">
+      <p>{shiftSyncError}</p>
+      <button type="button" className="secondary-button" onClick={() => void loadRiderData()}>Reintentar jornada</button>
+    </aside>
+  );
   if (!apiToken || authRequired)
     return (
       <main className="page-content">
@@ -1738,10 +1766,22 @@ function RiderWorkspace() {
         />
       </main>
     );
+  if (!hasConfirmedShift)
+    return (
+      <main className="page-content">
+        {sessionSyncNotice}
+        <section aria-label="Recuperando jornada">
+          <h1>Recuperando jornada</h1>
+          <p role="status">Estamos consultando tu jornada con la API. Hasta confirmarla, no se puede iniciar otra jornada.</p>
+          {shiftSyncNotice || <button type="button" className="secondary-button" onClick={() => void loadRiderData()}>Reintentar jornada</button>}
+        </section>
+      </main>
+    );
   if ((shiftActive || hasPersistedOrder) && !showOperations && riderId)
     return (
       <>
         {sessionSyncNotice}
+        {shiftSyncNotice}
         <ActiveShiftScreen
           key={riderId}
           shiftActive={shiftActive}
@@ -1920,6 +1960,7 @@ function RiderWorkspace() {
             </div>
           )}
           {sessionSyncNotice}
+          {shiftSyncNotice}
           {authRequired && (
             <EmployeeAuthGate
               apiOrigin={apiOrigin}

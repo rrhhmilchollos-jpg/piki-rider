@@ -10,6 +10,12 @@ export type Shift = {
 export type CurrentShift = {
   eligible: boolean;
   selfStartAllowed?: boolean;
+  hasActiveShift?: boolean;
+  blockReason?: string | null;
+  blockMessage?: string | null;
+  weeklyHours?: number | null;
+  workedMinutesThisWeek?: number;
+  remainingMinutes?: number | null;
   now?: { date: string; time: string; iso?: string; timeZone?: string };
   serverClock?: { date: string; time: string; iso?: string; timeZone?: string };
   shift?: Shift | null;
