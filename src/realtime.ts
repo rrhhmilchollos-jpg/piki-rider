@@ -44,14 +44,39 @@ async function classifyFailure(response: Response): Promise<"authentication" | "
 /** Authenticated SSE: bounded silence, resumable IDs and terminal auth failures. */
 export function connectPikiRealtime(input: RealtimeInput) {
   const controller = new AbortController();
-  const storageKey = `piki-realtime-last-event:${input.surface}`;
+  // Resume only within this connection/session. A new rider/token must never
+  // inherit another rider's cursor; neither cursor nor bearer is persisted here.
+  let lastId = "";
+  let activeConnection: AbortController | null = null;
+  let wakeRetry: (() => void) | undefined;
+  let recoveryRequested = false;
+  let lastRecoveryAt = -Infinity;
+  const recover = () => {
+    if (controller.signal.aborted || document.visibilityState !== "visible" || navigator.onLine === false) return;
+    // Mobile resume commonly emits online + visible together. Wake the single
+    // run loop once, never create a parallel fetch or replay a mutation.
+    if (recoveryRequested || Date.now() - lastRecoveryAt < 1_000) return;
+    lastRecoveryAt = Date.now();
+    recoveryRequested = true;
+    activeConnection?.abort();
+    wakeRetry?.();
+  };
+  const cleanup = () => {
+    window.removeEventListener("online", recover);
+    document.removeEventListener("visibilitychange", recover);
+  };
+  window.addEventListener("online", recover);
+  document.addEventListener("visibilitychange", recover);
+  controller.signal.addEventListener("abort", cleanup, { once: true });
   const sleep = (milliseconds: number) => new Promise<void>((resolve) => {
     const finish = () => {
       clearTimeout(timer);
       controller.signal.removeEventListener("abort", finish);
+      if (wakeRetry === finish) wakeRetry = undefined;
       resolve();
     };
     const timer = setTimeout(finish, milliseconds);
+    wakeRetry = finish;
     controller.signal.addEventListener("abort", finish, { once: true });
     if (controller.signal.aborted) finish();
   });
@@ -59,13 +84,15 @@ export function connectPikiRealtime(input: RealtimeInput) {
   const run = async () => {
     let failedAttempts = 0;
     while (!controller.signal.aborted) {
+      if (recoveryRequested) failedAttempts = 0;
+      recoveryRequested = false;
       let nextDelay = 0;
       const connection = new AbortController();
+      activeConnection = connection;
       const abortConnection = () => connection.abort();
       controller.signal.addEventListener("abort", abortConnection, { once: true });
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
-        const lastId = sessionStorage.getItem(storageKey) || "";
         const response = await withRequestDeadline((signal) => fetch(`${input.apiOrigin}/api/v1/realtime/events`, {
           signal,
           headers: {
@@ -113,13 +140,14 @@ export function connectPikiRealtime(input: RealtimeInput) {
           const frames = buffer.split("\n\n");
           buffer = frames.pop() || "";
           for (const frame of frames) {
+            if (controller.signal.aborted || connection.signal.aborted) break;
             const lines = frame.split("\n");
             const eventId = lines.find((line) => line.startsWith("id: "))?.slice(4);
             const data = lines.find((line) => line.startsWith("data: "))?.slice(6);
             if (!data) continue;
             try {
               const parsed = JSON.parse(data) as PikiRealtimeEvent;
-              if (eventId) sessionStorage.setItem(storageKey, eventId);
+              if (eventId) lastId = eventId;
               if (parsed.type) {
                 window.dispatchEvent(new CustomEvent("piki:realtime", { detail: parsed }));
                 input.onEvent(parsed);
@@ -136,6 +164,7 @@ export function connectPikiRealtime(input: RealtimeInput) {
       } finally {
         controller.signal.removeEventListener("abort", abortConnection);
         connection.abort();
+        activeConnection = null;
         if (reader) {
           void reader.cancel().catch(() => undefined);
           reader.releaseLock();
@@ -143,12 +172,14 @@ export function connectPikiRealtime(input: RealtimeInput) {
       }
 
       if (!controller.signal.aborted) {
+        if (recoveryRequested) continue;
         failedAttempts += 1;
         await sleep(retryDelayMs(failedAttempts, nextDelay));
       }
     }
   };
 
-  void run();
+  // Terminal authentication/authorization errors also remove recovery listeners.
+  void run().finally(() => controller.abort());
   return () => controller.abort();
 }

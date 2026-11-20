@@ -153,12 +153,24 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.path || "/", self.location.origin).href;
+  let target = new URL("/", self.location.origin);
+  try {
+    const path = event.notification.data?.path;
+    const candidate = new URL(typeof path === "string" ? path : "/", self.location.origin);
+    if (candidate.origin === self.location.origin) target = candidate;
+  } catch { /* Invalid notification paths fall back to the app root. */ }
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const existing = clients.find((client) => client.url.startsWith(self.location.origin));
-    if (existing) { await existing.navigate(target).catch(() => undefined); return existing.focus(); }
-    return self.clients.openWindow(target);
+    const sameOrigin = clients.filter((client) => new URL(client.url).origin === self.location.origin);
+    const existing = sameOrigin.find((client) => client.focused) || sameOrigin[0];
+    if (existing) {
+      // The SPA owns its route and in-flight work. A notification only informs
+      // and focuses it; navigating even to the same URL would reload the session.
+      try { existing.postMessage({ type: "PIKI_NOTIFICATION_INTENT", path: `${target.pathname}${target.search}${target.hash}` }); }
+      catch { /* Focus remains useful if the client cannot receive a message. */ }
+      return existing.focus().catch(() => undefined);
+    }
+    return self.clients.openWindow(target.href);
   })());
 });
 

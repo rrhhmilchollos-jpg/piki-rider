@@ -12,3 +12,9 @@
 `PYTHONPATH=/tmp/piki-rider-validation-deps PYTHONDONTWRITEBYTECODE=1 pnpm test:android` pasa 10 pruebas de identidad, 4 de workflows y 36 de Node. La primera ejecución detectó PyYAML ausente; se instaló únicamente en ese directorio temporal y se retiró el bytecode generado del diff. No se ejecutó build de release ni se cambió la versión.
 
 Rama de trabajo: `feat/account-identity-20261113`. Pendiente únicamente la validación de integración real cuando esté listo el contrato central `riders/session.employee` y el PATCH de foto; no se ha accedido a ninguna API real.
+
+# Estabilidad de sesión Jackson — 2026-11-20, 19:30–23:00 Algemesí
+- [x] Click de notificación: postMessage de intención + focus, sin navigate/reload con cliente; openWindow sólo sin cliente y del mismo origen. Handler SPA informativo sin cambio de ruta, turno, pedido, mutación ni token; conserva avisos operativos existentes.
+- [x] Recuperación SSE visible/online: abortar o despertar y reconectar el único bucle, deduplicar ráfagas y retirar listeners al cerrar/error terminal. Cursor en memoria por instancia, reiniciado con sesión nueva, sin bearer ni cursor compartido en almacenamiento.
+- [x] Acotar reintentos automáticos del mismo build con backoff 1/2/4/5 minutos y revalidación de seguridad antes de intentar. No incrementar minimumVersion ni forzar actualización durante turno.
+- [x] Validación offline focalizada: 287 casos en 9 archivos; suite completa 903 casos en 59 archivos; pnpm check y git diff --check correctos; bundle Vite validado fuera del repo. Lint: 0 errores, mismos 14 warnings que HEAD. Sin browser, backend, producción, build de release, commit/push/deploy. Límites en `docs/session-stability-2026-11-20.md`; distribución/activación en el dispositivo no ejecutadas ni certificadas.

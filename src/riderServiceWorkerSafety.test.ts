@@ -13,6 +13,7 @@ const template = readFileSync(new URL("../public/sw.template.js", import.meta.ur
 interface WorkerEvent {
   data?: { type?: string };
   source?: { postMessage: (message: unknown) => void };
+  notification?: { close: () => void; data?: { path?: unknown } };
   request?: Request;
   respondWith?: (promise: Promise<Response>) => void;
   waitUntil: (promise: Promise<unknown>) => void;
@@ -209,5 +210,54 @@ describe("Rider service worker operation safety — offline VM tests", () => {
   it.each([{ headers: { authorization: "Bearer secret" } }, { headers: { "cache-control": "max-age=0, no-store" } }, { method: "POST" }] as RequestInit[])("bypasses authorized/no-store/non-GET requests %j", async (init) => {
     const w = createWorker(); expect((await w.dispatch("fetch", { request: request(ASSET, false, init) })).response).toBeUndefined();
     expect(w.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("notificationclick preserves the live SPA", () => {
+  it("posts an informational intent and focuses, never navigates or opens another window", async () => {
+    const w = createWorker(), close = vi.fn();
+    await w.dispatch("notificationclick", { notification: { close, data: { path: "/orders/fixture?source=push" } } });
+    expect(close).toHaveBeenCalledOnce();
+    expect(w.windowClients[0].postMessage).toHaveBeenCalledExactlyOnceWith({ type: "PIKI_NOTIFICATION_INTENT", path: "/orders/fixture?source=push" });
+    expect(w.windowClients[0].focus).toHaveBeenCalledOnce();
+    for (const client of w.windowClients) expect(client.navigate).not.toHaveBeenCalled();
+    expect(w.self.clients.openWindow).not.toHaveBeenCalled();
+    expect(w.fetch).not.toHaveBeenCalled(); expect(w.caches.delete).not.toHaveBeenCalled();
+  });
+  it("prefers the already focused operational client", async () => {
+    const w = createWorker(); Object.assign(w.windowClients[1], { focused: true });
+    await w.dispatch("notificationclick", { notification: { close: vi.fn(), data: { path: "/" } } });
+    expect(w.windowClients[1].focus).toHaveBeenCalledOnce();
+    expect(w.windowClients[0].focus).not.toHaveBeenCalled();
+  });
+  it.each(["message", "focus"])("does not navigate or open a second window after a %s failure", async failure => {
+    const w = createWorker();
+    if (failure === "message") w.windowClients[0].postMessage.mockImplementation(() => { throw new Error("closed client"); });
+    else w.windowClients[0].focus.mockRejectedValue(new Error("focus denied"));
+    await expect(w.dispatch("notificationclick", { notification: { close: vi.fn() } })).resolves.toBeDefined();
+    expect(w.windowClients[0].focus).toHaveBeenCalledOnce();
+    expect(w.windowClients[0].navigate).not.toHaveBeenCalled();
+    expect(w.self.clients.openWindow).not.toHaveBeenCalled();
+  });
+  it("opens the requested same-origin path only when no app client exists", async () => {
+    const w = createWorker(); w.windowClients.splice(0);
+    await w.dispatch("notificationclick", { notification: { close: vi.fn(), data: { path: "/orders/fixture" } } });
+    expect(w.self.clients.openWindow).toHaveBeenCalledExactlyOnceWith(`${ORIGIN}/orders/fixture`);
+  });
+  it.each(["//evil.example/phishing", "https://evil.example/", "javascript:alert(1)", "http://[", undefined, 123])("falls back to root for an unsafe/malformed path %s", async path => {
+    const w = createWorker(); w.windowClients.splice(0);
+    await w.dispatch("notificationclick", { notification: { close: vi.fn(), data: { path } } });
+    expect(w.self.clients.openWindow).toHaveBeenCalledExactlyOnceWith(`${ORIGIN}/`);
+  });
+  it("does not treat a lookalike origin as an existing app client", async () => {
+    const w = createWorker(); w.windowClients.splice(1); w.windowClients[0].url = `${ORIGIN}.evil.example/`;
+    await w.dispatch("notificationclick", { notification: { close: vi.fn() } });
+    expect(w.windowClients[0].focus).not.toHaveBeenCalled();
+    expect(w.windowClients[0].postMessage).not.toHaveBeenCalled();
+    expect(w.self.clients.openWindow).toHaveBeenCalledExactlyOnceWith(`${ORIGIN}/`);
+  });
+  it("keeps the generated worker body synchronized without changing build metadata", () => {
+    const generated = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+    expect(generated.split("\n").slice(4).join("\n")).toBe(template.split("\n").slice(4).join("\n"));
   });
 });

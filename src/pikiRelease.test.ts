@@ -24,14 +24,18 @@ function fixture({ active = false, known = true, stage = "", worker = true, gate
     delete: vi.fn(async (_key: string) => { beginAt("delete"); return true; }),
   };
   const fetch = vi.fn(async () => new Response("<!doctype html><html><body>PIKI</body></html>", { headers: { "Content-Type": "text/html" } }));
-  const states: unknown[] = [gate, "", newBuild ? "1.0.15 · fixture-new" : "", "", false, false, false, 0];
+  const states: unknown[] = [gate, "", newBuild ? "1.0.15 · fixture-new" : "", "", false, false, 0];
   let index = 0;
+  let refIndex = 0;
+  const refs: { current: unknown }[] = [];
+  let effects: (() => (() => void) | undefined)[] = [];
   const callbacks: (() => Promise<void>)[] = [];
   const navigator = { onLine: true, serviceWorker };
   const component = loadComponent("src/pikiRelease.tsx", {
     react: {
       useState: () => { const slot = index++; return [states[slot], (value: unknown) => { states[slot] = value; }]; },
-      useRef: (value: unknown) => ({ current: value }), useEffect: () => {},
+      useRef: (value: unknown) => refs[refIndex++] ?? (refs[refIndex - 1] = { current: value }),
+      useEffect: (effect: () => (() => void) | undefined) => { effects.push(effect); },
       useCallback: (callback: () => Promise<void>) => { callbacks.push(callback); return callback; },
     },
     "react/jsx-runtime": jsx, "@capacitor/core": { Capacitor: { isNativePlatform: () => false } },
@@ -56,15 +60,17 @@ function fixture({ active = false, known = true, stage = "", worker = true, gate
       }),
     },
   }, {
-    window: { fetch, location: { origin: "https://mock.invalid", href: "https://mock.invalid/", reload, replace } },
+    window: { fetch, setTimeout, clearTimeout, location: { origin: "https://mock.invalid", href: "https://mock.invalid/", reload, replace } },
     navigator, caches: cache,
     sessionStorage: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() },
   });
-  const tree = component.PikiReleaseGate({ children: null });
+  const render = () => { index = 0; refIndex = 0; effects = []; return component.PikiReleaseGate({ children: null }); };
+  const tree = render();
   const update = callbacks.find((callback) => callback.toString().includes("Descargando la nueva versión"))!;
   const forceReload = callbacks.find((callback) => callback.toString().includes("getRegistrations"))!;
   expect(update).toBeDefined();
-  return { tree, update, forceReload, serviceWorker, registration, postMessage, reload, replace, cache, unregister, states, safety, fetch, navigator };
+  const automaticEffect = () => effects.find((effect) => effect.toString().includes("automaticUpdateRetryRef"))!();
+  return { tree, render, automaticEffect, update, forceReload, serviceWorker, registration, postMessage, reload, replace, cache, unregister, states, safety, fetch, navigator };
 }
 
 describe("manual PWA callback — offline components, no real browser/SW", () => {
@@ -202,5 +208,57 @@ describe("manual PWA callback — offline components, no real browser/SW", () =>
     const f = fixture(); await f.update();
     expect(f.postMessage).toHaveBeenCalledTimes(1); expect(f.reload).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(f.replace).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("automatic PWA update retry — real effect, fake clock", () => {
+  it("backs off failed downloads for 1, 2, 4, then at most 5 minutes instead of looping every 250 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture({ worker: false });
+      f.fetch.mockRejectedValue(new TypeError("mobile network unavailable"));
+      let cleanup = f.automaticEffect();
+      await vi.advanceTimersByTimeAsync(249); expect(f.fetch).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1); expect(f.fetch).toHaveBeenCalledTimes(1);
+      expect(f.states[4]).toBe(false);
+      for (const [index, delay] of [60_000, 120_000, 240_000, 300_000, 300_000].entries()) {
+        cleanup?.(); f.render(); cleanup = f.automaticEffect();
+        await vi.advanceTimersByTimeAsync(delay - 1);
+        expect(f.fetch).toHaveBeenCalledTimes(index + 1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(f.fetch).toHaveBeenCalledTimes(index + 2);
+      }
+      cleanup?.();
+      expect(f.replace).not.toHaveBeenCalled(); expect(f.unregister).not.toHaveBeenCalled();
+      expect(f.cache.delete).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it("starts a distinct build promptly without inheriting the previous build's cooldown", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture({ worker: false }); f.fetch.mockRejectedValue(new Error("download failed"));
+      f.automaticEffect(); await vi.advanceTimersByTimeAsync(250);
+      f.states[2] = "1.0.15 · fixture-next"; f.render();
+      const cleanup = f.automaticEffect(); await vi.advanceTimersByTimeAsync(250);
+      expect(f.fetch).toHaveBeenCalledTimes(2); cleanup?.();
+    } finally { vi.useRealTimers(); }
+  });
+  it.each(["shift", "unknown", "offline"])("rechecks %s safety immediately before the automatic attempt", async stage => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture(); const cleanup = f.automaticEffect();
+      if (stage === "shift") f.safety.active = true;
+      if (stage === "unknown") f.safety.known = false;
+      if (stage === "offline") f.navigator.onLine = false;
+      await vi.advanceTimersByTimeAsync(250);
+      expect(f.serviceWorker.register).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
+      expect(f.postMessage).not.toHaveBeenCalled(); expect(f.replace).not.toHaveBeenCalled();
+      cleanup?.();
+      // No failed attempt was consumed; once safe, the same build can proceed.
+      f.safety.active = false; f.safety.known = true; f.navigator.onLine = true;
+      f.render(); f.automaticEffect(); await vi.advanceTimersByTimeAsync(250);
+      expect(f.postMessage).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
   });
 });

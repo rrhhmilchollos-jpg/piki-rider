@@ -937,6 +937,17 @@ function RiderWorkspace() {
     return () => window.clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onNotificationIntent = (event: MessageEvent) => {
+      if (event.data?.type !== "PIKI_NOTIFICATION_INTENT") return;
+      // Intentionally do not follow the supplied path: shift, order, scanner,
+      // form and mutation state remain untouched, as does the session token.
+      setToast((current) => current || "Aviso de PIKI recibido. Revisa los avisos en la app; tu jornada y la pantalla actual se conservan.");
+    };
+    navigator.serviceWorker.addEventListener("message", onNotificationIntent);
+    return () => navigator.serviceWorker.removeEventListener("message", onNotificationIntent);
+  }, []);
+  useEffect(() => {
     if (!tipNotification) return;
     const timer = window.setTimeout(() => setTipNotification(""), 3000);
     return () => window.clearTimeout(timer);

@@ -214,6 +214,7 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
   const controllerChangedRef = useRef(false);
   const updateInFlightRef = useRef(false);
   const navigationStartedRef = useRef(false);
+  const automaticUpdateRetryRef = useRef({ build: "", attempts: 0, nextAt: 0 });
 
   const canApplyUpdate = useCallback(() => {
     // Read the published state now, not only the state captured at the click.
@@ -374,7 +375,10 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") void check("visible");
     };
-    const onOnline = () => void check("manual");
+    const onOnline = () => {
+      setSafetyEpoch((value) => value + 1);
+      void check("manual");
+    };
     const unsubscribeSafety = subscribePwaOperationSafety((safety) => {
       safetyRef.current = safety;
       setSafetyEpoch((value) => value + 1);
@@ -457,7 +461,20 @@ export function PikiReleaseGate({ children }: { children: ReactNode }) {
     // entregando, cobrando o rellenando un formulario, la activación se
     // aplaza para no interrumpir la operación en curso.
     if (state !== "ready" || !availableBuild || updating || shouldDeferPwaActivation(safetyRef.current)) return;
-    const timer = window.setTimeout(() => void update(), 250);
+    const retry = automaticUpdateRetryRef.current;
+    if (retry.build !== availableBuild) {
+      retry.build = availableBuild;
+      retry.attempts = 0;
+      retry.nextAt = 0;
+    }
+    // Failed updates toggle updating back to false. Do not turn that render
+    // into another download every 250 ms: retry after 1, 2, 4, then 5 minutes.
+    const timer = window.setTimeout(() => {
+      if (!navigator.onLine || updateInFlightRef.current || shouldDeferPwaActivation(getPwaOperationSafety())) return;
+      retry.nextAt = Date.now() + Math.min(5 * 60_000, 60_000 * 2 ** Math.min(retry.attempts, 3));
+      retry.attempts += 1;
+      void update();
+    }, Math.max(250, retry.nextAt - Date.now()));
     return () => window.clearTimeout(timer);
   }, [availableBuild, safetyEpoch, state, update, updating]);
 

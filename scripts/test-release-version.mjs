@@ -34,7 +34,10 @@ test("rejects divergent environment override before writing release metadata", (
   const f = fixture(); try { assert.throws(() => releaseVersion(f.root, { PIKI_RELEASE_VERSION: "1.0.99" }), /debe coincidir/); } finally { f.clean(); }
 });
 
-for (const force of [undefined, "false", "true"]) test(`web release requires explicit force-update opt-in (${String(force)})`, () => {
+const updateOptIns = [undefined, "false", "true"].flatMap((force) =>
+  [undefined, "false", "true"].map((compatibility) => ({ force, compatibility })),
+);
+for (const { force, compatibility } of updateOptIns) test(`web release requires both update opt-ins (${String(force)}, ${String(compatibility)})`, () => {
   const f = fixture();
   try {
     f.put("public/sw.template.js", "const BUILD = '__BUILD_ID__'; const CACHE = '__CACHE_PREFIX__'; const SHELL = __APP_SHELL__;\n");
@@ -44,12 +47,14 @@ for (const force of [undefined, "false", "true"]) test(`web release requires exp
     }
     const env = { PATH: process.env.PATH, HOME: process.env.HOME, GITHUB_SHA: "fixture-web-115", NODE_OPTIONS: process.env.NODE_OPTIONS || "" };
     if (force !== undefined) env.PIKI_FORCE_UPDATE = force;
+    if (compatibility !== undefined) env.PIKI_ENFORCE_COMPATIBILITY_UPDATE = compatibility;
     const result = spawnSync(process.execPath, [path.join(f.root, "scripts/prepare-release.mjs")], { cwd: f.root, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     const release = JSON.parse(fs.readFileSync(path.join(f.root, "public/release.json"), "utf8"));
     assert.equal(release.version, "1.0.15", "must not invent a newer native version");
-    assert.equal(release.forceUpdate, force === "true");
-    assert.equal(release.minimumVersion, force === "true" ? "1.0.15" : "0.0.0");
+    const forced = force === "true" && compatibility === "true";
+    assert.equal(release.forceUpdate, forced);
+    assert.equal(release.minimumVersion, forced ? "1.0.15" : "0.0.0");
     assert.equal(checkReleaseVersion(f.root, { env: {} }), "1.0.15");
   } finally { f.clean(); }
 });
