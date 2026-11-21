@@ -40,7 +40,7 @@ export function mayTrackRiderGps(input: {
 export function validGpsPoint(point: GpsPoint): boolean {
   return Number.isFinite(point.latitude) && Math.abs(point.latitude) <= 90
     && Number.isFinite(point.longitude) && Math.abs(point.longitude) <= 180
-    && Number.isFinite(point.accuracy) && point.accuracy >= 0 && point.accuracy <= 500;
+    && Number.isFinite(point.accuracy) && point.accuracy >= 0 && point.accuracy <= riderOrderGpsMaxAccuracyMeters;
 }
 
 export function gpsDistanceMeters(a: GpsPoint, b: GpsPoint): number {

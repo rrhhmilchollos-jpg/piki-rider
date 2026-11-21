@@ -23,6 +23,8 @@ describe("Rider GPS eligibility", () => {
 
   it("accepts only finite coordinates and API-compatible accuracy", () => {
     expect(validGpsPoint({ latitude: 38.99, longitude: -0.52, accuracy: 20 })).toBe(true);
+    expect(validGpsPoint({ latitude: 38.99, longitude: -0.52, accuracy: 150 })).toBe(true);
+    expect(validGpsPoint({ latitude: 38.99, longitude: -0.52, accuracy: 150.001 })).toBe(false);
     expect(validGpsPoint({ latitude: 91, longitude: 0, accuracy: 0 })).toBe(false);
     expect(validGpsPoint({ latitude: 0, longitude: -181, accuracy: 0 })).toBe(false);
     expect(validGpsPoint({ latitude: 0, longitude: 0, accuracy: Infinity })).toBe(false);
